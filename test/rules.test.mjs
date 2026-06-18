@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope, deriveTier,
-  validateWorkerResult,
+  validateWorkerResult, mergePending,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -106,6 +106,26 @@ test('validateWorkerResult: missing actions is fine (branch-health-only run)', (
   const { result, problems } = validateWorkerResult({ branchHealth: { surfaced: 'x' } });
   assert.deepEqual(result.actions, []);
   assert.equal(problems.length, 0);
+});
+
+test('validateWorkerResult: preserves suggestedReply/suggestedApproach on a surface action', () => {
+  const raw = { actions: [
+    { threadId: 'a', response: 'surface', reason: 'risky',
+      suggestedReply: 'I think the guard is intentional because…',
+      suggestedApproach: 'Extract a helper and add a test' },
+  ] };
+  const { result, problems } = validateWorkerResult(raw);
+  assert.equal(problems.length, 0);
+  assert.equal(result.actions[0].suggestedReply, 'I think the guard is intentional because…');
+  assert.equal(result.actions[0].suggestedApproach, 'Extract a helper and add a test');
+});
+
+test('mergePending: dedupes by threadId, skips errored / id-less threads', () => {
+  const m = new Map();
+  mergePending(m, [{ threadId: 'a', body: 'v1' }, { threadId: 'b' }]);
+  mergePending(m, [{ threadId: 'a', body: 'v2' }, { error: 'scan failed' }, { body: 'no id' }]);
+  assert.deepEqual([...m.keys()], ['a', 'b']);
+  assert.equal(m.get('a').body, 'v2'); // latest wins
 });
 
 const cfg = {

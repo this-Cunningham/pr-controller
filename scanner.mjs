@@ -124,27 +124,38 @@ export async function fetchThreads(repo, num) {
   return { reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, branchHealth, threads };
 }
 
+// Enrich one PR (from listOpenPRs) with threads + branch health. Shared by
+// scanAll() and the dispatcher's per-PR refresh after a worker run.
+export async function scanOne(pr) {
+  let reviewDecision = 'NONE';
+  let headRefName = null;
+  let branchHealth = null;
+  let threads = [];
+  try {
+    const r = await fetchThreads(pr.repo, pr.number);
+    reviewDecision = r.reviewDecision || 'NONE';
+    headRefName = r.headRefName;
+    branchHealth = r.branchHealth;
+    threads = r.threads;
+  } catch (e) {
+    threads = [{ error: String(e).slice(0, 200) }];
+  }
+  return { ...pr, reviewDecision, headRefName, branchHealth, threads };
+}
+
+// Look up a single open in-scope PR by "repo#number" and enrich it. Returns null
+// if it's no longer open / in scope. Used to refresh one PR after a worker run.
+export async function scanOnePr(prKey) {
+  const base = (await listOpenPRs()).find((pr) => `${pr.repo}#${pr.number}` === prKey && inScope(prKey));
+  return base ? scanOne(base) : null;
+}
+
 // Scan everything; returns the full snapshot the dashboard renders from.
 export async function scanAll() {
   // Restrict to the configured scope BEFORE fetching threads — out-of-scope PRs
   // are invisible to the daemon (not scanned, not rendered, never worked).
   const prs = (await listOpenPRs()).filter((pr) => inScope(`${pr.repo}#${pr.number}`));
   const enriched = [];
-  for (const pr of prs) {
-    let reviewDecision = 'NONE';
-    let headRefName = null;
-    let branchHealth = null;
-    let threads = [];
-    try {
-      const r = await fetchThreads(pr.repo, pr.number);
-      reviewDecision = r.reviewDecision || 'NONE';
-      headRefName = r.headRefName;
-      branchHealth = r.branchHealth;
-      threads = r.threads;
-    } catch (e) {
-      threads = [{ error: String(e).slice(0, 200) }];
-    }
-    enriched.push({ ...pr, reviewDecision, headRefName, branchHealth, threads });
-  }
+  for (const pr of prs) enriched.push(await scanOne(pr));
   return enriched;
 }

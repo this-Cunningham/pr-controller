@@ -76,6 +76,17 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
         ? `\n## Familiarize yourself with this PR FIRST\nChanged files (diff too large to inline — read them in the worktree):\n${diff.files.join('\n')}`
         : '';
     head = [rules, diffBlock];
+  } else if (opts.applyApproved) {
+    // Apply-approved resume: the user signed off on an approach you proposed on
+    // the threads below. This is NOT fresh triage — carry out that approach as a
+    // normal fix (pick up your own prior analysis); re-ground on volatile state first.
+    const since = opts.lastSeenSha;
+    head = [
+      'The user APPROVED an approach you previously proposed on the thread(s) below. Carry it out NOW as a normal fix (commit, push, reply `fixed`, resolve) — it is no longer a surface. You already reasoned about these threads; pick up your prior analysis rather than re-deriving it.',
+      since
+        ? `First run \`git diff ${since}..HEAD\` in the worktree to re-ground on what changed since you last worked it, then re-read just the files for these threads as they are NOW.`
+        : `First re-read just the files referenced by these threads, as they are NOW (the branch may have moved).`,
+    ];
   } else {
     // Resume: the session already understands the PR. Send only the delta and
     // re-ground on volatile state — the worktree was just `git pull`ed, and
@@ -95,8 +106,11 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
       + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
       + `\nRebase allowed this run: ${opts.rebaseAllowed ? 'YES (PR is approved)' : 'NO — do NOT rebase (PR not yet approved); only fix CI if related to your changes'}`
     : '';
+  const threadsHeading = opts.applyApproved
+    ? `\n## Approved threads — execute the approach you proposed on each (read each referenced file in the worktree as it is NOW)`
+    : `\n## New/changed unresolved threads (read each referenced file in the worktree as it is NOW)`;
   const threadsBlock = newThreads.length
-    ? `\n## New/changed unresolved threads (read each referenced file in the worktree as it is NOW)\n${JSON.stringify(newThreads, null, 2)}`
+    ? `${threadsHeading}\n${JSON.stringify(newThreads, null, 2)}`
     : `\n## No new review threads this run — you were dispatched for branch health only.`;
   const task = [
     ...head,

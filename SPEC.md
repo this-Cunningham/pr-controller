@@ -51,12 +51,20 @@ Re-dispatch is prevented by the last-author rule, NOT by resolving threads — s
 server restart (which clears the in-memory seen-map) will not re-process handled
 threads.
 
+Dispatch is **out-of-band**: `poll()` no longer awaits the worker. It scans,
+derives every PR's fields from the *existing* worker result, writes `state.json`,
+and hands changed PRs to the dispatcher (below), which runs workers serially per PR
+and refreshes each PR when its worker exits.
+
 ## Worker context model
 - **First run** (new session): full `worker-prompt.md` rules + the PR diff, to build
   durable understanding. Receives all currently-open dispatchable threads.
 - **Resume** (later polls): a short delta preamble + only the NEW threads. Relies on
   session memory for prior context; re-grounds volatile state via `git pull
   --ff-only` and `git diff <lastSeenSha>..HEAD`.
+- **Apply-approved resume** (`opts.applyApproved`): same re-ground, but the preamble
+  says the user approved an approach the worker proposed on the listed threads — carry
+  it out as a fix, don't triage it as new feedback (§Apply-approved).
 - Rules/diff are sent ONCE at session birth, never re-injected. Editing
   `worker-prompt.md` only affects new sessions; existing sessions must be
   invalidated (delete their `sessions.json` entry) to pick up changes.
@@ -68,11 +76,28 @@ For each unresolved reviewer-authored thread, exactly one:
 - **praise** (positive, nothing to change): add a 🎉 `hooray` reaction, no text,
   then resolve.
 - **surface** (disagreement or needs the user's judgment): do nothing to the thread
-  — no reply, no reaction, no resolve. Record why, with code citations.
+  — no reply, no reaction, no resolve. Record why, with code citations. May ALSO
+  carry, to speed the user up:
+  - `suggestedReply` — a code-cited draft reply to the reviewer (the user edits/sends
+    it via the existing rebuttal box; the worker never posts it). Rendered pre-filled.
+  - `suggestedApproach` — a proposed fix + why the worker wants sign-off. The user can
+    **approve** it (staged, not auto-run); see §Apply-approved.
 
 Rules: never post curt text like "ack"/"ok"/"thanks" (react instead); never reply
 `fixed` without an actual pushed fix; resolve every fixed/praised thread; never
 resolve a surfaced thread.
+
+## Apply-approved (staged Apply) [prompt]
+A surfaced thread carrying `suggestedApproach` can be **approved** by the user. The
+dashboard STAGES approvals per PR (a local "cart") — approving does NOT dispatch.
+A per-PR "Run agent (N)" control fires ONE **resumed** worker with all staged threads
+in a single batch. The worker's resume preamble switches to the **apply-approved**
+variant: it's told the user approved the approach it proposed on those threads, and to
+carry it out as a normal `fix` (commit/push/reply `fixed`/resolve) rather than triage
+fresh feedback. Re-grounding (`git pull --ff-only` + `git diff <since>..HEAD`) still
+runs; if the branch can't fast-forward, the dispatcher surfaces `outOfSync` instead of
+launching. Non-worker actions (rebuttal `note`, `set-jira`) stay immediate and
+un-bundled — they have no session/worktree and cannot collide.
 
 ## Judgment — lean toward fixing [prompt]
 Default to agree-and-fix, grounded in the PR diff + current code. Surface only with
@@ -104,6 +129,26 @@ something as a question is not by itself a reason to surface.
   can't fast-forward). Branch checked out clean elsewhere → reuse it. Branch checked
   out DIRTY elsewhere → `--detach` worktree at the branch tip, push `HEAD:<branch>`;
   never stash. Not checked out → fresh worktree on the branch.
+
+## Live status & concurrency
+- **Per-PR serialization (the dispatcher).** All worker dispatch goes through
+  `dispatcher.mjs`, which keeps one in-flight worker per PR. Work arriving while a PR
+  is busy — new poll-found dispatchable threads OR user-approved approaches — lands in
+  that PR's **pending set** and **auto-fires** when the lock frees, draining everything
+  pending into a single batched run (one re-ground + push, never a double-dispatch).
+  This is the coalescing point: poll-found threads and user approvals unify under
+  "whatever is pending when the lock releases runs next." A run that re-surfaces a
+  thread does not re-stage it (only genuinely new threads/approvals enter pending), so
+  the drain loop can't spin. `ensureWorktree`+`runWorker` are serialized as a unit, so
+  two triggers can't race on the same worktree.
+- **The module-level `polling` boolean** still guards whole *scans* (one at a time); it
+  is orthogonal to the per-PR worker lock.
+- **SSE live status (`GET /events`).** A worker launching/exiting pushes the in-flight
+  `prKey` set (`worker-started`/`worker-finished`) so the dashboard shows "agent
+  working…" instantly, not on the 60s client poll. A per-PR refresh pushes
+  `state-updated`, nudging the client to re-fetch `state.json` (the durable snapshot).
+  The 60s poll remains as a fallback. State is in-memory only — the daemon dies on
+  sleep by design, so nothing is persisted.
 
 ## Permissions
 - Workers run headless with `--permission-mode bypassPermissions` (full autonomy,

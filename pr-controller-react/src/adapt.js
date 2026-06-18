@@ -38,6 +38,9 @@ function adaptThread(t, i) {
     author: author ? `@${author}` : '',
     body: t.body || '',
     reason: t.reason || '',
+    // Worker-drafted helpers on surfaced threads (Phase 1 / Phase 2).
+    suggestedReply: t.suggestedReply || '',
+    suggestedApproach: t.suggestedApproach || '',
   };
 }
 

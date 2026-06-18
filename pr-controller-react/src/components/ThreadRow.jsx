@@ -40,9 +40,13 @@ function TerminalNote({ children }) {
 }
 
 // hash-out: rebuttal textarea + Discuss / Send; resolves to a sent-rebuttal block.
-function HashOutControls({ thread, dash }) {
-  const [text, setText] = useState('');
+// The textarea is pre-filled with the worker's suggested reply (Phase 1) when it
+// drafted one; the user edits or sends as-is.
+function HashOutControls({ thread, prId, dash }) {
+  const [text, setText] = useState(thread.suggestedReply || '');
   const status = dash.threadStatus(thread.id);
+  const staged = dash.isStaged ? dash.isStaged(prId, thread.id) : false;
+  const dispatched = dash.isDispatched ? dash.isDispatched(prId, thread.id) : false;
 
   if (status === 'rebutted') {
     return (
@@ -70,6 +74,43 @@ function HashOutControls({ thread, dash }) {
     <>
       {status === 'discussing' && (
         <TerminalNote>Terminal session opened — continue the discussion there.</TerminalNote>
+      )}
+
+      {thread.suggestedApproach && (
+        <div
+          style={{
+            marginTop: 11,
+            background: 'var(--auto-bg)',
+            borderLeft: '2px solid var(--auto-fg)',
+            padding: '9px 12px',
+            borderRadius: '0 5px 5px 0',
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--ink-2)',
+          }}
+        >
+          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Suggested approach
+          </span>
+          <div style={{ marginTop: 5 }}>{thread.suggestedApproach}</div>
+          <div style={{ marginTop: 9 }}>
+            {dispatched ? (
+              <span style={{ fontSize: 12.5, color: 'var(--auto-fg)' }}>⟳ The agent is applying this approach…</span>
+            ) : staged ? (
+              <span style={{ fontSize: 12.5, color: 'var(--auto-fg)' }}>✓ Approved — staged for the next agent run.</span>
+            ) : (
+              <Button variant="primary" onClick={() => dash.stageApproach(prId, thread.id)}>
+                Approve approach
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {thread.suggestedReply && (
+        <div style={{ marginTop: 9, fontSize: 12, color: 'var(--ink-3)', fontStyle: 'italic' }}>
+          ↓ The agent drafted this reply — edit or send as-is.
+        </div>
       )}
       <textarea
         className="input"
@@ -116,10 +157,12 @@ function AgreeControls() {
 }
 
 // pending: the worker hasn't reviewed this thread yet — it's queued, no CTA.
-function PendingControls() {
+// Two distinct states: "agent working…" (a worker is running now for this PR)
+// vs "no feedback yet" (none queued/running).
+function PendingControls({ working }) {
   return (
     <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
-      The agent hasn’t reviewed this thread yet.
+      {working ? 'The agent is reviewing this thread now…' : 'The agent hasn’t reviewed this thread yet.'}
     </div>
   );
 }
@@ -142,7 +185,8 @@ function ErrorControls({ thread, dash }) {
   );
 }
 
-export default function ThreadRow({ thread, dash }) {
+export default function ThreadRow({ thread, prId, dash }) {
+  const working = dash.prWorking ? dash.prWorking(prId) : false;
   const meta = tagMeta[thread.tag];
   const [expanded, setExpanded] = useState(false);
   // Long bodies clamp to a few lines and expand on demand; short ones fit fully.
@@ -217,9 +261,9 @@ export default function ThreadRow({ thread, dash }) {
         <span>{thread.reason}</span>
       </div>
 
-      {thread.tag === 'hashout' && <HashOutControls thread={thread} dash={dash} />}
+      {thread.tag === 'hashout' && <HashOutControls thread={thread} prId={prId} dash={dash} />}
       {thread.tag === 'agree' && <AgreeControls />}
-      {thread.tag === 'pending' && <PendingControls />}
+      {thread.tag === 'pending' && <PendingControls working={working} />}
       {thread.tag === 'error' && <ErrorControls thread={thread} dash={dash} />}
       {(thread.tag === 'waiting' || thread.tag === 'praise') && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>

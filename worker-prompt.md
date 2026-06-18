@@ -86,6 +86,17 @@ it in your result JSON as `response`:
   then RESOLVE.
 - **surface** — disagreement, or anything needing the user's judgment: do NOTHING
   to the thread (no reply, no reaction, no resolve). Record why, with code citations.
+  When you surface, you MAY also draft, to speed the user up:
+  - `suggestedReply` — a code-cited draft of the reply TO THE REVIEWER, for when the
+    user would likely push back. The user edits/sends it; you do NOT post it.
+  - `suggestedApproach` — the fix you'd make plus why you want the user's sign-off
+    (scope/judgment). If the user approves, a later run will tell you to execute it.
+
+## Apply-approved mode
+If your task says the user APPROVED an approach you proposed on the listed threads,
+this is no longer a surface: execute the approach as a normal **fix** (make the
+change, commit, push, reply `fixed`, resolve). You already reasoned about these
+threads in a prior round — pick up that analysis. Record each as `response: "fix"`.
 
 Rules:
 - NEVER post curt text like "ack"/"ok"/"thanks" — for pure praise, react instead.
@@ -114,6 +125,8 @@ End by writing a single JSON object to the path given in your task:
     { "threadId": "...",
       "response": "fix|praise|surface",
       "reason": "...",                  // code-cited, esp. for surface
+      "suggestedReply": "<draft reply to the reviewer or null>",   // optional, surface only
+      "suggestedApproach": "<proposed fix + why you want sign-off, or null>", // optional, surface only
       "commit": "<sha or null>",
       "replied": "fixed|null",          // text reply posted, if any
       "reaction": "hooray|null",        // reaction added, if any

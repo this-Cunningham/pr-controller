@@ -77,6 +77,19 @@ export function deriveTier(thread, action, login = config.login) {
   return { tier: 'pending', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
 }
 
+// Merge incoming threads into a pending Map keyed by threadId, in place. Used by
+// the dispatcher's pending set so back-to-back enqueues for one PR coalesce into a
+// single batch (the same threadId arriving twice doesn't duplicate the work).
+// Returns the same Map for convenience. Skips threads without a threadId (e.g.
+// scan-error stubs) and any explicitly errored thread.
+export function mergePending(pendingMap, incoming) {
+  for (const t of incoming || []) {
+    if (!t || !t.threadId || t.error) continue;
+    pendingMap.set(t.threadId, t);
+  }
+  return pendingMap;
+}
+
 // Split failing checks into: code CI (worker fixes), compliance (needs your input,
 // e.g. a JIRA ticket), and ignored (policy/bot — dropped). Returns the first two.
 export function categorizeChecks(failing, cfg = config) {

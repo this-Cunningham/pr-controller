@@ -24,10 +24,12 @@ async function postThreadReply(threadId, body) {
   await exec('gh', ['api', 'graphql', '-f', `query=${REPLY_MUTATION}`,
     '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
 }
-import { scanAll } from './scanner.mjs';
+import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { dispatchable, needsJira, rebaseAllowed, deriveTier } from './rules.mjs';
+import * as events from './events.mjs';
+import * as dispatcher from './dispatcher.mjs';
 
 const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
@@ -50,6 +52,72 @@ let polling = false;
 const TIER_RANK = { 'hash-out': 0, error: 1, 'agree-fix': 2, pending: 3, 'waiting-reviewer': 4 };
 
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
+const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
+
+// Read back the last worker run's verdict for this PR and derive every dashboard
+// field from it: per-thread tiers, the surfaced branch-health reason, and the
+// PR-level needsYou/autoFixable/pending/priority. Mutates `pr` in place. Shared
+// by poll() and refreshOnePR() so a freshly-polled PR and one refreshed right
+// after a worker run go through identical derivation. Also carries the worker's
+// suggestedReply/suggestedApproach onto each thread for the UI.
+async function deriveAndSetPrFields(pr) {
+  const h = pr.branchHealth || {};
+  pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
+  pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
+  // Compliance failing + no JIRA key in title => surface an input box for the ticket.
+  pr.needsJira = needsJira(pr.title, h.complianceChecks);
+
+  // Derive each thread's tier from the WORKER's verdict (its code-grounded
+  // response), not a keyword heuristic. The worker resolves threads it
+  // fixed/praised, so those are already gone from the scan; what's left is
+  // either surfaced (hash-out, needs you), waiting on the reviewer, or not
+  // yet judged (pending — "No feedback yet"). Match worker actions by threadId.
+  const result = await readWorkerResult(outPathFor(pr));
+  const actions = new Map((result?.actions || []).map((a) => [a.threadId, a]));
+  pr.threads = pr.threads.map((t) => {
+    const a = actions.get(t.threadId);
+    return { ...t, ...deriveTier(t, a), suggestedReply: a?.suggestedReply, suggestedApproach: a?.suggestedApproach };
+  });
+
+  // A surfaced branch-health reason (e.g. a rebase the worker wasn't allowed to
+  // do until approval) is the reviewer's move next, not yours — carry it for
+  // context but don't escalate (see adapt.js bucketing).
+  const surfaced = result?.branchHealth?.surfaced;
+  if (surfaced) pr.workerSurfaced = surfaced;
+
+  // PR-level fields derived from the per-thread tiers + branch state.
+  pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync;
+  pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
+  pr.pending = pr.threads.filter((t) => t.tier === 'pending').length;
+  pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
+}
+
+async function writeState(prs) {
+  prs.sort((a, b) => a.priority - b.priority || (b.needsYou - a.needsYou));
+  state = { updatedAt: new Date().toISOString(), scope: config.onlyPRs || [], prs };
+  await mkdir(DATA, { recursive: true });
+  await writeFile(STATE, JSON.stringify(state, null, 2));
+}
+
+// Re-scan ONE PR after its worker finished, re-derive its fields, patch it into
+// the live state, persist, and nudge clients to re-fetch. Called by the
+// dispatcher on every worker exit (the worker may have resolved/replied/pushed).
+async function refreshOnePR(prKey) {
+  const pr = await scanOnePr(prKey);
+  if (!pr) {  // no longer open / in scope — drop it from state
+    const prs = state.prs.filter((p) => `${p.repo}#${p.number}` !== prKey);
+    if (prs.length !== state.prs.length) { await writeState(prs); events.notifyStateUpdated(); }
+    return;
+  }
+  await deriveAndSetPrFields(pr);
+  const prs = state.prs.filter((p) => `${p.repo}#${p.number}` !== prKey);
+  prs.push(pr);
+  await writeState(prs);
+  events.notifyStateUpdated();
+}
+
+// Wire the dispatcher's injected dependencies once at module load.
+dispatcher.init({ events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor });
 
 async function poll() {
   if (polling) { console.log('[poll] already running, skipped'); return; }
@@ -57,17 +125,13 @@ async function poll() {
   try {
     const prs = await scanAll();
     for (const pr of prs) {
-      // Branch-health flags (separate trigger from review threads).
-      const h = pr.branchHealth || {};
-      pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
-      pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
-
-      // Compliance failing + no JIRA key in title => surface an input box for the ticket.
-      pr.needsJira = needsJira(pr.title, h.complianceChecks);
+      // Derive fields from the EXISTING worker result (the new dispatch below
+      // runs out-of-band and refreshes this PR when it finishes).
+      await deriveAndSetPrFields(pr);
 
       // Diff vs last poll: new threads, and whether branch health changed.
       const prKey = `${pr.repo}#${pr.number}`;
-      const outPath = join(DATA, `worker-${pr.repo}-${pr.number}.json`);
+      const h = pr.branchHealth || {};
       const prev = seen.get(prKey) || { threads: new Set(), health: '' };
       const newThreads = pr.threads.filter((t) => !t.error && !prev.threads.has(fp(t)) && dispatchable(t));
       const healthSig = `${h.mergeable}|${h.mergeState}|${h.checkState}|${(h.failingChecks||[]).map(c=>c.name+c.state).join(',')}`;
@@ -75,52 +139,13 @@ async function poll() {
       seen.set(prKey, { threads: new Set(pr.threads.filter((t) => !t.error).map(fp)), health: healthSig });
 
       // Dispatch when feedback changed OR the branch needs work (behind/conflicted/CI).
-      // The worker attempts the rebase/CI fix and surfaces if it's too hairy.
+      // The dispatcher serializes per PR and the worker surfaces if it's too hairy.
       const healthWork = pr.behindBase || pr.ciFailing;
       if (newThreads.length || (healthChanged && healthWork)) {
-        const wt = await ensureWorktree(pr);
-        if (wt.outOfSync) {
-          pr.outOfSync = true;  // escalates to needsYou when PR-level fields are computed below
-          console.log(`[dispatch] ${prKey}: branch out of sync, surfacing instead of launching`);
-        } else {
-          const r = await runWorker(pr, newThreads, wt.path, outPath,
-            { detached: wt.detached, pushRefspec: wt.pushRefspec, branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
-          console.log(`[dispatch] ${prKey}: ${newThreads.length} thread(s)${healthWork?' +health':''} ->`, r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason, wt.plan || '');
-          // Surface what the headless worker actually did: its stdout tail, and
-          // whether it wrote the result JSON it was told to. A missing file after
-          // a "spawned" run = the worker errored/no-op'd (e.g. phantom --resume).
-          if (r.spawned) {
-            if (r.tail) console.log(`[worker ${prKey}] tail:`, r.tail.trim());
-            if (!existsSync(outPath)) console.warn(`[worker ${prKey}] WARN: no result JSON at ${outPath} — worker took no action (errored or empty run)`);
-          }
-        }
+        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
       }
-
-      // Derive each thread's tier from the WORKER's verdict (its code-grounded
-      // response), not a keyword heuristic. The worker resolves threads it
-      // fixed/praised, so those are already gone from the scan; what's left is
-      // either surfaced (hash-out, needs you), waiting on the reviewer, or not
-      // yet judged (pending — "No feedback yet"). Match worker actions by threadId.
-      const result = await readWorkerResult(outPath);
-      const actions = new Map((result?.actions || []).map((a) => [a.threadId, a]));
-      pr.threads = pr.threads.map((t) => ({ ...t, ...deriveTier(t, actions.get(t.threadId)) }));
-
-      // A surfaced branch-health reason (e.g. a rebase the worker wasn't allowed
-      // to do until approval) is the reviewer's move next, not yours — carry it
-      // for context but don't escalate (see adapt.js bucketing).
-      const surfaced = result?.branchHealth?.surfaced;
-      if (surfaced) pr.workerSurfaced = surfaced;
-
-      // PR-level fields derived from the per-thread tiers + branch state.
-      pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync;
-      pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
-      pr.pending = pr.threads.filter((t) => t.tier === 'pending').length;
-      pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
     }
-    prs.sort((a, b) => a.priority - b.priority || (b.needsYou - a.needsYou));
-    state = { updatedAt: new Date().toISOString(), scope: config.onlyPRs || [], prs };
-    await mkdir(DATA, { recursive: true });
-    await writeFile(STATE, JSON.stringify(state, null, 2));
+    await writeState(prs);
     console.log(`[poll] ${prs.length} PRs, ${prs.filter(p=>p.needsYou).length} need you`);
   } catch (e) {
     console.error('[poll] failed:', e.message);
@@ -160,6 +185,18 @@ const server = createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/state.json') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(state));
+    return;
+  }
+  // Live status channel. Pushes worker-started/worker-finished (the in-flight
+  // prKey set) and a state-updated nudge so the UI reflects worker activity
+  // instantly instead of on the 60s client poll. state.json stays the snapshot.
+  if (req.method === 'GET' && url.pathname === '/events') {
+    res.writeHead(200, {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      connection: 'keep-alive',
+    });
+    events.addSubscriber(req, res);
     return;
   }
   // TEMP (debug): kick off a poll on demand instead of waiting the 30-min timer.
@@ -202,6 +239,21 @@ const server = createServer(async (req, res) => {
         const valid = new RegExp(`^${config.jiraPattern}$`).test(ticket);
         if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
         else { await setPrJira(pr, ticket); spawn = { spawned: true, action: 'title updated' }; }
+      }
+      // Phase 2: the user approved one or more proposed approaches. Stage them
+      // into the dispatcher's pending set for this PR; it fires ONE resumed
+      // worker (or queues for the next free slot if a worker is already running
+      // for this PR — the coalescing lock guarantees no double-dispatch).
+      if (payload.action === 'run-agent') {
+        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
+        const threadIds = Array.isArray(payload.threadIds) ? payload.threadIds : [];
+        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
+        else if (!threadIds.length) spawn = { spawned: false, reason: 'no approved threads' };
+        else {
+          const queued = dispatcher.isWorking(payload.prKey);
+          dispatcher.enqueueApproved(pr, threadIds, { branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
+          spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent dispatched' };
+        }
       }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, scope: config.onlyPRs || [], spawn }));

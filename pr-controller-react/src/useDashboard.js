@@ -47,6 +47,15 @@ export function useDashboard(seed = null) {
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
   const [jira, setJira] = useState(seed?.jira || {});
+  // prKeys with a worker running right now (from the SSE in-flight set).
+  const [workingPRs, setWorkingPRs] = useState(() => new Set(seed?.workingPRs || []));
+  // prId -> Set<threadId> the user has approved but not yet dispatched ("cart").
+  const [staged, setStaged] = useState({});
+  // prId -> threadId[] that were sent to the agent and are being applied right
+  // now. Distinct from `staged`: once "Run agent" fires, a thread leaves the cart
+  // but must NOT fall back to showing "Approve" — it's in flight. Cleared when the
+  // PR's worker finishes (the refreshed state then reflects the real outcome).
+  const [dispatched, setDispatched] = useState({});
 
   // thread id -> prKey, rebuilt on every fetch so actions can address the backend.
   const threadToPr = useRef(new Map());
@@ -80,7 +89,7 @@ export function useDashboard(seed = null) {
     }
   }, [seeded, applyState, showToast]);
 
-  // initial load + poll
+  // initial load + poll + live status (SSE)
   useEffect(() => {
     if (seeded) return undefined;
     let alive = true;
@@ -88,10 +97,36 @@ export function useDashboard(seed = null) {
       await fetchState();
       if (alive) setLoading(false);
     })();
+    // 60s poll stays as a fallback when the SSE stream is unavailable.
     const id = setInterval(fetchState, POLL_MS);
+
+    // Live channel: worker-started/finished carry the in-flight prKey set so the
+    // "agent working…" badge appears the instant a worker launches; state-updated
+    // nudges a fresh /state.json fetch after a per-PR refresh.
+    let es;
+    try {
+      es = new EventSource('/events');
+      const onInflight = (e) => {
+        try { setWorkingPRs(new Set(JSON.parse(e.data).inflight || [])); } catch {}
+      };
+      es.addEventListener('hello', onInflight);
+      es.addEventListener('worker-started', onInflight);
+      es.addEventListener('worker-finished', (e) => {
+        onInflight(e);
+        // The worker for this PR finished applying — clear its in-flight approvals
+        // so the (now refreshed) thread state drives the UI, not the stale marker.
+        try {
+          const { prKey } = JSON.parse(e.data);
+          if (prKey) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
+        } catch {}
+      });
+      es.addEventListener('state-updated', () => fetchState());
+    } catch {}
+
     return () => {
       alive = false;
       clearInterval(id);
+      if (es) es.close();
     };
   }, [seeded, fetchState]);
 
@@ -104,6 +139,43 @@ export function useDashboard(seed = null) {
   const threadStatus = useCallback((id) => threads[id]?.status || 'pending', [threads]);
   const threadRebuttal = useCallback((id) => threads[id]?.rebuttal || '', [threads]);
   const jiraState = useCallback((id) => jira[id] || null, [jira]);
+  const prWorking = useCallback((prId) => workingPRs.has(prId), [workingPRs]);
+  const stagedFor = useCallback((prId) => staged[prId] || [], [staged]);
+  const isStaged = useCallback((prId, threadId) => (staged[prId] || []).includes(threadId), [staged]);
+  // A thread is "dispatched" once Run agent sends it and until the worker finishes.
+  const isDispatched = useCallback(
+    (prId, threadId) => (dispatched[prId] || []).includes(threadId),
+    [dispatched]
+  );
+
+  // Phase 2: approving an approach STAGES it locally (a per-PR cart) — it does
+  // NOT dispatch. "Run agent (N)" below sends the whole cart in one resumed worker.
+  const stageApproach = useCallback((prId, threadId) => {
+    setStaged((prev) => {
+      const cur = prev[prId] || [];
+      if (cur.includes(threadId)) return prev;
+      return { ...prev, [prId]: [...cur, threadId] };
+    });
+  }, []);
+
+  const runAgent = useCallback(
+    async (prId) => {
+      const threadIds = staged[prId] || [];
+      if (!threadIds.length) return;
+      showToast('Dispatching the agent…');
+      const res = await postDecision({ action: 'run-agent', prKey: prId, threadIds });
+      if (res?.spawn?.spawned) {
+        // Move from cart -> in-flight: empties the "Run agent (N)" cart but keeps
+        // these threads marked as applying (so they don't revert to "Approve").
+        setStaged((prev) => { const n = { ...prev }; delete n[prId]; return n; });
+        setDispatched((prev) => ({ ...prev, [prId]: [...(prev[prId] || []), ...threadIds] }));
+        showToast(res.spawn.queued ? 'Agent busy — queued for the next run' : 'Agent dispatched');
+      } else {
+        showToast(res?.spawn?.reason || 'Could not dispatch the agent');
+      }
+    },
+    [staged, showToast]
+  );
 
   const discuss = useCallback(
     async (id) => {
@@ -211,6 +283,12 @@ export function useDashboard(seed = null) {
     threadStatus,
     threadRebuttal,
     jiraState,
+    prWorking,
+    stagedFor,
+    isStaged,
+    isDispatched,
+    stageApproach,
+    runAgent,
     discuss,
     sendRebuttal,
     setTicket,
