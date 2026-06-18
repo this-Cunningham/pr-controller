@@ -1,0 +1,42 @@
+<!-- @dsCard group="Components" viewport="700x230" subtitle="Button · Badge · DispositionTag" name="Core" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      body { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+      .row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+      .eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); width: 92px; }
+      .btn { cursor: default; font: 500 13px var(--font-sans); padding: 8px 14px; border-radius: var(--radius-card); }
+      .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-chip); }
+      .pillmono { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: var(--radius-chip); }
+      .tag { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-chip); }
+      .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="eyebrow">Button</span>
+      <span class="btn" style="background:var(--ink);color:var(--bg);border:1px solid var(--ink)">Approve fix</span>
+      <span class="btn" style="background:transparent;color:var(--ink);border:1px solid var(--line-2)">Send rebuttal</span>
+      <span class="btn" style="background:transparent;color:var(--ink-2);border:1px solid transparent">Skip</span>
+    </div>
+    <div class="row">
+      <span class="eyebrow">Badge</span>
+      <span class="pillmono" style="background:var(--auto-bg);color:var(--auto-fg)">Approved</span>
+      <span class="pillmono" style="background:var(--surface-2);color:var(--ink-2)">Review required</span>
+      <span class="pillmono" style="background:transparent;color:var(--ink-3);border:1px solid var(--line-2)">Draft</span>
+      <span class="badge" style="background:var(--surface-2);color:var(--ink-2)"><span class="dot"></span>3 auto-fixable</span>
+      <span class="badge" style="background:var(--accent-bg);color:var(--accent)">CI failing: unit-api</span>
+    </div>
+    <div class="row">
+      <span class="eyebrow">Tag</span>
+      <span class="tag" style="background:var(--accent-bg);color:var(--accent)">disagree · hash out</span>
+      <span class="tag" style="background:var(--auto-bg);color:var(--auto-fg)">agree · auto-fix</span>
+      <span class="tag" style="background:var(--surface-2);color:var(--ink-2)">waiting on reviewer</span>
+      <span class="tag" style="background:var(--praise-bg);color:var(--praise-fg)">praise</span>
+      <span class="tag" style="background:var(--err-bg);color:var(--err-fg)">agent error</span>
+    </div>
+  </body>
+</html>

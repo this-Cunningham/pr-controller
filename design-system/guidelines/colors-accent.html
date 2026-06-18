@@ -1,0 +1,27 @@
+<!-- @dsCard group="Colors" viewport="700x190" subtitle="The persimmon seal — reserved for urgency only" name="Accent / seal" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      body { padding: 24px; }
+      .row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+      .sw { display: flex; flex-direction: column; gap: 8px; }
+      .chip { width: 120px; height: 56px; border-radius: var(--radius-card); border: 1px solid var(--line); }
+      .lab { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); line-height: 1.5; }
+      .lab b { color: var(--ink); font-weight: 500; display: block; }
+      .seal { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); margin-left: 10px; }
+      .rule { width: 3px; height: 56px; background: var(--accent); border-radius: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <div class="rule" title="3px seal rule on urgent cards"></div>
+      <div class="sw"><div class="chip" style="background:var(--accent)"></div><div class="lab"><b>--accent</b>#C97A5F</div></div>
+      <div class="sw"><div class="chip" style="background:var(--accent-bg)"></div><div class="lab"><b>--accent-bg</b>#38302B</div></div>
+      <div class="sw"><div class="chip" style="background:var(--accent-soft)"></div><div class="lab"><b>--accent-soft</b>#2A2622</div></div>
+      <div class="seal" title="seal dot"></div>
+    </div>
+  </body>
+</html>
