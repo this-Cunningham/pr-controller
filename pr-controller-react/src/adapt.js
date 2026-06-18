@@ -21,15 +21,18 @@ const TIER_TO_TAG = {
   error: 'error',
 };
 
-function adaptThread(t) {
+function adaptThread(t, i) {
   if (t.error) {
-    return { id: 'err', tag: 'error', loc: '', author: '', body: String(t.error), reason: 'Scan error.' };
+    return { id: `err-${i}`, tag: 'error', loc: '', author: '', body: String(t.error), reason: 'Scan error.' };
   }
+  // lastAuthor (who replied last) differs from author (who opened the thread)
+  // once the conversation has moved; show it so a replied-to thread doesn't look stale.
+  const author = t.lastAuthor && t.lastAuthor !== t.author ? t.lastAuthor : t.author;
   return {
     id: t.threadId,
     tag: TIER_TO_TAG[t.tier] || 'waiting',
     loc: `${t.path || ''}${t.line != null ? ':' + t.line : ''}`,
-    author: t.author ? `@${t.author}` : '',
+    author: author ? `@${author}` : '',
     body: t.body || '',
     reason: t.reason || '',
   };

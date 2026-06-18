@@ -61,11 +61,7 @@ function HashOutControls({ thread, dash }) {
         >
           You: {dash.threadRebuttal(thread.id)}
         </div>
-        <Confirmation
-          text="✓ Rebuttal sent to the reviewer."
-          fg="var(--auto-fg)"
-          onUndo={() => dash.undo(thread.id)}
-        />
+        <Confirmation text="✓ Rebuttal posted to the reviewer." fg="var(--auto-fg)" />
       </>
     );
   }
@@ -110,36 +106,12 @@ function HashOutControls({ thread, dash }) {
   );
 }
 
-// agree-fix: Approve / Skip; resolves to a confirmation with Undo.
-function AgreeControls({ thread, dash }) {
-  const status = dash.threadStatus(thread.id);
-
-  if (status === 'approved') {
-    return (
-      <Confirmation
-        text="✓ Fix approved — applied by the agent."
-        fg="var(--auto-fg)"
-        onUndo={() => dash.undo(thread.id)}
-      />
-    );
-  }
-  if (status === 'skipped') {
-    return <Confirmation text="Skipped — left for you." onUndo={() => dash.undo(thread.id)} />;
-  }
+// agree-fix: auto-handled by the backend poller — informational only, no CTAs.
+function AgreeControls() {
   return (
-    <>
-      <div style={{ marginTop: 11, fontSize: 12.5, color: 'var(--ink-2)' }}>
-        The agent will apply this fix.
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
-        <Button variant="primary" onClick={() => dash.approve(thread.id)}>
-          Approve fix
-        </Button>
-        <Button variant="ghost" onClick={() => dash.skip(thread.id)}>
-          Skip
-        </Button>
-      </div>
-    </>
+    <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
+      The agent is auto-handling this fix.
+    </div>
   );
 }
 
@@ -237,7 +209,7 @@ export default function ThreadRow({ thread, dash }) {
       </div>
 
       {thread.tag === 'hashout' && <HashOutControls thread={thread} dash={dash} />}
-      {thread.tag === 'agree' && <AgreeControls thread={thread} dash={dash} />}
+      {thread.tag === 'agree' && <AgreeControls />}
       {thread.tag === 'error' && <ErrorControls thread={thread} dash={dash} />}
       {(thread.tag === 'waiting' || thread.tag === 'praise') && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>

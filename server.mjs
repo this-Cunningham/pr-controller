@@ -12,6 +12,18 @@ async function setPrJira(pr, ticket) {
   const newTitle = `[${ticket}] ${pr.title}`;
   await exec('gh', ['pr', 'edit', String(pr.number), '--repo', pr.nameWithOwner, '--title', newTitle], { env: ghEnv });
 }
+
+// Post the user's rebuttal as a reply on a specific review thread (threadId is
+// the GraphQL node id from the scanner).
+const REPLY_MUTATION = `mutation($threadId:ID!, $body:String!) {
+  addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$threadId, body:$body}) {
+    comment { id }
+  }
+}`;
+async function postThreadReply(threadId, body) {
+  await exec('gh', ['api', 'graphql', '-f', `query=${REPLY_MUTATION}`,
+    '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
+}
 import { scanAll } from './scanner.mjs';
 import { preClassify, spawnDiscussTerminal, runWorker } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
@@ -133,7 +145,20 @@ const server = createServer(async (req, res) => {
       if (payload.action === 'discuss') {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
         const thread = pr?.threads.find((t) => t.threadId === payload.threadId);
-        if (pr && thread) spawn = spawnDiscussTerminal(pr, thread, '(worktree-stub)');
+        if (!pr || !thread) spawn = { spawned: false, reason: 'PR or thread not found' };
+        else {
+          const wt = await ensureWorktree(pr);
+          spawn = spawnDiscussTerminal(pr, thread, wt.path);
+        }
+      }
+      if (payload.action === 'note') {
+        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
+        const thread = pr?.threads.find((t) => t.threadId === payload.threadId);
+        const body = (payload.note || '').trim();
+        if (!pr || !thread) spawn = { spawned: false, reason: 'PR or thread not found' };
+        else if (!body) spawn = { spawned: false, reason: 'empty rebuttal' };
+        else if (config.SAFE_MODE) spawn = { spawned: false, reason: 'SAFE_MODE: would post reply to reviewer' };
+        else { await postThreadReply(thread.threadId, body); spawn = { spawned: true, action: 'reply posted' }; }
       }
       if (payload.action === 'set-jira') {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);

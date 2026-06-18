@@ -44,7 +44,9 @@ export default function PRCard({ pr, needsYou, dash }) {
         <div style={{ minWidth: 0 }}>
           <a
             className="pr-link"
-            href="#"
+            href={pr.url}
+            target="_blank"
+            rel="noreferrer"
             style={{
               display: 'inline-block',
               fontFamily: mono,

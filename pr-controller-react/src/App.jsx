@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useDashboard } from './useDashboard.js';
 import { sectionCaption, emptyLabel } from './data.js';
 import GrainOverlay from './components/GrainOverlay.jsx';
@@ -8,63 +7,6 @@ import PRCard from './components/PRCard.jsx';
 import Skeleton from './components/Skeleton.jsx';
 import EmptyState from './components/EmptyState.jsx';
 import Toast from './components/Toast.jsx';
-import ComponentsGallery from './components/ComponentsGallery.jsx';
-
-function ViewSwitcher({ view, setView }) {
-  const seg = (key, label) => {
-    const active = view === key;
-    return active ? (
-      <span
-        key={key}
-        style={{
-          padding: '6px 15px',
-          font: "500 13px 'Hanken Grotesk', sans-serif",
-          background: 'var(--surface)',
-          color: 'var(--ink)',
-          borderRadius: 6,
-          boxShadow: '0 1px 2px rgba(0,0,0,.05)',
-        }}
-      >
-        {label}
-      </span>
-    ) : (
-      <button
-        key={key}
-        type="button"
-        className="switch-btn"
-        onClick={() => setView(key)}
-        style={{
-          padding: '6px 15px',
-          font: "500 13px 'Hanken Grotesk', sans-serif",
-          background: 'none',
-          border: 'none',
-          color: 'var(--ink-2)',
-          borderRadius: 6,
-          cursor: 'pointer',
-        }}
-      >
-        {label}
-      </button>
-    );
-  };
-  return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 22 }}>
-      <div
-        style={{
-          display: 'inline-flex',
-          background: 'var(--surface-2)',
-          border: '1px solid var(--line)',
-          borderRadius: 8,
-          padding: 3,
-          gap: 3,
-        }}
-      >
-        {seg('dashboard', 'Dashboard')}
-        {seg('components', 'Components')}
-      </div>
-    </div>
-  );
-}
 
 function Dashboard({ dash }) {
   const sections = dash.sections;
@@ -105,7 +47,6 @@ function Dashboard({ dash }) {
 }
 
 export default function App() {
-  const [view, setView] = useState('dashboard');
   const dash = useDashboard();
 
   return (
@@ -120,8 +61,7 @@ export default function App() {
           padding: '34px 28px 120px',
         }}
       >
-        <ViewSwitcher view={view} setView={setView} />
-        {view === 'dashboard' ? <Dashboard dash={dash} /> : <ComponentsGallery />}
+        <Dashboard dash={dash} />
       </div>
       <Toast message={dash.toastMsg} />
     </div>

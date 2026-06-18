@@ -10,7 +10,9 @@ import { adaptState } from './adapt.js';
 //    skipLoading — no network, used by the Components gallery.
 //
 // Thread overlay state keyed by thread id:
-//   { status: 'pending'|'approved'|'skipped'|'discussing'|'rebutted', rebuttal? }
+//   { status: 'pending'|'discussing'|'rebutted', rebuttal? }
+// agree-fix threads are auto-handled by the backend poller; the UI only drives the
+// human-intervention threads (hash-out -> discuss/rebut, error -> discuss).
 // JIRA state keyed by PR id: { status: 'set', value }
 
 const POLL_MS = 60000;
@@ -101,34 +103,22 @@ export function useDashboard(seed = null) {
   const threadRebuttal = useCallback((id) => threads[id]?.rebuttal || '', [threads]);
   const jiraState = useCallback((id) => jira[id] || null, [jira]);
 
-  const approve = useCallback(
-    (id) => {
-      setThread(id, { status: 'approved' });
-      postDecision({ action: 'approve-fix', prKey: threadToPr.current.get(id), threadId: id });
-      showToast('Fix approved — applied by the agent');
-    },
-    [setThread, showToast]
-  );
-
-  const skip = useCallback(
-    (id) => {
-      setThread(id, { status: 'skipped' });
-      postDecision({ action: 'skip', prKey: threadToPr.current.get(id), threadId: id });
-      showToast('Skipped — left for you');
-    },
-    [setThread, showToast]
-  );
-
   const discuss = useCallback(
-    (id) => {
-      setThread(id, { status: 'discussing' });
-      postDecision({ action: 'discuss', prKey: threadToPr.current.get(id), threadId: id });
+    async (id) => {
       showToast('Opening a terminal session…');
+      const res = await postDecision({
+        action: 'discuss',
+        prKey: threadToPr.current.get(id),
+        threadId: id,
+      });
+      if (res?.spawn?.spawned) {
+        setThread(id, { status: 'discussing' });
+      } else {
+        showToast(res?.spawn?.reason || 'Could not open a terminal session');
+      }
     },
     [setThread, showToast]
   );
-
-  const undo = useCallback((id) => setThread(id, { status: 'pending', rebuttal: '' }), [setThread]);
 
   const sendRebuttal = useCallback(
     (id, text) => {
@@ -138,8 +128,14 @@ export function useDashboard(seed = null) {
         return false;
       }
       setThread(id, { status: 'rebutted', rebuttal: v });
-      postDecision({ action: 'note', prKey: threadToPr.current.get(id), threadId: id, note: v });
-      showToast('Rebuttal sent to the reviewer');
+      showToast('Posting your rebuttal…');
+      postDecision({ action: 'note', prKey: threadToPr.current.get(id), threadId: id, note: v }).then((res) => {
+        if (res?.spawn?.spawned) showToast('Rebuttal posted to the reviewer');
+        else {
+          setThread(id, { status: 'pending', rebuttal: '' });
+          showToast(res?.spawn?.reason || 'Could not post the rebuttal');
+        }
+      });
       return true;
     },
     [setThread, showToast]
@@ -198,10 +194,7 @@ export function useDashboard(seed = null) {
     threadStatus,
     threadRebuttal,
     jiraState,
-    approve,
-    skip,
     discuss,
-    undo,
     sendRebuttal,
     setTicket,
     toggleMode,
