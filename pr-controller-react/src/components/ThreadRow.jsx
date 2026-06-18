@@ -1,9 +1,24 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
 
 const mono = "'IBM Plex Mono', monospace";
+
+// react-markdown escapes raw HTML by default (no dangerouslySetInnerHTML), so
+// untrusted reviewer/bot comment bodies can't execute script — safe to render.
+const mdComponents = {
+  a: (p) => <a {...p} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }} />,
+  code: (p) => (
+    <code
+      {...p}
+      style={{ fontFamily: mono, fontSize: '0.9em', background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 3 }}
+    />
+  ),
+  p: (p) => <p {...p} style={{ margin: '0 0 6px' }} />,
+};
 
 function TerminalNote({ children }) {
   return (
@@ -148,6 +163,9 @@ function ErrorControls({ thread, dash }) {
 
 export default function ThreadRow({ thread, dash }) {
   const meta = tagMeta[thread.tag];
+  const [expanded, setExpanded] = useState(false);
+  // Long bodies clamp to a few lines and expand on demand; short ones fit fully.
+  const isLong = (thread.body || '').length > 280;
   return (
     <div style={{ padding: '14px 0', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
@@ -170,19 +188,39 @@ export default function ThreadRow({ thread, dash }) {
       </div>
 
       <div
+        className="md-body"
         style={{
           marginTop: 9,
-          maxHeight: 88,
-          overflowY: 'auto',
           fontSize: 14,
           lineHeight: 1.5,
           color: 'var(--ink)',
-          paddingRight: 6,
           textWrap: 'pretty',
+          ...(isLong && !expanded
+            ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: 4, overflow: 'hidden' }
+            : {}),
         }}
       >
-        {thread.body}
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+          {thread.body}
+        </ReactMarkdown>
       </div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          style={{
+            marginTop: 4,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            font: "500 12px 'Hanken Grotesk', sans-serif",
+            color: 'var(--ink-2)',
+          }}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
 
       <div
         style={{
