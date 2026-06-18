@@ -55,3 +55,20 @@ node server.mjs        # then open http://localhost:4317
 ```
 
 Requires `gh` authenticated against the enterprise host (see `config.host`).
+
+## Dashboard (React)
+
+The UI is a Vite + React app in `pr-controller-react/` (design system is the
+source of truth; do not restyle the components ad hoc). The backend stays the
+single source of data — `pr-controller-react/src/adapt.js` is the ONLY place that
+reshapes `state.json` into the component prop shape.
+
+- **Develop:** `cd pr-controller-react && yarn && yarn dev` — Vite serves on 5173
+  and proxies `/state.json` + `/decision` to `server.mjs` on 4317 (run the backend
+  too). Hot-reload for design work.
+- **Production:** `yarn build` → `pr-controller-react/dist/`. `server.mjs` detects
+  `dist/index.html` and serves the built app at http://localhost:4317 (falling back
+  to the legacy `dashboard.html` if no build exists).
+
+Action buttons POST to `/decision`; `set-jira`/`discuss` act on the backend (gated
+by `SAFE_MODE`), the rest are recorded to `data/decisions.json`.

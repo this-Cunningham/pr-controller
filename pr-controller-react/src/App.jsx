@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDashboard } from './useDashboard.js';
-import { SECTIONS, sectionCaption, emptyLabel } from './data.js';
+import { sectionCaption, emptyLabel } from './data.js';
 import GrainOverlay from './components/GrainOverlay.jsx';
 import Header from './components/Header.jsx';
 import SectionTabs from './components/SectionTabs.jsx';
@@ -67,18 +67,19 @@ function ViewSwitcher({ view, setView }) {
 }
 
 function Dashboard({ dash }) {
-  const tabs = SECTIONS.map((s) => ({
+  const sections = dash.sections;
+  const tabs = sections.map((s) => ({
     key: s.key,
     label: s.title,
     count: s.prs.length,
     needs: s.key === 'needs',
   }));
-  const active = SECTIONS.find((s) => s.key === dash.tab) || SECTIONS[0];
+  const active = sections.find((s) => s.key === dash.tab) || sections[0];
 
   return (
     <>
       <Header dash={dash} />
-      {dash.loading ? (
+      {dash.loading || !active ? (
         <Skeleton />
       ) : (
         <>

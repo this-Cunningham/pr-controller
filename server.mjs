@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, extname } from 'node:path';
 import { config, ghEnv } from './config.mjs';
 
 const exec = promisify(execFile);
@@ -19,6 +20,14 @@ import { dispatchable, needsJira, rebaseAllowed } from './rules.mjs';
 const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
 const DECISIONS = join(DATA, 'decisions.json');
+
+// Serve the built React dashboard from pr-controller-react/dist when present;
+// fall back to the legacy single-file dashboard.html otherwise.
+const DIST = join(config.baseDir, 'pr-controller-react', 'dist');
+const hasDist = existsSync(join(DIST, 'index.html'));
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2',
+  '.png': 'image/png', '.ico': 'image/x-icon' };
 
 let state = { updatedAt: null, safeMode: config.SAFE_MODE, prs: [] };
 // prKey -> Set of "threadId:lastCommentId" seen last poll, for diff detection.
@@ -91,9 +100,23 @@ async function recordDecision(payload) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${config.port}`);
   if (req.method === 'GET' && url.pathname === '/') {
-    res.writeHead(200, { 'content-type': 'text/html' });
-    res.end(await readFile(join(config.baseDir, 'dashboard.html')));
+    if (hasDist) {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(await readFile(join(DIST, 'index.html')));
+    } else {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(await readFile(join(config.baseDir, 'dashboard.html')));
+    }
     return;
+  }
+  // Static assets from the React build (e.g. /assets/index-*.js, fonts).
+  if (req.method === 'GET' && hasDist && url.pathname.startsWith('/assets/')) {
+    const file = join(DIST, url.pathname);
+    if (existsSync(file)) {
+      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+      res.end(await readFile(file));
+      return;
+    }
   }
   if (req.method === 'GET' && url.pathname === '/state.json') {
     res.writeHead(200, { 'content-type': 'application/json' });
