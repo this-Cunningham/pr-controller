@@ -1,0 +1,16 @@
+{
+  "name": "pr-controller",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local daemon + dashboard that watches your open PRs and dispatches headless Claude workers to address feedback, fix CI, and rebase.",
+  "type": "module",
+  "bin": {
+    "pr-controller": "server.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
