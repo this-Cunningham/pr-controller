@@ -58,15 +58,14 @@
 async function send(payload) {
   const r = await fetch('/decision', { method:'POST', body: JSON.stringify(payload) });
   const j = await r.json();
-  alert(j.safeMode ? `SAFE_MODE on — recorded, nothing executed.\n${JSON.stringify(j.spawn)}`
-                   : `sent: ${JSON.stringify(j.spawn)}`);
+  alert(`sent: ${JSON.stringify(j.spawn)}`);
 }
 function thread(prKey, t) {
   if (t.error) return `<div class="thread"><span class="tag waiting-reviewer">ERROR</span>${t.error}</div>`;
   const id = `${prKey}::${t.threadId}`;
   const discuss = t.tier === 'hash-out'
     ? `<button class="discuss" onclick='send({action:"discuss",prKey:"${prKey}",threadId:"${t.threadId}"})'>Discuss in terminal</button>
-       <textarea rows="2" placeholder="your rebuttal (recorded; posting gated by SAFE_MODE)"
+       <textarea rows="2" placeholder="your rebuttal (posted to the reviewer)"
                  onchange='send({action:"note",prKey:"${prKey}",threadId:"${t.threadId}",note:this.value})'></textarea>`
     : t.tier === 'agree-fix'
     ? `<button onclick='send({action:"approve-fix",prKey:"${prKey}",threadId:"${t.threadId}"})'>Approve fix</button>
@@ -107,7 +106,7 @@ function pr(p) {
 }
 async function load() {
   const s = await (await fetch('/state.json')).json();
-  document.getElementById('safe').innerHTML = s.safeMode ? '<span class="safe">SAFE MODE — no writes/pushes</span>' : '';
+  document.getElementById('safe').innerHTML = (s.scope && s.scope.length) ? `<span class="safe">scoped: ${s.scope.join(', ')}</span>` : '';
   document.getElementById('meta').textContent = `${s.prs.length} PRs · ${s.prs.filter(p=>p.needsYou).length} need you · ${s.updatedAt||''}`;
   const needs = s.prs.filter(p=>p.needsYou);
   const fixable = s.prs.filter(p=>!p.needsYou && p.autoFixable);

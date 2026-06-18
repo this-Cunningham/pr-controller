@@ -34,7 +34,9 @@ export function useDashboard(seed = null) {
   const seeded = !!seed;
 
   const [sections, setSections] = useState(seed?.sections || []);
-  const [safeMode, setSafeMode] = useState(seed ? seed.mode !== 'live' : true);
+  // scope = config.onlyPRs: [] means all PRs (full production), a list means the
+  // daemon is restricted to those PR keys. The worker always acts on what it sees.
+  const [scope, setScope] = useState(seed?.scope || []);
   const [openCount, setOpenCount] = useState(seed?.openCount ?? 0);
   const [needCount, setNeedCount] = useState(seed?.needCount ?? 0);
 
@@ -58,7 +60,7 @@ export function useDashboard(seed = null) {
 
   const applyState = useCallback((adapted) => {
     setSections(adapted.sections);
-    setSafeMode(adapted.safeMode);
+    setScope(adapted.scope);
     setOpenCount(adapted.openCount);
     setNeedCount(adapted.needCount);
     const map = new Map();
@@ -156,15 +158,15 @@ export function useDashboard(seed = null) {
     [showToast]
   );
 
-  const toggleMode = useCallback(() => {
-    // Mode is owned by the backend (config.SAFE_MODE). The UI reflects it and
-    // can't flip it remotely, so this only explains the current state.
+  const explainScope = useCallback(() => {
+    // Scope is owned by the backend (config.onlyPRs). The UI reflects it and
+    // can't change it remotely, so this only explains the current state.
     showToast(
-      safeMode
-        ? 'Safe mode is set on the backend (config.SAFE_MODE)'
-        : 'Live — the agent acts automatically'
+      scope.length
+        ? `Scoped to ${scope.join(', ')} — other PRs are not touched (config.onlyPRs)`
+        : 'Live on all your open PRs — the agent acts automatically (config.onlyPRs)'
     );
-  }, [safeMode, showToast]);
+  }, [scope, showToast]);
 
   const refresh = useCallback(() => {
     if (seeded) {
@@ -179,9 +181,24 @@ export function useDashboard(seed = null) {
     });
   }, [refreshing, seeded, fetchState, showToast]);
 
+  // TEMP (debug): trigger a backend poll instead of waiting the 30-min timer.
+  // Fire-and-forget on the server; we re-fetch state a few seconds later.
+  const runPoll = useCallback(async () => {
+    if (seeded) return;
+    showToast('Running a poll…');
+    try {
+      const res = await fetch('/poll', { method: 'POST' });
+      const r = await res.json();
+      showToast(r?.started ? 'Poll started — refreshing shortly' : 'A poll is already running');
+      setTimeout(fetchState, 4000);
+    } catch {
+      showToast('Could not reach the agent backend');
+    }
+  }, [seeded, fetchState, showToast]);
+
   return {
-    // mode badge expects 'safe' | 'live'
-    mode: safeMode ? 'safe' : 'live',
+    // scope badge: [] = live on all PRs, a list = restricted to those PR keys
+    scope,
     tab,
     loading,
     refreshing,
@@ -197,7 +214,8 @@ export function useDashboard(seed = null) {
     discuss,
     sendRebuttal,
     setTicket,
-    toggleMode,
+    explainScope,
     refresh,
+    runPoll,
   };
 }

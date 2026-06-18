@@ -85,7 +85,9 @@ export function adaptState(state) {
   const sections = adaptSections(prs);
   return {
     sections,
-    safeMode: !!state?.safeMode,
+    // `scope` is config.onlyPRs: empty = all PRs (full production), a list = the
+    // daemon is restricted to those PR keys. The worker always acts on what it sees.
+    scope: state?.scope || [],
     updatedAt: state?.updatedAt || null,
     openCount: prs.length,
     needCount: sections.find((s) => s.key === 'needs').prs.length,

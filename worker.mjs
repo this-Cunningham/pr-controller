@@ -1,5 +1,5 @@
-// Worker dispatch: spawns a headless `claude -p` scoped to ONE PR.
-// In SAFE_MODE the worker is NOT spawned at all (we only classify heuristically).
+// Worker dispatch: spawns a headless `claude -p` scoped to ONE PR. Scope is
+// enforced upstream by `config.onlyPRs` (the poller only ever hands us in-scope PRs).
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -41,7 +41,8 @@ async function recordSeenSha(prKey, worktreePath) {
 
 // Cheap heuristic pre-classification (no Claude). Used to render the dashboard
 // before/without a worker, and to decide priority. The real judgment is the
-// worker's job once SAFE_MODE is lifted.
+// worker's job. (Scaffolding — slated for retirement once worker output is
+// plumbed into state.json; see the suggested-responses plan.)
 const RISKY = [/security/i, /xss/i, /inject/i, /\brefactor\b/i, /antipattern/i,
   /should we/i, /do we (want|need)/i, /curious if/i, /\bzod\b/i, /schema/i];
 
@@ -64,14 +65,6 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   const prKey = `${pr.repo}#${pr.number}`;
   const { id, isNew, lastSeenSha } = await getOrCreateSession(prKey);
   opts.lastSeenSha = lastSeenSha;
-
-  if (config.SAFE_MODE) {
-    return {
-      spawned: false,
-      reason: 'SAFE_MODE: classification only',
-      wouldRun: { sessionId: id, mode: isNew ? `session-id (new, familiarize)` : `resume (delta since ${lastSeenSha?.slice(0,7) || 'unknown'})`, newThreads: newThreads.length },
-    };
-  }
 
   const rules = await readFile(new URL('./worker-prompt.md', import.meta.url), 'utf8');
   const pushNote = opts.detached
@@ -116,7 +109,7 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     `\n## This task`,
     `PR: ${pr.nameWithOwner}#${pr.number} — ${pr.title}`,
     `Worktree: ${worktreePath}`,
-    `SAFE_MODE: ${config.SAFE_MODE}` + pushNote,
+    pushNote.trimStart(),
     `Write your result JSON to: ${outPath}`,
     healthBlock,
     threadsBlock,
@@ -144,9 +137,6 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
 
 // Open an INTERACTIVE Claude in a native Terminal scoped to one disputed thread.
 export function spawnDiscussTerminal(pr, thread, worktreePath) {
-  if (config.SAFE_MODE) {
-    return { spawned: false, reason: 'SAFE_MODE: discuss terminal stubbed' };
-  }
   const quote = (thread.body || '').replace(/"/g, '\\"').slice(0, 400);
   const seed = `Let's discuss reviewer feedback on ${pr.nameWithOwner}#${pr.number}, `
     + `file ${thread.path}:${thread.line}. Reviewer ${thread.author} said: "${quote}". `

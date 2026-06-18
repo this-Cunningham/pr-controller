@@ -2,7 +2,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config, ghEnv } from './config.mjs';
-import { categorizeChecks } from './rules.mjs';
+import { categorizeChecks, inScope } from './rules.mjs';
 
 const exec = promisify(execFile);
 
@@ -126,7 +126,9 @@ export async function fetchThreads(repo, num) {
 
 // Scan everything; returns the full snapshot the dashboard renders from.
 export async function scanAll() {
-  const prs = await listOpenPRs();
+  // Restrict to the configured scope BEFORE fetching threads — out-of-scope PRs
+  // are invisible to the daemon (not scanned, not rendered, never worked).
+  const prs = (await listOpenPRs()).filter((pr) => inScope(`${pr.repo}#${pr.number}`));
   const enriched = [];
   for (const pr of prs) {
     let reviewDecision = 'NONE';

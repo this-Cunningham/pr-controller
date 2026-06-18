@@ -50,7 +50,6 @@ export async function ensureWorktree(pr) {
 
   // RESUME: our managed worktree already exists -> ff-only to remote head.
   if (existsSync(path)) {
-    if (config.SAFE_MODE) return { path, ready: false, branch, plan: [`cd ${path}`, `git fetch origin`, `git pull --ff-only`] };
     await git(path, ['fetch', 'origin']);
     try { await git(path, ['pull', '--ff-only']); }
     catch (e) { return { path, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
@@ -58,12 +57,11 @@ export async function ensureWorktree(pr) {
   }
 
   // Need a checkout. First: is the branch already checked out somewhere?
-  const existingCheckout = (!config.SAFE_MODE || local) ? await branchCheckedOutAt(repo, branch) : null;
+  const existingCheckout = await branchCheckedOutAt(repo, branch);
   const dirty = existingCheckout ? await isDirty(existingCheckout) : false;
 
   if (existingCheckout && !dirty) {
     // CLEAN reuse — work directly in the checkout you already have.
-    if (config.SAFE_MODE) return { path: existingCheckout, ready: false, branch, reused: true, plan: [`# reuse clean checkout at ${existingCheckout}`, `git -C ${existingCheckout} pull --ff-only`] };
     await git(existingCheckout, ['fetch', 'origin']);
     try { await git(existingCheckout, ['pull', '--ff-only']); }
     catch (e) { return { path: existingCheckout, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
@@ -74,16 +72,6 @@ export async function ensureWorktree(pr) {
   // Dirty -> --detach worktree at the branch tip (never touches your work);
   // worker pushes HEAD:branch. Not-checked-out -> normal worktree on the branch.
   const useDetach = !!existingCheckout; // dirty checkout exists
-  if (config.SAFE_MODE) {
-    const setup = local ? [`# reuse clone: ${local}`, `git -C ${repo} fetch origin`] : [`git clone ${sshUrl(pr.nameWithOwner)} ${repo}`];
-    return {
-      path, ready: false, branch, detached: useDetach, usingLocalClone: !!local,
-      pushRefspec: useDetach ? `HEAD:${branch}` : null,
-      plan: [...setup, useDetach
-        ? `git -C ${repo} worktree add --detach ${path} origin/${branch}   # branch dirty elsewhere`
-        : `git -C ${repo} worktree add ${path} ${branch}`],
-    };
-  }
 
   if (!local && !existsSync(repo)) await git(ROOT, ['clone', sshUrl(pr.nameWithOwner), repo]);
   else await git(repo, ['fetch', 'origin']);

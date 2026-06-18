@@ -2,8 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug,
+  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope,
 } from '../rules.mjs';
+import { config } from '../config.mjs';
 
 const ME = 'ccunningham';
 const TOKEN = '@claude-plz-fix';
@@ -30,6 +31,12 @@ test('dispatchable: reviewer replies on MY thread -> dispatch (keys on last auth
 
 test('dispatchable: after bot replies "fixed" as me -> no re-dispatch', () => {
   assert.equal(dispatchable({ lastAuthor: ME, lastBody: 'fixed' }, ME, TOKEN), false);
+});
+
+// TEMP (debug): @claude-debug opts in my own comment, same as the trigger token.
+// config.login is the real login, so this test uses that rather than ME.
+test('dispatchable: my comment WITH @claude-debug -> dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: config.login, lastBody: 'seed this @claude-debug' }), true);
 });
 
 const cfg = {
@@ -72,6 +79,19 @@ test('rebaseAllowed: only when APPROVED and behind/conflicted', () => {
   assert.equal(rebaseAllowed('APPROVED', 'CLEAN', 'MERGEABLE'), false);
   assert.equal(rebaseAllowed('REVIEW_REQUIRED', 'BEHIND', 'MERGEABLE'), false);
   assert.equal(rebaseAllowed('APPROVED', 'DIRTY', 'CONFLICTING'), true);
+});
+
+test('inScope: empty/null allowlist -> all PRs in scope', () => {
+  assert.equal(inScope('site-vdp-remix#835', []), true);
+  assert.equal(inScope('site-vdp-remix#835', null), true);
+  assert.equal(inScope('any-repo#1', []), true);
+});
+
+test('inScope: non-empty allowlist restricts to listed PR keys', () => {
+  const only = ['site-vdp-remix#835'];
+  assert.equal(inScope('site-vdp-remix#835', only), true);
+  assert.equal(inScope('site-vdp-remix#999', only), false);
+  assert.equal(inScope('other-repo#835', only), false);
 });
 
 test('repoSlug: handles ssh and https, with/without .git', () => {

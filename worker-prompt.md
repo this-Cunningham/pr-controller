@@ -105,13 +105,8 @@ task's thread list.
 
 ## Truthfulness
 Only reply `fixed` to a thread you have ACTUALLY fixed AND whose fix is visible to
-the reviewer (i.e. pushed). If push is disabled, do not claim `fixed` — report the
-commit as staged-locally and let the dashboard show "fixed locally, awaiting push".
-
-## SAFE_MODE
-If told SAFE_MODE is on: you MAY edit files and commit in the worktree. You MUST
-NOT push, MUST NOT post any comment, MUST NOT resolve any thread. Report what you
-WOULD have done in your structured output.
+the reviewer (i.e. pushed). If a push fails, do not claim `fixed` — report the
+commit as staged-locally and surface the push failure in your output.
 
 ## Output
 End by writing a single JSON object to the path given in your task:

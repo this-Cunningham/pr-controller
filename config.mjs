@@ -1,4 +1,4 @@
-// PR dashboard config. SAFE_MODE is the master kill-switch for all mutations.
+// PR dashboard config. `onlyPRs` is the scope primitive / circuit-breaker.
 export const config = {
   host: 'code.cargurus.com',
   owner: 'cargurus-eng',
@@ -6,11 +6,13 @@ export const config = {
   port: 4317,
   pollMinutes: 30,
 
-  // SAFE_MODE=true  -> workers may scan/classify/fix/commit IN A WORKTREE,
-  //                    but NEVER push, NEVER post comments, NEVER resolve threads,
-  //                    and the auto-worker is NOT spawned (classification only).
-  // Flip to false only once the UX + classification are trusted.
-  SAFE_MODE: true,
+  // Scope allowlist of "repo#number" keys the tool is allowed to touch.
+  //  - empty/null  -> ALL of your open PRs (full production; no circuit-breaker).
+  //  - a list      -> ONLY those PRs are scanned and worked (everything else is
+  //                   invisible to the daemon).
+  // This is both the hardening sandbox (scope to one throwaway PR and exercise the
+  // real push/comment/resolve/rebase paths) and a permanent prod kill-switch.
+  onlyPRs: ['site-vdp-remix#835'],
 
   // Check categorization (substring, case-insensitive):
   //  - complianceChecks: red because of a missing JIRA ticket etc. — fixable, but
@@ -27,6 +29,12 @@ export const config = {
   // (you're annotating or waiting on the reviewer). Including this token in your
   // comment overrides that — it opts that one thread in, actioned on the next poll.
   triggerToken: '@claude-plz-fix',
+
+  // TEMP (debug): same effect as triggerToken — lets a comment from YOUR OWN
+  // account opt a thread in, so you can seed dispatchable threads on the sandbox
+  // PR without a second account. Set to null/'' to disable; remove entirely once
+  // real reviewer threads are available.
+  debugToken: '@claude-debug',
 
   baseDir: new URL('.', import.meta.url).pathname,
 };

@@ -148,12 +148,9 @@ export const SECTIONS = [
   { key: 'waiting', title: 'Waiting on reviewer', needsYou: false, prs: [pr2380, pr203] },
 ];
 
-export function sectionCaption(key, mode) {
+export function sectionCaption(key) {
   if (key === 'needs') return 'Resolve these before the agent continues.';
-  if (key === 'auto')
-    return mode === 'live'
-      ? 'The agent is fixing these — just glance.'
-      : 'Paused in safe mode — these would be auto-fixed when live.';
+  if (key === 'auto') return 'The agent is fixing these — just glance.';
   return 'No action needed from you.';
 }
 

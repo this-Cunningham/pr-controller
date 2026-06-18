@@ -14,7 +14,7 @@ import { tagMeta } from '../meta.js';
 import PRCard from './PRCard.jsx';
 import ReviewPill from './ReviewPill.jsx';
 import StatusPill from './StatusPill.jsx';
-import ModeBadge from './ModeBadge.jsx';
+import ScopeBadge from './ModeBadge.jsx';
 import Skeleton from './Skeleton.jsx';
 import EmptyState from './EmptyState.jsx';
 import Toast from './Toast.jsx';
@@ -51,7 +51,7 @@ const swatchBox = {
   gap: 9,
 };
 
-function MiniHeader({ mode }) {
+function MiniHeader({ scope }) {
   return (
     <div
       style={{
@@ -70,7 +70,7 @@ function MiniHeader({ mode }) {
         <span style={{ fontFamily: "'Newsreader', Georgia, serif", fontSize: 20, fontWeight: 500, color: 'var(--ink)' }}>
           PR Controller
         </span>
-        <ModeBadge mode={mode} onToggle={() => {}} />
+        <ScopeBadge scope={scope} onExplain={() => {}} />
       </div>
       <span style={{ font: `500 12px ${mono}`, color: 'var(--ink-2)' }}>6 open · 2 need you</span>
     </div>
@@ -98,10 +98,10 @@ export default function ComponentsGallery() {
         Every element and state. The cards below are live — try the controls.
       </div>
 
-      <Frame title="Header bar · safe & live">
+      <Frame title="Header bar · scoped & all-PRs">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <MiniHeader mode="safe" />
-          <MiniHeader mode="live" />
+          <MiniHeader scope={['site-vdp-remix#835']} />
+          <MiniHeader scope={[]} />
         </div>
       </Frame>
 

@@ -28,7 +28,7 @@ function Dashboard({ dash }) {
           <SectionTabs tabs={tabs} active={dash.tab} onSelect={dash.setTab} />
           <div style={{ marginTop: 34 }}>
             <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>
-              {sectionCaption(active.key, dash.mode)}
+              {sectionCaption(active.key)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
               {active.prs.length > 0 ? (

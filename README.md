@@ -41,12 +41,19 @@ node server.mjs (one persistent process on your awake laptop)
   product decision. Never edits a test to make it pass.
 - **Rebase only when approved.** CI fixes anytime; rebase waits for approval.
 
-## SAFE_MODE
+## Scope (`config.onlyPRs`)
 
-`config.SAFE_MODE` (default `true`) is the master kill-switch. While on: workers
-are NOT spawned, nothing is pushed, no comments posted, no titles edited, no
-threads resolved — the poller only classifies and the dashboard renders. Flip to
-`false` only once the behavior is trusted.
+`config.onlyPRs` scopes the daemon's blast radius. It's an allowlist of
+`repo#number` keys:
+
+- **Empty `[]`** → all of your open PRs (full production).
+- **A list** (e.g. `['site-vdp-remix#835']`) → ONLY those PRs are scanned,
+  rendered, and worked; everything else is invisible to the daemon.
+
+This is both the hardening sandbox (point it at one throwaway PR and exercise the
+real push/comment/resolve/rebase paths) and a permanent prod circuit-breaker.
+There is no separate dry-run mode — the worker always executes for real on the PRs
+it can see.
 
 ## Run
 
@@ -70,5 +77,6 @@ reshapes `state.json` into the component prop shape.
   `dist/index.html` and serves the built app at http://localhost:4317 (falling back
   to the legacy `dashboard.html` if no build exists).
 
-Action buttons POST to `/decision`; `set-jira`/`discuss` act on the backend (gated
-by `SAFE_MODE`), the rest are recorded to `data/decisions.json`.
+Action buttons POST to `/decision`; `note`/`set-jira`/`discuss` act on the backend
+(`gh` reply, title edit, terminal), and every decision is also recorded to
+`data/decisions.json`.

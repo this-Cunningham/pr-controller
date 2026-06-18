@@ -77,8 +77,8 @@ Toast  (portal-free, fixed)
 | `threads`    | per-thread overlay → `{ status, rebuttal? }` keyed by thread id         |
 | `jira`       | per-PR overlay → `{ status:'set', value }` keyed by PR id               |
 
-Actions: `approve · skip · discuss · undo · sendRebuttal · setTicket · toggleMode · refresh`.
-Thread `status` ∈ `pending | approved | skipped | discussing | rebutted`.
+Actions: `discuss · sendRebuttal · setTicket · explainScope · refresh`.
+Thread `status` ∈ `pending | discussing | rebutted`.
 
 ## Wiring real data
 

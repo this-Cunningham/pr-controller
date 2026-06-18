@@ -9,9 +9,13 @@ const includesAny = (name, list) =>
 // A changed thread should dispatch a worker UNLESS your own comment is the latest
 // one (you're annotating or waiting on the reviewer) — except when you include the
 // trigger token, which opts that single thread back in.
+// TEMP (debug): config.debugToken (@claude-debug) does the same, so you can seed
+// dispatchable threads from your OWN account on the sandbox PR. Remove once real
+// reviewer threads are available. See SPEC §Dispatch.
 export function dispatchable(thread, login = config.login, token = config.triggerToken) {
   if (thread.lastAuthor !== login) return true;
-  return (thread.lastBody || '').includes(token);
+  const body = thread.lastBody || '';
+  return body.includes(token) || (!!config.debugToken && body.includes(config.debugToken));
 }
 
 // Split failing checks into: code CI (worker fixes), compliance (needs your input,
@@ -33,6 +37,14 @@ export function needsJira(title, complianceChecks, pattern = config.jiraPattern)
 export function rebaseAllowed(reviewDecision, mergeState, mergeable) {
   if (reviewDecision !== 'APPROVED') return false;
   return mergeState === 'BEHIND' || mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
+}
+
+// Scope gate: is this PR in the allowlist? An empty/null `onlyPRs` means no scope
+// restriction (all PRs). A non-empty list restricts the daemon to exactly those
+// "repo#number" keys — the hardening sandbox and the prod circuit-breaker.
+export function inScope(prKey, onlyPRs = config.onlyPRs) {
+  if (!onlyPRs || onlyPRs.length === 0) return true;
+  return onlyPRs.includes(prKey);
 }
 
 // Normalize any git remote URL (https or ssh, with/without .git) to "owner/repo".

@@ -22,6 +22,10 @@ should rarely babysit PRs; they intervene only on disagreements and decisions.
 
 ## Discovery
 - Open PRs come from `gh search prs --author @me --state open` against `config.host`.
+- Discovered PRs are filtered to the **scope allowlist** `config.onlyPRs`
+  (`inScope` [tested]) BEFORE any threads are fetched — out-of-scope PRs are
+  invisible to the daemon (not scanned, not rendered, never worked). Empty/null
+  `onlyPRs` = all PRs.
 - Per PR, GraphQL fetches unresolved review threads, `mergeable`/`mergeStateStatus`,
   and the CI check rollup.
 
@@ -39,6 +43,9 @@ reviewer. Exception: the user's comment containing `config.triggerToken`
 - User's plain annotation / reply → no dispatch.
 - User's comment with the token → dispatch (next poll, never instant).
 - After the bot replies (as the user) → no re-dispatch.
+- **TEMP (debug):** `config.debugToken` (`@claude-debug`) opts a thread in the same
+  way `triggerToken` does — present so the owner can seed dispatchable threads from
+  their own account on the sandbox PR. Remove once real reviewer threads exist.
 
 Re-dispatch is prevented by the last-author rule, NOT by resolving threads — so a
 server restart (which clears the in-memory seen-map) will not re-process handled
@@ -105,13 +112,18 @@ something as a question is not by itself a reason to surface.
   allowlist (e.g. `Write`), so workers would stall.
 - `plan` mode is enforced read-only — used only for observe/classify trials.
 
-## SAFE_MODE
-`config.SAFE_MODE` is the master kill-switch. While true: no worker spawns, no
-pushes, no comments, no reactions, no resolves, no title edits — the poller only
-classifies and the dashboard renders. Go-live = setting it false.
+## Scope (`onlyPRs`)
+`config.onlyPRs` is the scope primitive and prod circuit-breaker — there is no
+dry-run/SAFE_MODE mode; the worker always executes the real path (push / comment /
+resolve / rebase) on the PRs it can see.
+- **Empty/null** → all of your open PRs (full production).
+- **A list of `repo#number` keys** → ONLY those PRs are scanned, rendered, and
+  worked; everything else is invisible. This is both the hardening sandbox (scope to
+  one throwaway PR, e.g. `site-vdp-remix#835`) and a permanent way to scope or stop
+  the daemon. The filter is `inScope` [tested], applied at discovery.
 
 ## Sessions
-- One UUID per PR (`sessions.json`), persisted ONLY when a worker actually spawns
-  (never on a SAFE_MODE dry-run — that previously created phantom sessions that
-  `--resume` couldn't find).
+- One UUID per PR (`sessions.json`), persisted ONLY when a worker actually spawns,
+  so a session that never launched can't leave a phantom entry that `--resume`
+  can't find.
 - `lastSeenSha` records the worktree HEAD after each run for the resume delta diff.
