@@ -159,6 +159,33 @@ export default function PRCard({ pr, needsYou, dash }) {
         </div>
       )}
 
+      {pr.needsRebase && stagedCount === 0 && (
+        <div style={{ marginTop: 12 }}>
+          {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
+              auto-retrying would just bail again — offer an interactive terminal to
+              resolve it by hand. Otherwise offer the one-click agent rebase. */}
+          <button
+            type="button"
+            disabled={working}
+            onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
+            style={{
+              cursor: working ? 'default' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              font: "600 13px 'Hanken Grotesk', sans-serif",
+              padding: '9px 15px',
+              border: '1px solid var(--accent)',
+              borderRadius: 7,
+              background: 'var(--accent-bg)',
+              color: 'var(--accent)',
+            }}
+          >
+            {working ? '⟳ Rebasing…' : pr.surfaced ? '⌗ Resolve in terminal' : '⤵ Rebase (merge conflict)'}
+          </button>
+        </div>
+      )}
+
       {hasThreads && (
         <div style={{ marginTop: 14 }}>
           {pr.threads.map((t) => (

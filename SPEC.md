@@ -8,7 +8,9 @@ marked **[tested]** are locked by `test/rules.test.mjs`; judgment rules marked
 Watch all of the user's open PRs across the enterprise and, per PR, dispatch a
 headless Claude worker to address reviewer feedback, fix CI, and rebase — while
 surfacing anything needing the user's judgment to a localhost dashboard. The user
-should rarely babysit PRs; they intervene only on disagreements and decisions.
+should rarely babysit PRs; they intervene only on threads the agent surfaces for
+their judgment (disagreements, scope/product calls, or anything it can't safely
+decide) and decisions.
 
 ## Architecture
 - One persistent Node daemon (`server.mjs`) on the user's awake laptop. It dies on
@@ -75,7 +77,9 @@ For each unresolved reviewer-authored thread, exactly one:
   `fixed` (lowercase, exact), then resolve. Only after the fix is pushed.
 - **praise** (positive, nothing to change): add a 🎉 `hooray` reaction, no text,
   then resolve.
-- **surface** (disagreement or needs the user's judgment): do nothing to the thread
+- **surface** (needs the user's judgment — a disagreement, a scope/product call, a
+  risk the agent won't take on its own, or something it can't confidently decide):
+  do nothing to the thread
   — no reply, no reaction, no resolve. Record why, with code citations. May ALSO
   carry, to speed the user up:
   - `suggestedReply` — a code-cited draft reply to the reviewer (the user edits/sends
@@ -115,9 +119,18 @@ something as a question is not by itself a reason to surface.
   (`config.jiraPattern`) → `needsJira` [tested], surfaced with a dashboard input box
   that prepends `[TICKET]` to the title.
 - **Ignored checks** (`config.ignoreChecks`, e.g. license/CLA/DCO) → dropped.
-- **Rebase** only when the PR is approved [tested] (`rebaseAllowed`). Clean rebase →
-  push with `--force-with-lease`. Conflicts not trivially resolvable → surface,
-  never guess through a messy merge.
+- **Rebase on merge conflict** (`needsRebase` = `mergeable CONFLICTING` or
+  `mergeState DIRTY` [tested]) — NOT gated on approval. Two paths:
+  - **Folded into a worker run.** When the worker is already dispatched for feedback
+    or CI, and the branch also has a conflict, the run also rebases (`rebaseOnConflict`
+    → `opts.rebase`): the branch is changing anyway, so it dismisses no extra reviews.
+  - **Manual CTA.** When a conflict exists but there's *nothing else to do*, the daemon
+    does NOT auto-spin a worker (a quiet force-push would dismiss the PR's reviews).
+    Instead the PR floats to "Needs you" with a **Rebase** CTA; clicking it POSTs
+    `/decision {action:'rebase'}` → `dispatcher.enqueueRebase`. Clean rebase → push
+    `--force-with-lease`; non-trivial conflicts → surface, never guess.
+  - `rebaseAllowed` (approval-gated) is retained only for the informational
+    "behind base" pill; it no longer triggers an automatic rebase.
 
 ## Worktrees & git safety
 - Reuse the user's existing local clones, discovered under `~/cargurus` by git

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope, deriveTier,
+  dispatchable, categorizeChecks, needsJira, rebaseAllowed, needsRebase, repoSlug, inScope, deriveTier,
   validateWorkerResult, mergePending,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
@@ -168,6 +168,14 @@ test('rebaseAllowed: only when APPROVED and behind/conflicted', () => {
   assert.equal(rebaseAllowed('APPROVED', 'CLEAN', 'MERGEABLE'), false);
   assert.equal(rebaseAllowed('REVIEW_REQUIRED', 'BEHIND', 'MERGEABLE'), false);
   assert.equal(rebaseAllowed('APPROVED', 'DIRTY', 'CONFLICTING'), true);
+});
+
+test('needsRebase: true only on a genuine conflict, not merely behind base', () => {
+  assert.equal(needsRebase('DIRTY', 'CONFLICTING'), true);
+  assert.equal(needsRebase('CLEAN', 'CONFLICTING'), true);  // conflict signalled via mergeable
+  assert.equal(needsRebase('DIRTY', 'UNKNOWN'), true);
+  assert.equal(needsRebase('BEHIND', 'MERGEABLE'), false);  // behind base, no conflict -> no CTA
+  assert.equal(needsRebase('CLEAN', 'MERGEABLE'), false);
 });
 
 test('inScope: empty/null allowlist -> all PRs in scope', () => {

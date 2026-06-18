@@ -106,9 +106,21 @@ export function needsJira(title, complianceChecks, pattern = config.jiraPattern)
 }
 
 // Rebase only once approved — don't churn the branch while still under review.
+// Still used for the informational "behind base" pill; rebase itself is no longer
+// auto-dispatched (it would silently dismiss approvals — see needsRebase).
 export function rebaseAllowed(reviewDecision, mergeState, mergeable) {
   if (reviewDecision !== 'APPROVED') return false;
   return mergeState === 'BEHIND' || mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
+}
+
+// Does the branch have a genuine merge CONFLICT (not merely behind base)? Not
+// gated on approval — a conflict blocks merge regardless. When there's other work
+// this run (feedback/CI), the worker rebases as part of it (the branch is changing
+// anyway). When there's NOTHING else to do, we do NOT auto-spin a worker just to
+// rebase (that would force-push and dismiss reviews on a quiet PR) — instead the
+// dashboard shows a manual "Rebase" CTA. See server.poll / decision 'rebase'.
+export function needsRebase(mergeState, mergeable) {
+  return mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
 }
 
 // Scope gate: is this PR in the allowlist? An empty/null `onlyPRs` means no scope

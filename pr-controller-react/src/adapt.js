@@ -5,7 +5,7 @@
 //
 // Backend PR shape (state.json):
 //   { number, title, repo, nameWithOwner, url, isDraft, reviewDecision,
-//     needsYou, needsJira, behindBase, ciFailing, autoFixable, pending,
+//     needsYou, needsJira, behindBase, ciFailing, needsRebase, autoFixable, pending,
 //     workerSurfaced, branchHealth: { failingChecks[], complianceChecks[] },
 //     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, error }] }
 //   tier is derived from the worker's verdict (rules.deriveTier): hash-out |
@@ -68,6 +68,9 @@ export function adaptPR(pr) {
     url: pr.url,
     review: pr.isDraft ? 'DRAFT' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
     jira: !!pr.needsJira,
+    // A genuine merge conflict the worker didn't auto-resolve (nothing else was
+    // queued, so we don't force-push a quiet PR) — drives the manual Rebase CTA.
+    needsRebase: !!pr.needsRebase,
     pills: adaptPills(pr),
     surfaced: adaptSurfaced(pr),
     threads: (pr.threads || []).map(adaptThread),
@@ -87,6 +90,10 @@ export function adaptSections(prs) {
     // reviewer, so it waits. Don't count its CI/behind pills as "auto-handling".
     // Pending threads (worker hasn't judged them yet) are the agent's queue, so
     // they belong in auto-handling, not waiting-on-reviewer.
+    // A merge conflict does NOT force the PR into "Needs you" — rebasing is
+    // mechanical agent work, not a judgment call, and while it's actively rebasing
+    // it must not sit in "Needs you". The PR buckets naturally; the Rebase CTA
+    // rides on the card in whatever tab it lands (PRCard keys off pr.needsRebase).
     if (raw.needsYou) needs.push(ui);
     else if (!ui.surfaced && (raw.autoFixable || raw.pending || ui.pills.some((p) => p.kind === 'ci' || p.kind === 'behind'))) auto.push(ui);
     else waiting.push(ui);

@@ -65,7 +65,7 @@ function HashOutControls({ thread, prId, dash }) {
         >
           You: {dash.threadRebuttal(thread.id)}
         </div>
-        <Confirmation text="✓ Rebuttal posted to the reviewer." fg="var(--auto-fg)" />
+        <Confirmation text="✓ Reply posted to the reviewer." fg="var(--auto-fg)" />
       </>
     );
   }
@@ -117,7 +117,7 @@ function HashOutControls({ thread, prId, dash }) {
         rows={2}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Why do you disagree? This goes back to the reviewer."
+        placeholder="Your reply to the reviewer — push back, clarify, or make the call."
         style={{
           marginTop: 11,
           width: '100%',
@@ -140,7 +140,7 @@ function HashOutControls({ thread, prId, dash }) {
             if (dash.sendRebuttal(thread.id, text)) setText('');
           }}
         >
-          Send rebuttal
+          Send reply
         </Button>
       </div>
     </>

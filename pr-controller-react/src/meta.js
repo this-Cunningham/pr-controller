@@ -2,7 +2,7 @@
 // All colors reference CSS custom properties from theme.css.
 
 export const tagMeta = {
-  hashout: { label: 'disagree · hash out', bg: 'var(--accent-bg)', fg: 'var(--accent)' },
+  hashout: { label: 'surfaced · your call', bg: 'var(--accent-bg)', fg: 'var(--accent)' },
   agree: { label: 'agree · auto-fix', bg: 'var(--auto-bg)', fg: 'var(--auto-fg)' },
   waiting: { label: 'waiting on reviewer', bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
   pending: { label: 'no feedback yet', bg: 'var(--surface-2)', fg: 'var(--ink-3)' },

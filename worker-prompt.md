@@ -55,12 +55,12 @@ Your task tells you how to push:
 Never force-push.
 
 ## Branch health: rebasing & CI
-Your task's "Branch health" section tells you the state and whether rebase is allowed.
-- REBASE only if it says rebase is allowed (the PR is approved). Never rebase a PR
-  that isn't approved yet. When allowed: rebase onto the updated base; if it applies
-  cleanly, push (`--force-with-lease`, only after a clean rebase). If the rebase has
-  conflicts that aren't trivial to resolve, STOP and surface it — don't guess your
-  way through a messy merge.
+Your task's "Branch health" section tells you the state and whether to rebase this run.
+- REBASE only if it says "REBASE this run: YES" (the branch has a merge conflict).
+  When told to: rebase onto the updated base and resolve the conflicts; if it applies
+  cleanly, push (`--force-with-lease`, only after a clean rebase). If the conflicts
+  aren't trivial to resolve safely, STOP and surface it (`branchHealth.surfaced`) —
+  don't guess your way through a messy merge. If it says "NO", do not rebase.
 - Fix CI failures that are caused by THIS PR's changes (use the diff to judge), then
   push. This is allowed regardless of approval. If the failure is unrelated to your
   changes, or it's a real test failure you can't confidently attribute to your code,
@@ -84,7 +84,8 @@ it in your result JSON as `response`:
 - **praise** — the comment is positive/celebratory ("this is great", "nice
   cleanup") with nothing to change: add a `hooray` 🎉 reaction (NO text reply),
   then RESOLVE.
-- **surface** — disagreement, or anything needing the user's judgment: do NOTHING
+- **surface** — anything needing the user's judgment (a disagreement, a scope/product
+  call, a risk you won't take on your own, or something you can't confidently decide): do NOTHING
   to the thread (no reply, no reaction, no resolve). Record why, with code citations.
   When you surface, you MAY also draft, to speed the user up:
   - `suggestedReply` — a code-cited draft of the reply TO THE REVIEWER, for when the

@@ -27,7 +27,7 @@ async function postThreadReply(threadId, body) {
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
-import { dispatchable, needsJira, rebaseAllowed, deriveTier } from './rules.mjs';
+import { dispatchable, needsJira, rebaseAllowed, needsRebase, deriveTier } from './rules.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
 
@@ -64,6 +64,7 @@ async function deriveAndSetPrFields(pr) {
   const h = pr.branchHealth || {};
   pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
   pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
+  pr.needsRebase = needsRebase(h.mergeState, h.mergeable);  // genuine merge conflict
   // Compliance failing + no JIRA key in title => surface an input box for the ticket.
   pr.needsJira = needsJira(pr.title, h.complianceChecks);
 
@@ -79,14 +80,15 @@ async function deriveAndSetPrFields(pr) {
     return { ...t, ...deriveTier(t, a), suggestedReply: a?.suggestedReply, suggestedApproach: a?.suggestedApproach };
   });
 
-  // A surfaced branch-health reason (e.g. a rebase the worker wasn't allowed to
-  // do until approval) is the reviewer's move next, not yours — carry it for
-  // context but don't escalate (see adapt.js bucketing).
+  // A surfaced branch-health reason means the worker TRIED and bailed (e.g. a
+  // rebase whose conflicts weren't trivially resolvable). That's now yours to
+  // resolve, so it escalates to needsYou. (Previously rebase was approval-gated
+  // and this waited on the reviewer; with rebase user-initiated, a bail is on you.)
   const surfaced = result?.branchHealth?.surfaced;
   if (surfaced) pr.workerSurfaced = surfaced;
 
   // PR-level fields derived from the per-thread tiers + branch state.
-  pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync;
+  pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync || !!surfaced;
   pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
   pr.pending = pr.threads.filter((t) => t.tier === 'pending').length;
   pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
@@ -138,11 +140,19 @@ async function poll() {
       const healthChanged = healthSig !== prev.health;
       seen.set(prKey, { threads: new Set(pr.threads.filter((t) => !t.error).map(fp)), health: healthSig });
 
-      // Dispatch when feedback changed OR the branch needs work (behind/conflicted/CI).
-      // The dispatcher serializes per PR and the worker surfaces if it's too hairy.
-      const healthWork = pr.behindBase || pr.ciFailing;
-      if (newThreads.length || (healthChanged && healthWork)) {
-        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
+      // Dispatch a worker when there's real work: new feedback, or failing code CI.
+      // If the branch ALSO has a merge conflict, fold the rebase into that run
+      // (rebaseOnConflict) — the branch is changing anyway, so resolving the
+      // conflict here doesn't dismiss any extra reviews. A conflict with NOTHING
+      // else to do is NOT auto-dispatched: that would force-push a quiet PR and
+      // dismiss its reviews. Instead the dashboard shows a manual "Rebase" CTA
+      // (pr.needsRebase), actioned via POST /decision { action:'rebase' }.
+      const workToDo = newThreads.length || pr.ciFailing;
+      if (workToDo && (newThreads.length || healthChanged)) {
+        dispatcher.enqueue(pr, newThreads, {
+          branchHealth: pr.branchHealth,
+          rebaseOnConflict: pr.needsRebase,
+        });
       }
     }
     await writeState(prs);
@@ -218,11 +228,13 @@ const server = createServer(async (req, res) => {
       let spawn = { spawned: false, reason: `unknown action: ${payload.action}` };
       if (payload.action === 'discuss') {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
-        const thread = pr?.threads.find((t) => t.threadId === payload.threadId);
-        if (!pr || !thread) spawn = { spawned: false, reason: 'PR or thread not found' };
+        // threadId present -> discuss a review thread; absent -> branch-health
+        // (rebase) discussion, where there is no thread (thread stays undefined).
+        const thread = payload.threadId ? pr?.threads.find((t) => t.threadId === payload.threadId) : undefined;
+        if (!pr || (payload.threadId && !thread)) spawn = { spawned: false, reason: 'PR or thread not found' };
         else {
           const wt = await ensureWorktree(pr);
-          spawn = spawnDiscussTerminal(pr, thread, wt.path);
+          spawn = await spawnDiscussTerminal(pr, thread, wt.path);
         }
       }
       if (payload.action === 'note') {
@@ -238,7 +250,14 @@ const server = createServer(async (req, res) => {
         const ticket = (payload.ticket || '').trim();
         const valid = new RegExp(`^${config.jiraPattern}$`).test(ticket);
         if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
-        else { await setPrJira(pr, ticket); spawn = { spawned: true, action: 'title updated' }; }
+        else {
+          await setPrJira(pr, ticket);
+          // Re-scan so state.json reflects the new title and recomputes needsJira
+          // (now false — the title has a key). Without this, a reload refetches the
+          // stale state and the input box reappears until the next 30-min poll.
+          await refreshOnePR(payload.prKey);
+          spawn = { spawned: true, action: 'title updated' };
+        }
       }
       // Phase 2: the user approved one or more proposed approaches. Stage them
       // into the dispatcher's pending set for this PR; it fires ONE resumed
@@ -251,8 +270,21 @@ const server = createServer(async (req, res) => {
         else if (!threadIds.length) spawn = { spawned: false, reason: 'no approved threads' };
         else {
           const queued = dispatcher.isWorking(payload.prKey);
-          dispatcher.enqueueApproved(pr, threadIds, { branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
+          dispatcher.enqueueApproved(pr, threadIds, { branchHealth: pr.branchHealth, rebaseOnConflict: pr.needsRebase });
           spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent dispatched' };
+        }
+      }
+      // Manual "Rebase" CTA: the branch has a merge conflict and there's nothing
+      // else queued for the worker to do, so we didn't auto-dispatch (a quiet
+      // force-push would dismiss reviews). The user opted in — dispatch a rebase.
+      if (payload.action === 'rebase') {
+        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
+        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
+        else if (!pr.needsRebase) spawn = { spawned: false, reason: 'no merge conflict to rebase' };
+        else {
+          const queued = dispatcher.isWorking(payload.prKey);
+          dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
+          spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'rebase dispatched' };
         }
       }
       res.writeHead(200, { 'content-type': 'application/json' });

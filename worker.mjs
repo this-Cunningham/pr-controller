@@ -4,6 +4,7 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
@@ -104,7 +105,9 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   const healthBlock = (bh.mergeState || bh.checkState)
     ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
       + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
-      + `\nRebase allowed this run: ${opts.rebaseAllowed ? 'YES (PR is approved)' : 'NO — do NOT rebase (PR not yet approved); only fix CI if related to your changes'}`
+      + (opts.rebase
+        ? `\nREBASE this run: YES — the branch has a merge conflict. Rebase onto the updated base and resolve conflicts; if it applies cleanly, push with --force-with-lease. If the conflicts are NOT trivial to resolve safely, STOP and surface it (branchHealth.surfaced) — do not guess through a messy merge.`
+        : `\nREBASE this run: NO — do not rebase; only fix CI if it's caused by your changes.`)
     : '';
   const threadsHeading = opts.applyApproved
     ? `\n## Approved threads — execute the approach you proposed on each (read each referenced file in the worktree as it is NOW)`
@@ -143,14 +146,62 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   });
 }
 
-// Open an INTERACTIVE Claude in a native Terminal scoped to one disputed thread.
-export function spawnDiscussTerminal(pr, thread, worktreePath) {
-  const quote = (thread.body || '').replace(/"/g, '\\"').slice(0, 400);
-  const seed = `Let's discuss reviewer feedback on ${pr.nameWithOwner}#${pr.number}, `
-    + `file ${thread.path}:${thread.line}. Reviewer ${thread.author} said: "${quote}". `
-    + `It was flagged as a disagreement. Help me decide and, if we agree on a reply, post it.`;
-  const script = `cd ${worktreePath} && claude "${seed.replace(/"/g, '\\"')}"`;
-  const osa = `tell application "Terminal" to do script "${script.replace(/"/g, '\\"')}"`;
-  spawn('osascript', ['-e', osa]);
-  return { spawned: true };
+// Open an INTERACTIVE Claude in a native Terminal — for a disputed review thread
+// (thread given) or a branch-health/rebase conflict the agent surfaced (no thread).
+// The seed prompt is free-form prose (apostrophes, quotes, slashes, newlines), so
+// we do NOT interpolate it into the AppleScript/shell string — that breaks osascript
+// (silent syntax errors). Instead we write the seed and a tiny launcher script to
+// temp files and have AppleScript run the launcher; the only value crossing into
+// AppleScript is a safe temp path.
+export async function spawnDiscussTerminal(pr, thread, worktreePath) {
+  // A seed is only useful when it tells the session something it doesn't already
+  // know. For a review THREAD it disambiguates which of (possibly many) threads you
+  // clicked. For branch-health there's no seed: we resume the PR's durable session
+  // (below), which already surfaced the blocker and why — so we just drop you into
+  // it and let you talk, rather than inject (possibly stale) canned prose.
+  let seed = null;
+  if (thread) {
+    const quote = (thread.body || '').slice(0, 400);
+    // Neutral pointer, not a verdict: the thread was surfaced for judgment, which
+    // could be a disagreement, a scope/product call, or something the worker
+    // couldn't classify. Point the resumed session at the right thread and let it
+    // recall its own take rather than pre-framing it as a "disagreement".
+    seed = `Let's think through the surfaced thread on ${pr.nameWithOwner}#${pr.number}, `
+      + `file ${thread.path}:${thread.line}. ${thread.author} said: "${quote}". `
+      + `Remind me why you surfaced it and what you'd suggest; if we land on a reply, post it.`;
+  }
+
+  // Continue the PR's DURABLE session so the interactive terminal picks up the
+  // headless worker's prior analysis (--resume), instead of a cold Claude. Fall back
+  // to a fresh `claude` if no session exists yet (the PR was never worked).
+  const prKey = `${pr.repo}#${pr.number}`;
+  const { id, isNew } = await getOrCreateSession(prKey);
+  const claudeCmd = isNew ? 'claude' : `claude --resume ${id}`;
+
+  const tmp = tmpdir();
+  const tag = `pr-controller-discuss-${pr.repo}-${pr.number}-${randomUUID().slice(0, 8)}`;
+  const seedFile = join(tmp, `${tag}.txt`);
+  const launchFile = join(tmp, `${tag}.sh`);
+  // Launcher: with a seed, pass it as the opening prompt via a file (no quoting of
+  // prose anywhere); without one, just open the (resumed) session for free input.
+  // Either way it self-removes its temp files once Claude exits.
+  const rmTargets = (seed ? `${JSON.stringify(seedFile)} ` : '') + JSON.stringify(launchFile);
+  const claudeLine = seed ? `${claudeCmd} "$(cat ${JSON.stringify(seedFile)})"` : claudeCmd;
+  const launcher = `#!/bin/bash\ncd ${JSON.stringify(worktreePath)}\n${claudeLine}\nrm -f ${rmTargets}\n`;
+  try {
+    if (seed) await writeFile(seedFile, seed);
+    await writeFile(launchFile, launcher);
+    // The launch path is our own safe slug, so this AppleScript string is stable.
+    const osa = `tell application "Terminal" to do script "bash ${launchFile}"`;
+    const child = spawn('osascript', ['-e', osa]);
+    let err = '';
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('close', (code) => {
+      if (code !== 0) console.error(`[discuss] ${prKey}: osascript exited ${code}: ${err.trim()}`);
+    });
+  } catch (e) {
+    console.error(`[discuss] ${prKey}: failed to stage terminal launch:`, e.message);
+    return { spawned: false, reason: 'could not stage terminal launch' };
+  }
+  return { spawned: true, resumed: !isNew };
 }

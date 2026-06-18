@@ -20,14 +20,16 @@ import { existsSync } from 'node:fs';
 import { mergePending } from './rules.mjs';
 
 let deps = null;
-// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, opts }
+// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, opts }
+//   rebase: a rebase is pending for the next run — either folded into thread/CI
+//   work (rebaseOnConflict) or a standalone user-initiated rebase (enqueueRebase).
 const state = new Map();
 
 export function init(d) { deps = d; }
 
 function entry(prKey) {
   let e = state.get(prKey);
-  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), opts: {} }; state.set(prKey, e); }
+  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), rebase: false, opts: {} }; state.set(prKey, e); }
   return e;
 }
 
@@ -37,13 +39,27 @@ export function pendingCount(prKey) {
   return e ? e.threads.size : 0;
 }
 
-// Poll-found work: new/changed dispatchable threads + (maybe) branch-health work.
+// Poll-found work: new/changed dispatchable threads, optionally also resolving a
+// merge conflict in the same run (opts.rebaseOnConflict).
 export function enqueue(pr, newThreads, opts = {}) {
   const prKey = `${pr.repo}#${pr.number}`;
   const e = entry(prKey);
   e.pr = pr;
   e.opts = { ...e.opts, ...opts };
+  if (opts.rebaseOnConflict) e.rebase = true;
   mergePending(e.threads, newThreads);
+  maybeDrain(prKey);
+}
+
+// User-initiated standalone rebase (the manual "Rebase" CTA): no threads, just
+// resolve the conflict and push. Coalesces like everything else — if a worker is
+// already running for this PR, it joins the next run.
+export function enqueueRebase(pr, opts = {}) {
+  const prKey = `${pr.repo}#${pr.number}`;
+  const e = entry(prKey);
+  e.pr = pr;
+  e.opts = { ...e.opts, ...opts };
+  e.rebase = true;
   maybeDrain(prKey);
 }
 
@@ -65,15 +81,19 @@ export function enqueueApproved(pr, threadIds, opts = {}) {
 // again so anything that arrived mid-run goes out in the next batch (coalescing).
 async function maybeDrain(prKey) {
   const e = state.get(prKey);
-  if (!e || e.running || e.threads.size === 0) return;
+  // Fire when there's ANY pending work: threads OR a pending rebase. (Earlier this
+  // bailed on zero threads, which silently dropped health-only/rebase-only runs.)
+  if (!e || e.running || (e.threads.size === 0 && !e.rebase)) return;
 
   e.running = true;
   const pr = e.pr;
   const drainedThreads = [...e.threads.values()];
   const applyApproved = e.approved.size > 0;
+  const rebase = e.rebase;
   const opts = { ...e.opts };
   e.threads = new Map();
   e.approved = new Set();
+  e.rebase = false;
 
   deps.events.markStarted(prKey);
   const outPath = deps.outPath(pr);
@@ -85,10 +105,10 @@ async function maybeDrain(prKey) {
     } else {
       const r = await deps.runWorker(pr, drainedThreads, wt.path, outPath, {
         detached: wt.detached, pushRefspec: wt.pushRefspec,
-        branchHealth: opts.branchHealth, rebaseAllowed: opts.rebaseAllowed,
+        branchHealth: opts.branchHealth, rebase,
         applyApproved,
       });
-      console.log(`[dispatch] ${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''} ->`,
+      console.log(`[dispatch] ${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''}${rebase ? ' +rebase' : ''} ->`,
         r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason, wt.plan || '');
       // Surface what the headless worker actually did: its stdout tail, and
       // whether it wrote the result JSON. A missing file after a "spawned" run =
