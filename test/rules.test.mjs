@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope, deriveTier,
+  validateWorkerResult,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -66,6 +67,45 @@ test('deriveTier: no worker action, I replied last -> waiting-reviewer', () => {
 
 test('deriveTier: thread error -> error', () => {
   assert.equal(deriveTier({ error: 'scan failed' }, undefined, ME2).tier, 'error');
+});
+
+test('validateWorkerResult: valid result passes with no problems', () => {
+  const raw = { prKey: 'r#1', actions: [
+    { threadId: 'a', response: 'fix', resolved: true },
+    { threadId: 'b', response: 'surface', reason: 'risky' },
+  ], branchHealth: { surfaced: 'rebase needed' } };
+  const { result, problems } = validateWorkerResult(raw);
+  assert.equal(problems.length, 0);
+  assert.equal(result.actions.length, 2);
+});
+
+test('validateWorkerResult: drops malformed actions, keeps the good ones', () => {
+  const raw = { actions: [
+    { threadId: 'a', response: 'fix' },
+    { threadId: 'b', response: 'disposition-renamed' }, // bad response
+    { response: 'surface' },                            // missing threadId
+  ] };
+  const { result, problems } = validateWorkerResult(raw);
+  assert.deepEqual(result.actions.map((a) => a.threadId), ['a']);
+  assert.equal(problems.length, 2);
+});
+
+test('validateWorkerResult: non-object payload -> null result', () => {
+  assert.equal(validateWorkerResult(null).result, null);
+  assert.equal(validateWorkerResult('a string').result, null);
+  assert.equal(validateWorkerResult([1, 2]).result, null);
+});
+
+test('validateWorkerResult: actions present but not an array -> null result', () => {
+  const { result, problems } = validateWorkerResult({ actions: 'nope' });
+  assert.equal(result, null);
+  assert.ok(problems[0].includes('actions'));
+});
+
+test('validateWorkerResult: missing actions is fine (branch-health-only run)', () => {
+  const { result, problems } = validateWorkerResult({ branchHealth: { surfaced: 'x' } });
+  assert.deepEqual(result.actions, []);
+  assert.equal(problems.length, 0);
 });
 
 const cfg = {

@@ -18,6 +18,43 @@ export function dispatchable(thread, login = config.login, token = config.trigge
   return body.includes(token) || (!!config.debugToken && body.includes(config.debugToken));
 }
 
+// The three responses the worker may record per thread (worker-prompt §taxonomy).
+export const WORKER_RESPONSES = ['fix', 'praise', 'surface'];
+
+// Validate the worker's result JSON against the shape Phase 0 depends on. The
+// file is written by the model (free-form), so its shape isn't guaranteed — a
+// drifted result (renamed field, fenced JSON, missing actions) would silently
+// fall threads through to "pending". This catches that. Returns the sanitized
+// result plus a list of human-readable `problems`; `result` is null when the
+// payload is unusable. Drops individual malformed actions rather than rejecting
+// the whole file, so one bad entry doesn't lose every verdict.
+export function validateWorkerResult(raw) {
+  const problems = [];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return { result: null, problems: ['result is not a JSON object'] };
+  if (raw.actions !== undefined && !Array.isArray(raw.actions))
+    return { result: null, problems: ['`actions` is present but not an array'] };
+
+  const actions = [];
+  for (const [i, a] of (raw.actions || []).entries()) {
+    if (!a || typeof a !== 'object') { problems.push(`action[${i}] is not an object`); continue; }
+    if (!a.threadId) { problems.push(`action[${i}] missing threadId`); continue; }
+    if (!WORKER_RESPONSES.includes(a.response)) {
+      problems.push(`action[${i}] (${a.threadId}) has invalid response ${JSON.stringify(a.response)}`);
+      continue;
+    }
+    actions.push(a);
+  }
+
+  const bh = raw.branchHealth;
+  if (bh !== undefined && (typeof bh !== 'object' || Array.isArray(bh)))
+    problems.push('`branchHealth` is present but not an object');
+  if (bh?.surfaced !== undefined && bh.surfaced !== null && typeof bh.surfaced !== 'string')
+    problems.push('`branchHealth.surfaced` is present but not a string');
+
+  return { result: { ...raw, actions }, problems };
+}
+
 // Derive a thread's dashboard tier from the WORKER's verdict (its code-grounded
 // `response`), falling back to who-spoke-last when the worker hasn't judged it.
 // This replaces the keyword `preClassify` heuristic — the worker actually reads

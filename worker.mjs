@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
+import { validateWorkerResult } from './rules.mjs';
 
 const exec = promisify(execFile);
 const SESSIONS = join(config.baseDir, 'data', 'sessions.json');
@@ -40,10 +41,16 @@ async function recordSeenSha(prKey, worktreePath) {
 }
 
 // Read back the last worker run's result JSON for a PR (the file the worker was
-// told to write). Null if absent/unparseable. Lets the poller reflect what the
-// worker actually decided — surfaced branch-health, per-thread responses.
+// told to write). Null if absent/unparseable. The file is model-written and not
+// schema-enforced, so we validate the shape Phase 0 depends on and log any drift
+// (bad/renamed fields) loudly — otherwise threads silently fall to "pending".
+// Malformed individual actions are dropped; the rest of the result still merges.
 export async function readWorkerResult(outPath) {
-  try { return JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
+  let raw;
+  try { raw = JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
+  const { result, problems } = validateWorkerResult(raw);
+  if (problems.length) console.warn(`[worker-result] ${outPath}: ${problems.join('; ')}`);
+  return result;
 }
 
 // Dispatch the per-PR worker for only the NEW/changed threads.
