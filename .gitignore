@@ -1,0 +1,6 @@
+# Runtime state — regenerated each run, never committed
+data/
+worktrees/
+node_modules/
+*.log
+.DS_Store
