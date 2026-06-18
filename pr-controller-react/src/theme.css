@@ -1,73 +1,21 @@
 /* ============================================================
-   PR Controller — theme tokens, resets, keyframes
-   The theme is locked to "stone (dark)" via :root below.
-   To switch, replace the :root values with another block from
-   the THEME REFERENCE comment at the bottom of this file, or
-   set <html data-theme="..."> and add matching selectors.
+   PR Controller — app stylesheet entry point.
+
+   The Wabi-Sabi design system (../../design-system) is the single
+   source of truth for look & feel. We import its global entry —
+   tokens (colors, typography, spacing, effects, fonts) + resets +
+   keyframes — and add ONLY the app-specific CSS hover/focus helpers
+   below. No colors, sizes, or keyframes are redefined here; they all
+   resolve against the design-system tokens.
+
+   Theme is selected via <html data-theme="…"> (see index.html);
+   the system ships locked to stone · dark.
    ============================================================ */
+@import '@ds/styles.css';
 
-:root {
-  /* stone · dark (locked default) */
-  --bg: #1e211f;
-  --surface: #262a27;
-  --surface-2: #2f3431;
-  --ink: #e4e7e1;
-  --ink-2: #a2a89e;
-  --ink-3: #6e746c;
-  --line: #343a36;
-  --line-2: #424a44;
-  --accent: #c97a5f;
-  --accent-bg: #38302b;
-  --accent-soft: #2a2622;
-  --auto-bg: #2b332b;
-  --auto-fg: #9db18c;
-  --praise-bg: #2e322b;
-  --praise-fg: #b0a98e;
-  --err-bg: #322e22;
-  --err-fg: #c6a86a;
-}
-
-* {
-  box-sizing: border-box;
-}
-html,
-body {
-  margin: 0;
-  padding: 0;
-}
-body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: 'Hanken Grotesk', system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-::selection {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-a {
-  color: inherit;
-}
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 8px;
-}
-
-/* interactive states (paired with inline style objects in components) */
-.btn-primary:hover {
-  opacity: 0.86;
-}
-.btn-outline:hover {
-  background: var(--surface-2);
-}
-.btn-ghost:hover {
-  color: var(--ink);
-}
+/* Interactive states. The design-system primitives (Button, Tabs, …) carry their
+   own hover behavior inline; these classes cover only the app-specific controls
+   that aren't design-system components — the PR permalink and the text inputs. */
 .input:focus {
   border-color: var(--accent);
   outline: none;
@@ -76,110 +24,3 @@ a {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
-.tab:hover {
-  color: var(--ink);
-}
-.refresh:hover {
-  background: var(--surface-2);
-}
-.undo:hover {
-  opacity: 0.7;
-}
-.switch-btn:hover {
-  color: var(--ink);
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-@keyframes fadeup {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 10px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-@keyframes appear {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-@keyframes shimmer {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-
-/* ============================================================
-   THEME REFERENCE — all six variants (paste into :root to use)
-
-   warm · light
-   --bg:#F2EDE3; --surface:#FBF8F1; --surface-2:#F0E9DC;
-   --ink:#2C2823; --ink-2:#6C6457; --ink-3:#9A9082;
-   --line:#E6DECE; --line-2:#D9CFBC;
-   --accent:#A85539; --accent-bg:#F0E0D6; --accent-soft:#FAEFE7;
-   --auto-bg:#E8EADC; --auto-fg:#5E6B49;
-   --praise-bg:#EDE7DA; --praise-fg:#7B7058;
-   --err-bg:#EEE3CD; --err-fg:#8A6B3A;
-
-   warm · dark
-   --bg:#211D17; --surface:#2A2620; --surface-2:#332E26;
-   --ink:#ECE5D8; --ink-2:#ABA290; --ink-3:#74695A;
-   --line:#38322A; --line-2:#463F34;
-   --accent:#CD7E5E; --accent-bg:#3A2E26; --accent-soft:#2E251F;
-   --auto-bg:#2F3325; --auto-fg:#A6B585;
-   --praise-bg:#322D24; --praise-fg:#B4A88C;
-   --err-bg:#352D1F; --err-fg:#CBA862;
-
-   stone · light
-   --bg:#EAEDE9; --surface:#F5F7F3; --surface-2:#E7ECE6;
-   --ink:#272A27; --ink-2:#5D635B; --ink-3:#8C928A;
-   --line:#DCE0D9; --line-2:#CBD1C7;
-   --accent:#9E5642; --accent-bg:#EBDFD8; --accent-soft:#F4ECE7;
-   --auto-bg:#E2E8E0; --auto-fg:#586B58;
-   --praise-bg:#E6E9E2; --praise-fg:#67705F;
-   --err-bg:#EAE6D6; --err-fg:#7E6E47;
-
-   stone · dark  (the locked default above)
-
-   tea · light
-   --bg:#EEE8DA; --surface:#F8F3E8; --surface-2:#ECE4D3;
-   --ink:#2A241C; --ink-2:#6E6151; --ink-3:#9C8E78;
-   --line:#E2D8C4; --line-2:#D3C6AD;
-   --accent:#A5532F; --accent-bg:#EFDFCE; --accent-soft:#F8EFE2;
-   --auto-bg:#E5E6D0; --auto-fg:#65703F;
-   --praise-bg:#ECE4D1; --praise-fg:#7E6F4F;
-   --err-bg:#EBDDBE; --err-fg:#8A6A33;
-
-   tea · dark
-   --bg:#20190F; --surface:#292318; --surface-2:#322B1E;
-   --ink:#ECE3D2; --ink-2:#ADA088; --ink-3:#786A53;
-   --line:#38301F; --line-2:#483E29;
-   --accent:#CC7D52; --accent-bg:#3A2C1E; --accent-soft:#2B2217;
-   --auto-bg:#2E311C; --auto-fg:#A8B57A;
-   --praise-bg:#322B1C; --praise-fg:#B6A77F;
-   --err-bg:#362B16; --err-fg:#CFA94E;
-   ============================================================ */

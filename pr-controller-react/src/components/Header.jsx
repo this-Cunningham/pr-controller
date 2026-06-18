@@ -1,6 +1,7 @@
 import ScopeBadge from './ModeBadge.jsx';
+import Button from './Button.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 export default function Header({ dash }) {
   const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, runPoll } = dash;
@@ -20,10 +21,10 @@ export default function Header({ dash }) {
           <h1
             style={{
               margin: 0,
-              fontFamily: "'Newsreader', Georgia, serif",
+              fontFamily: 'var(--font-serif)',
               fontWeight: 500,
-              fontSize: 28,
-              letterSpacing: '-.01em',
+              fontSize: 'var(--text-wordmark)',
+              letterSpacing: 'var(--tracking-tight)',
               color: 'var(--ink)',
               whiteSpace: 'nowrap',
             }}
@@ -40,55 +41,26 @@ export default function Header({ dash }) {
       </div>
 
       <div style={{ flex: 'none', display: 'flex', gap: 8 }}>
-        {/* TEMP (debug): trigger a backend poll instead of waiting the 30-min timer. */}
-        <button
-          type="button"
-          onClick={runPoll}
-          title="Run a poll now (debug)"
-          style={{
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            font: "500 13px 'Hanken Grotesk', sans-serif",
-            padding: '9px 15px',
-            border: '1px dashed var(--line-2)',
-            borderRadius: 7,
-            background: 'var(--surface)',
-            color: 'var(--ink-2)',
-          }}
-        >
-          ▶ Run poll
-        </button>
+        {/* TEMP (debug): trigger a backend poll instead of waiting the 30-min timer.
+            Low-stakes utility -> ghost; the dashed-border debug treatment was dropped
+            because the design system has no such variant. */}
+        <Button variant="ghost" onClick={runPoll}>
+          Run poll
+        </Button>
 
-        <button
-          type="button"
-          className="refresh"
-          onClick={refresh}
-          style={{
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            font: "500 13px 'Hanken Grotesk', sans-serif",
-            padding: '9px 15px',
-            border: '1px solid var(--line-2)',
-            borderRadius: 7,
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-          }}
-        >
+        <Button variant="outline" onClick={refresh}>
           <span
             style={{
               fontSize: 15,
               display: 'inline-block',
-              animation: refreshing ? 'spin .9s linear infinite' : 'none',
+              marginRight: 8,
+              animation: refreshing ? 'ws-spin .9s linear infinite' : 'none',
             }}
           >
             ⟳
           </span>
           {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
+        </Button>
       </div>
     </header>
   );

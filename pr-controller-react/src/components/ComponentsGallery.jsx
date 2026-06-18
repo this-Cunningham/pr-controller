@@ -11,6 +11,7 @@ import {
   GALLERY_JIRA_SET,
 } from '../data.js';
 import { tagMeta } from '../meta.js';
+import { DispositionTag } from '@ds/components/core/DispositionTag.jsx';
 import PRCard from './PRCard.jsx';
 import ReviewPill from './ReviewPill.jsx';
 import StatusPill from './StatusPill.jsx';
@@ -19,7 +20,7 @@ import Skeleton from './Skeleton.jsx';
 import EmptyState from './EmptyState.jsx';
 import Toast from './Toast.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 function Frame({ title, caption, children }) {
   return (
@@ -44,7 +45,7 @@ function Frame({ title, caption, children }) {
 const swatchBox = {
   background: 'var(--surface)',
   border: '1px solid var(--line)',
-  borderRadius: 5,
+  borderRadius: 'var(--radius-card)',
   padding: 18,
   display: 'flex',
   flexWrap: 'wrap',
@@ -57,7 +58,7 @@ function MiniHeader({ scope }) {
       style={{
         background: 'var(--surface)',
         border: '1px solid var(--line)',
-        borderRadius: 5,
+        borderRadius: 'var(--radius-card)',
         padding: '16px 18px',
         display: 'flex',
         justifyContent: 'space-between',
@@ -67,7 +68,7 @@ function MiniHeader({ scope }) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontFamily: "'Newsreader', Georgia, serif", fontSize: 20, fontWeight: 500, color: 'var(--ink)' }}>
+        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 500, color: 'var(--ink)' }}>
           PR Controller
         </span>
         <ScopeBadge scope={scope} onExplain={() => {}} />
@@ -85,7 +86,7 @@ export default function ComponentsGallery() {
     <div>
       <div
         style={{
-          fontFamily: "'Newsreader', Georgia, serif",
+          fontFamily: 'var(--font-serif)',
           fontSize: 24,
           fontWeight: 500,
           color: 'var(--ink)',
@@ -119,21 +120,7 @@ export default function ComponentsGallery() {
       <Frame title="Thread disposition tags">
         <div style={swatchBox}>
           {Object.values(tagMeta).map((m) => (
-            <span
-              key={m.label}
-              style={{
-                fontFamily: mono,
-                fontSize: 10.5,
-                letterSpacing: '.07em',
-                textTransform: 'uppercase',
-                padding: '3px 8px',
-                borderRadius: 4,
-                background: m.bg,
-                color: m.fg,
-              }}
-            >
-              {m.label}
-            </span>
+            <DispositionTag key={m.label} tone={m.tone}>{m.label}</DispositionTag>
           ))}
         </div>
       </Frame>

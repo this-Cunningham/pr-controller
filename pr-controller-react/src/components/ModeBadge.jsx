@@ -18,7 +18,7 @@ export default function ScopeBadge({ scope = [], onExplain }) {
           alignItems: 'center',
           gap: 7,
           padding: '5px 12px',
-          borderRadius: 20,
+          borderRadius: 'var(--radius-round)',
           background: scoped ? 'var(--surface-2)' : 'var(--accent-bg)',
           color: scoped ? 'var(--ink-2)' : 'var(--accent)',
           fontSize: 12,
@@ -32,7 +32,7 @@ export default function ScopeBadge({ scope = [], onExplain }) {
             height: 8,
             borderRadius: '50%',
             background: 'var(--accent)',
-            animation: 'pulse 1.6s ease-in-out infinite',
+            animation: 'ws-pulse 1.6s ease-in-out infinite',
           }}
         />
         {label}

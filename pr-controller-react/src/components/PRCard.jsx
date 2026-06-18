@@ -2,8 +2,9 @@ import ReviewPill from './ReviewPill.jsx';
 import StatusPill from './StatusPill.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
+import Button from './Button.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 export default function PRCard({ pr, needsYou, dash }) {
   const hasThreads = pr.threads.length > 0;
@@ -18,9 +19,9 @@ export default function PRCard({ pr, needsYou, dash }) {
         overflow: 'hidden',
         background: 'var(--surface)',
         border: '1px solid var(--line)',
-        borderRadius: 5,
+        borderRadius: 'var(--radius-card)',
         padding: '18px 20px 18px 22px',
-        animation: 'appear .3s ease',
+        animation: 'ws-appear .3s ease',
       }}
     >
       {needsYou && (
@@ -84,7 +85,7 @@ export default function PRCard({ pr, needsYou, dash }) {
             background: 'var(--accent-bg)',
             borderLeft: '2px solid var(--accent)',
             padding: '10px 13px',
-            borderRadius: '0 5px 5px 0',
+            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
             fontSize: 13,
             lineHeight: 1.5,
             color: 'var(--ink)',
@@ -104,7 +105,7 @@ export default function PRCard({ pr, needsYou, dash }) {
             background: 'var(--auto-bg)',
             borderLeft: '2px solid var(--auto-fg)',
             padding: '10px 13px',
-            borderRadius: '0 5px 5px 0',
+            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
             fontSize: 13,
             lineHeight: 1.5,
             color: 'var(--ink)',
@@ -119,7 +120,7 @@ export default function PRCard({ pr, needsYou, dash }) {
               height: 8,
               borderRadius: '50%',
               background: 'var(--auto-fg)',
-              animation: 'pulse 1.6s ease-in-out infinite',
+              animation: 'ws-pulse 1.6s ease-in-out infinite',
             }}
           />
           <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
@@ -138,24 +139,9 @@ export default function PRCard({ pr, needsYou, dash }) {
 
       {stagedCount > 0 && (
         <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={() => dash.runAgent(pr.id)}
-            style={{
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              font: "600 13px 'Hanken Grotesk', sans-serif",
-              padding: '9px 15px',
-              border: 'none',
-              borderRadius: 7,
-              background: 'var(--accent)',
-              color: '#fff',
-            }}
-          >
-            {working ? `Agent working… (${stagedCount} queued)` : `Run agent (${stagedCount}) →`}
-          </button>
+          <Button variant="primary" disabled={working} onClick={() => dash.runAgent(pr.id)}>
+            {working ? `Agent working… (${stagedCount} queued)` : `Run agent (${stagedCount})`}
+          </Button>
         </div>
       )}
 
@@ -163,26 +149,15 @@ export default function PRCard({ pr, needsYou, dash }) {
         <div style={{ marginTop: 12 }}>
           {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
               auto-retrying would just bail again — offer an interactive terminal to
-              resolve it by hand. Otherwise offer the one-click agent rebase. */}
-          <button
-            type="button"
+              resolve it by hand (›_ = terminal hand-off). Otherwise offer the
+              one-click agent rebase. */}
+          <Button
+            variant="outline"
             disabled={working}
             onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
-            style={{
-              cursor: working ? 'default' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              font: "600 13px 'Hanken Grotesk', sans-serif",
-              padding: '9px 15px',
-              border: '1px solid var(--accent)',
-              borderRadius: 7,
-              background: 'var(--accent-bg)',
-              color: 'var(--accent)',
-            }}
           >
-            {working ? '⟳ Rebasing…' : pr.surfaced ? '⌗ Resolve in terminal' : '⤵ Rebase (merge conflict)'}
-          </button>
+            {working ? 'Rebasing…' : pr.surfaced ? '›_ Resolve in terminal' : 'Rebase (merge conflict)'}
+          </Button>
         </div>
       )}
 

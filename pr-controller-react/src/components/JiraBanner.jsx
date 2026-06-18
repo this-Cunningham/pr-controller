@@ -10,7 +10,7 @@ export default function JiraBanner({ prId, dash }) {
   if (state?.status === 'set') {
     return (
       <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
-        <div style={{ fontSize: 12.5, color: 'var(--auto-fg)', animation: 'appear .3s ease' }}>
+        <div style={{ fontSize: 12.5, color: 'var(--auto-fg)', animation: 'ws-appear .3s ease' }}>
           ✓ Linked to {state.value} — compliance check cleared.
         </div>
       </div>
@@ -23,7 +23,7 @@ export default function JiraBanner({ prId, dash }) {
         style={{
           background: 'var(--accent-soft)',
           border: '1px solid var(--accent-bg)',
-          borderRadius: 5,
+          borderRadius: 'var(--radius-card)',
           padding: '13px 14px',
         }}
       >
@@ -41,12 +41,12 @@ export default function JiraBanner({ prId, dash }) {
             onChange={(e) => setValue(e.target.value)}
             placeholder="ABC-123"
             style={{
-              font: "13px 'IBM Plex Mono', monospace",
+              font: '13px var(--font-mono)',
               textTransform: 'uppercase',
-              padding: '8px 11px',
+              padding: 'var(--pad-input)',
               width: 140,
               border: '1px solid var(--line-2)',
-              borderRadius: 5,
+              borderRadius: 'var(--radius-card)',
               background: 'var(--surface)',
               color: 'var(--ink)',
             }}

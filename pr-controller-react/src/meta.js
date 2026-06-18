@@ -1,27 +1,42 @@
 // Presentational metadata maps shared across components.
-// All colors reference CSS custom properties from theme.css.
+//
+// Colors/typography are NOT defined here — each entry names a design-system
+// *tone* (the Badge / DispositionTag tone vocabulary), and the design-system
+// component resolves it to the right token-backed background/foreground. This
+// keeps the design system the single source of truth for look & feel.
+//
+// Tone vocabulary (see @ds Badge.jsx / DispositionTag.jsx):
+//   accent (urgency) · sage (auto/approved) · neutral (waiting) ·
+//   praise · ochre (agent error) · outline (draft).
 
+// Thread disposition tags → DispositionTag tone + label.
+// Labels are the app's (they mirror the backend's real tiers, which are richer
+// than the design-system's reference set — e.g. pending / working).
 export const tagMeta = {
-  hashout: { label: 'surfaced · your call', bg: 'var(--accent-bg)', fg: 'var(--accent)' },
-  agree: { label: 'agree · auto-fix', bg: 'var(--auto-bg)', fg: 'var(--auto-fg)' },
-  waiting: { label: 'waiting on reviewer', bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
-  pending: { label: 'no feedback yet', bg: 'var(--surface-2)', fg: 'var(--ink-3)' },
-  working: { label: 'agent working…', bg: 'var(--auto-bg)', fg: 'var(--auto-fg)' },
-  praise: { label: 'praise', bg: 'var(--praise-bg)', fg: 'var(--praise-fg)' },
-  error: { label: 'agent error', bg: 'var(--err-bg)', fg: 'var(--err-fg)' },
+  hashout: { tone: 'accent', label: 'surfaced · your call' },
+  agree: { tone: 'sage', label: 'agree · auto-fix' },
+  waiting: { tone: 'neutral', label: 'waiting on reviewer' },
+  // No exact design-system DispositionTag tone for "pending" (the original used a
+  // fainter ink-3); 'neutral' is the closest covered tone. Flagged in the PR.
+  pending: { tone: 'neutral', label: 'no feedback yet' },
+  working: { tone: 'sage', label: 'agent working…' },
+  praise: { tone: 'praise', label: 'praise' },
+  error: { tone: 'ochre', label: 'agent error' },
 };
 
+// Review-status pill → Badge tone (rendered mono).
 export const reviewMeta = {
-  APPROVED: { label: 'Approved', bg: 'var(--auto-bg)', fg: 'var(--auto-fg)', bd: 'transparent' },
-  REVIEW_REQUIRED: { label: 'Review required', bg: 'var(--surface-2)', fg: 'var(--ink-2)', bd: 'transparent' },
-  DRAFT: { label: 'Draft', bg: 'transparent', fg: 'var(--ink-3)', bd: 'var(--line-2)' },
+  APPROVED: { tone: 'sage', label: 'Approved' },
+  REVIEW_REQUIRED: { tone: 'neutral', label: 'Review required' },
+  DRAFT: { tone: 'outline', label: 'Draft' },
 };
 
+// PR signal pill → Badge tone (+ leading dot where appropriate).
 export const pillMeta = {
-  auto: { bg: 'var(--surface-2)', fg: 'var(--ink-2)', dot: true },
-  behind: { bg: 'var(--surface-2)', fg: 'var(--ink-2)', dot: false },
-  ci: { bg: 'var(--accent-bg)', fg: 'var(--accent)', dot: false },
-  working: { bg: 'var(--auto-bg)', fg: 'var(--auto-fg)', dot: true },
+  auto: { tone: 'neutral', dot: true },
+  behind: { tone: 'neutral', dot: false },
+  ci: { tone: 'accent', dot: false },
+  working: { tone: 'sage', dot: true },
 };
 
 export const noActionLabel = (tag) =>

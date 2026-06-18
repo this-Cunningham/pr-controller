@@ -2,10 +2,11 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
+import { DispositionTag } from '@ds/components/core/DispositionTag.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 // react-markdown escapes raw HTML by default (no dangerouslySetInnerHTML), so
 // untrusted reviewer/bot comment bodies can't execute script — safe to render.
@@ -14,7 +15,7 @@ const mdComponents = {
   code: (p) => (
     <code
       {...p}
-      style={{ fontFamily: mono, fontSize: '0.9em', background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 3 }}
+      style={{ fontFamily: mono, fontSize: '0.9em', background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 'var(--radius-chip)' }}
     />
   ),
   p: (p) => <p {...p} style={{ margin: '0 0 6px' }} />,
@@ -30,7 +31,7 @@ function TerminalNote({ children }) {
         display: 'flex',
         gap: 7,
         alignItems: 'center',
-        animation: 'appear .3s ease',
+        animation: 'ws-appear .3s ease',
       }}
     >
       <span style={{ fontFamily: mono, color: 'var(--accent)' }}>›_</span>
@@ -57,7 +58,7 @@ function HashOutControls({ thread, prId, dash }) {
             background: 'var(--surface-2)',
             borderLeft: '2px solid var(--line-2)',
             padding: '9px 12px',
-            borderRadius: '0 5px 5px 0',
+            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
             fontSize: 13,
             lineHeight: 1.5,
             color: 'var(--ink-2)',
@@ -83,7 +84,7 @@ function HashOutControls({ thread, prId, dash }) {
             background: 'var(--auto-bg)',
             borderLeft: '2px solid var(--auto-fg)',
             padding: '9px 12px',
-            borderRadius: '0 5px 5px 0',
+            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
             fontSize: 13,
             lineHeight: 1.5,
             color: 'var(--ink-2)',
@@ -122,10 +123,10 @@ function HashOutControls({ thread, prId, dash }) {
           marginTop: 11,
           width: '100%',
           resize: 'vertical',
-          font: "13.5px/1.5 'Hanken Grotesk', sans-serif",
+          font: '13.5px/1.5 var(--font-sans)',
           padding: '10px 12px',
           border: '1px solid var(--line-2)',
-          borderRadius: 5,
+          borderRadius: 'var(--radius-card)',
           background: 'var(--surface)',
           color: 'var(--ink)',
         }}
@@ -194,20 +195,7 @@ export default function ThreadRow({ thread, prId, dash }) {
   return (
     <div style={{ padding: '14px 0', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
-        <span
-          style={{
-            fontFamily: mono,
-            fontSize: 10.5,
-            letterSpacing: '.07em',
-            textTransform: 'uppercase',
-            padding: '3px 8px',
-            borderRadius: 4,
-            background: meta.bg,
-            color: meta.fg,
-          }}
-        >
-          {meta.label}
-        </span>
+        <DispositionTag tone={meta.tone}>{meta.label}</DispositionTag>
         <span style={{ fontFamily: mono, fontSize: 12, color: 'var(--ink-3)' }}>{thread.loc}</span>
         <span style={{ fontFamily: mono, fontSize: 12, color: 'var(--ink-2)' }}>{thread.author}</span>
       </div>
@@ -239,7 +227,7 @@ export default function ThreadRow({ thread, prId, dash }) {
             border: 'none',
             padding: 0,
             cursor: 'pointer',
-            font: "500 12px 'Hanken Grotesk', sans-serif",
+            font: '500 12px var(--font-sans)',
             color: 'var(--ink-2)',
           }}
         >
