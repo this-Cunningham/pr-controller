@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope,
+  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug, inScope, deriveTier,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -37,6 +37,35 @@ test('dispatchable: after bot replies "fixed" as me -> no re-dispatch', () => {
 // config.login is the real login, so this test uses that rather than ME.
 test('dispatchable: my comment WITH @claude-debug -> dispatch', () => {
   assert.equal(dispatchable({ lastAuthor: config.login, lastBody: 'seed this @claude-debug' }), true);
+});
+
+const ME2 = 'ccunningham';
+
+test('deriveTier: worker surfaced -> hash-out with the code-cited reason', () => {
+  const r = deriveTier({ lastAuthor: 'jheipler' }, { response: 'surface', reason: 'breaks the guard' }, ME2);
+  assert.equal(r.tier, 'hash-out');
+  assert.equal(r.reason, 'breaks the guard');
+});
+
+test('deriveTier: worker fixed -> waiting-reviewer', () => {
+  const r = deriveTier({ lastAuthor: ME2 }, { response: 'fix', reason: 'fixed it' }, ME2);
+  assert.equal(r.tier, 'waiting-reviewer');
+});
+
+test('deriveTier: worker praised -> waiting-reviewer', () => {
+  assert.equal(deriveTier({ lastAuthor: ME2 }, { response: 'praise' }, ME2).tier, 'waiting-reviewer');
+});
+
+test('deriveTier: no worker action, reviewer last word -> pending (no feedback yet)', () => {
+  assert.equal(deriveTier({ lastAuthor: 'jheipler' }, undefined, ME2).tier, 'pending');
+});
+
+test('deriveTier: no worker action, I replied last -> waiting-reviewer', () => {
+  assert.equal(deriveTier({ lastAuthor: ME2 }, undefined, ME2).tier, 'waiting-reviewer');
+});
+
+test('deriveTier: thread error -> error', () => {
+  assert.equal(deriveTier({ error: 'scan failed' }, undefined, ME2).tier, 'error');
 });
 
 const cfg = {

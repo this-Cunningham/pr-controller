@@ -6,7 +6,7 @@
 //   review: 'APPROVED' | 'REVIEW_REQUIRED' | 'DRAFT'
 //   pill:   { label, kind: 'auto' | 'behind' | 'ci' }
 //   thread: { id, tag, loc, author, body, reason }
-//   tag:    'hashout' | 'agree' | 'waiting' | 'praise' | 'error'
+//   tag:    'hashout' | 'agree' | 'waiting' | 'pending' | 'praise' | 'error'
 // ============================================================
 
 const pr2412 = {

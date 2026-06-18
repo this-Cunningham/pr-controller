@@ -5,9 +5,11 @@
 //
 // Backend PR shape (state.json):
 //   { number, title, repo, nameWithOwner, url, isDraft, reviewDecision,
-//     needsYou, needsJira, behindBase, ciFailing, autoFixable,
-//     branchHealth: { failingChecks[], complianceChecks[] },
+//     needsYou, needsJira, behindBase, ciFailing, autoFixable, pending,
+//     workerSurfaced, branchHealth: { failingChecks[], complianceChecks[] },
 //     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, error }] }
+//   tier is derived from the worker's verdict (rules.deriveTier): hash-out |
+//   agree-fix | waiting-reviewer | pending | error
 //
 // UI PR shape (what components consume):
 //   { id, repo, number, title, review, jira, pills[], surfaced, threads[] }
@@ -17,6 +19,7 @@ const TIER_TO_TAG = {
   'hash-out': 'hashout',
   'agree-fix': 'agree',
   'waiting-reviewer': 'waiting',
+  pending: 'pending',
   praise: 'praise',
   error: 'error',
 };
@@ -76,8 +79,13 @@ export function adaptSections(prs) {
   const adapted = prs.map((p) => ({ raw: p, ui: adaptPR(p) }));
   const needs = [], auto = [], waiting = [];
   for (const { raw, ui } of adapted) {
+    // A surfaced branch-health reason means the worker already looked, couldn't
+    // fix it (e.g. rebase gated on approval), and punted — the next actor is the
+    // reviewer, so it waits. Don't count its CI/behind pills as "auto-handling".
+    // Pending threads (worker hasn't judged them yet) are the agent's queue, so
+    // they belong in auto-handling, not waiting-on-reviewer.
     if (raw.needsYou) needs.push(ui);
-    else if (raw.autoFixable || ui.pills.some((p) => p.kind === 'ci' || p.kind === 'behind')) auto.push(ui);
+    else if (!ui.surfaced && (raw.autoFixable || raw.pending || ui.pills.some((p) => p.kind === 'ci' || p.kind === 'behind'))) auto.push(ui);
     else waiting.push(ui);
   }
   return [

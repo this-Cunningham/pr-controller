@@ -46,26 +46,6 @@ export async function readWorkerResult(outPath) {
   try { return JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
 }
 
-// Cheap heuristic pre-classification (no Claude). Used to render the dashboard
-// before/without a worker, and to decide priority. The real judgment is the
-// worker's job. (Scaffolding — slated for retirement once worker output is
-// plumbed into state.json; see the suggested-responses plan.)
-const RISKY = [/security/i, /xss/i, /inject/i, /\brefactor\b/i, /antipattern/i,
-  /should we/i, /do we (want|need)/i, /curious if/i, /\bzod\b/i, /schema/i];
-
-export function preClassify(thread) {
-  if (thread.error) return { tier: 'error', reason: thread.error };
-  // If WE replied last, it's waiting on the reviewer, not us.
-  if (thread.lastAuthor === config.login)
-    return { tier: 'waiting-reviewer', reason: 'you replied last' };
-  const text = thread.body || '';
-  const looksRisky = RISKY.some((re) => re.test(text));
-  const isQuestion = /\?\s*$/.test(text.trim()) || /^(is|are|do|does|can|should|why|what|how)\b/i.test(text.trim());
-  if (looksRisky || isQuestion)
-    return { tier: 'hash-out', reason: looksRisky ? 'risk/scope keyword' : 'reviewer asked a question' };
-  return { tier: 'agree-fix', reason: 'looks low-consequence' };
-}
-
 // Dispatch the per-PR worker for only the NEW/changed threads.
 // First sight: --session-id <uuid>. Later diffs: --resume <uuid>.
 export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}) {

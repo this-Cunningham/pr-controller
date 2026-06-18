@@ -25,9 +25,9 @@ async function postThreadReply(threadId, body) {
     '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
 }
 import { scanAll } from './scanner.mjs';
-import { preClassify, spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
+import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
-import { dispatchable, needsJira, rebaseAllowed } from './rules.mjs';
+import { dispatchable, needsJira, rebaseAllowed, deriveTier } from './rules.mjs';
 
 const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
@@ -47,7 +47,7 @@ const seen = new Map();
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
 
-const TIER_RANK = { 'hash-out': 0, 'agree-fix': 1, 'waiting-reviewer': 2, error: 3 };
+const TIER_RANK = { 'hash-out': 0, error: 1, 'agree-fix': 2, pending: 3, 'waiting-reviewer': 4 };
 
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
 
@@ -57,11 +57,6 @@ async function poll() {
   try {
     const prs = await scanAll();
     for (const pr of prs) {
-      pr.threads = pr.threads.map((t) => ({ ...t, ...preClassify(t) }));
-      pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out');
-      pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
-      pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
-
       // Branch-health flags (separate trigger from review threads).
       const h = pr.branchHealth || {};
       pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
@@ -69,7 +64,6 @@ async function poll() {
 
       // Compliance failing + no JIRA key in title => surface an input box for the ticket.
       pr.needsJira = needsJira(pr.title, h.complianceChecks);
-      if (pr.needsJira) pr.needsYou = true;
 
       // Diff vs last poll: new threads, and whether branch health changed.
       const prKey = `${pr.repo}#${pr.number}`;
@@ -86,8 +80,7 @@ async function poll() {
       if (newThreads.length || (healthChanged && healthWork)) {
         const wt = await ensureWorktree(pr);
         if (wt.outOfSync) {
-          pr.needsYou = true;
-          pr.outOfSync = true;
+          pr.outOfSync = true;  // escalates to needsYou when PR-level fields are computed below
           console.log(`[dispatch] ${prKey}: branch out of sync, surfacing instead of launching`);
         } else {
           const r = await runWorker(pr, newThreads, wt.path, outPath,
@@ -103,17 +96,26 @@ async function poll() {
         }
       }
 
-      // Merge the last worker run's verdict so the dashboard reflects what the
-      // worker actually decided — not just the heuristic. The worker resolves
-      // threads it fixed (so they're gone from the scan above); what remains to
-      // surface is branch-health it couldn't fix (e.g. a rebase it wasn't allowed
-      // to do). A surfaced health reason is YOUR call, so it escalates to needsYou.
+      // Derive each thread's tier from the WORKER's verdict (its code-grounded
+      // response), not a keyword heuristic. The worker resolves threads it
+      // fixed/praised, so those are already gone from the scan; what's left is
+      // either surfaced (hash-out, needs you), waiting on the reviewer, or not
+      // yet judged (pending — "No feedback yet"). Match worker actions by threadId.
       const result = await readWorkerResult(outPath);
+      const actions = new Map((result?.actions || []).map((a) => [a.threadId, a]));
+      pr.threads = pr.threads.map((t) => ({ ...t, ...deriveTier(t, actions.get(t.threadId)) }));
+
+      // A surfaced branch-health reason (e.g. a rebase the worker wasn't allowed
+      // to do until approval) is the reviewer's move next, not yours — carry it
+      // for context but don't escalate (see adapt.js bucketing).
       const surfaced = result?.branchHealth?.surfaced;
-      if (surfaced) {
-        pr.needsYou = true;
-        pr.workerSurfaced = surfaced;
-      }
+      if (surfaced) pr.workerSurfaced = surfaced;
+
+      // PR-level fields derived from the per-thread tiers + branch state.
+      pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync;
+      pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
+      pr.pending = pr.threads.filter((t) => t.tier === 'pending').length;
+      pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
     }
     prs.sort((a, b) => a.priority - b.priority || (b.needsYou - a.needsYou));
     state = { updatedAt: new Date().toISOString(), scope: config.onlyPRs || [], prs };

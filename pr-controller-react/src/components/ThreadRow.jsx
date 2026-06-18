@@ -115,6 +115,15 @@ function AgreeControls() {
   );
 }
 
+// pending: the worker hasn't reviewed this thread yet — it's queued, no CTA.
+function PendingControls() {
+  return (
+    <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
+      The agent hasn’t reviewed this thread yet.
+    </div>
+  );
+}
+
 // error: cannot-classify caption + Open in terminal.
 function ErrorControls({ thread, dash }) {
   const status = dash.threadStatus(thread.id);
@@ -210,6 +219,7 @@ export default function ThreadRow({ thread, dash }) {
 
       {thread.tag === 'hashout' && <HashOutControls thread={thread} dash={dash} />}
       {thread.tag === 'agree' && <AgreeControls />}
+      {thread.tag === 'pending' && <PendingControls />}
       {thread.tag === 'error' && <ErrorControls thread={thread} dash={dash} />}
       {(thread.tag === 'waiting' || thread.tag === 'praise') && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>

@@ -127,3 +127,21 @@ resolve / rebase) on the PRs it can see.
   so a session that never launched can't leave a phantom entry that `--resume`
   can't find.
 - `lastSeenSha` records the worktree HEAD after each run for the resume delta diff.
+
+## Dashboard tiers — derived from the worker's verdict [tested: `deriveTier`]
+The dashboard's per-thread tier comes from the worker's code-grounded `response`
+(read back from `data/worker-<repo>-<num>.json` and merged by `threadId` in
+`poll()`), NOT a keyword heuristic. The old `preClassify` guess is retired.
+- **surface** → `hash-out` (Needs you), carrying the worker's code-cited reason.
+- **fix / praise** → `waiting-reviewer`. The worker resolves these threads, so they
+  usually drop out of the scan entirely; if still open, the ball is the reviewer's.
+- **No worker verdict yet:** the user replied last → `waiting-reviewer`; the reviewer
+  had the last word → **`pending`** ("No feedback yet" — the worker hasn't judged it).
+- A thread scan error → `error`.
+
+PR-level fields follow from the tiers: `needsYou` = any `hash-out` OR `needsJira` OR
+`outOfSync`; `autoFixable` = count of `agree-fix`; `pending` = count of `pending`.
+A worker-`surfaced` branch-health reason (e.g. an approval-gated rebase) is carried
+as `workerSurfaced` for context but does NOT escalate to `needsYou` — the next actor
+is the reviewer, so the PR waits. `pending` PRs bucket into Auto-handling (the
+agent's queue), not Waiting-on-reviewer.

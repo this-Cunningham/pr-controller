@@ -5,6 +5,7 @@ export const tagMeta = {
   hashout: { label: 'disagree · hash out', bg: 'var(--accent-bg)', fg: 'var(--accent)' },
   agree: { label: 'agree · auto-fix', bg: 'var(--auto-bg)', fg: 'var(--auto-fg)' },
   waiting: { label: 'waiting on reviewer', bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
+  pending: { label: 'no feedback yet', bg: 'var(--surface-2)', fg: 'var(--ink-3)' },
   praise: { label: 'praise', bg: 'var(--praise-bg)', fg: 'var(--praise-fg)' },
   error: { label: 'agent error', bg: 'var(--err-bg)', fg: 'var(--err-fg)' },
 };

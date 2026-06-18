@@ -18,6 +18,28 @@ export function dispatchable(thread, login = config.login, token = config.trigge
   return body.includes(token) || (!!config.debugToken && body.includes(config.debugToken));
 }
 
+// Derive a thread's dashboard tier from the WORKER's verdict (its code-grounded
+// `response`), falling back to who-spoke-last when the worker hasn't judged it.
+// This replaces the keyword `preClassify` heuristic — the worker actually reads
+// the code, so its verdict is the source of truth. `action` is the matching entry
+// from the worker result JSON's `actions[]` (or undefined if none yet).
+//   surface            -> hash-out      (worker wants YOUR call; reason is code-cited)
+//   fix | praise        -> waiting-reviewer (worker acted + replied; ball is the reviewer's)
+//   no verdict, we last -> waiting-reviewer (we replied; waiting on the reviewer)
+//   no verdict, them last -> pending      ("No feedback yet" — worker hasn't run/judged)
+export function deriveTier(thread, action, login = config.login) {
+  if (thread.error) return { tier: 'error', reason: thread.error };
+  if (action) {
+    if (action.response === 'surface')
+      return { tier: 'hash-out', reason: action.reason || 'The agent surfaced this for your judgment.' };
+    // fix/praise: the worker acted and (for fix) replied — it's the reviewer's move now.
+    return { tier: 'waiting-reviewer', reason: action.reason || 'The agent handled this; waiting on the reviewer.' };
+  }
+  if (thread.lastAuthor === login)
+    return { tier: 'waiting-reviewer', reason: 'You replied last — waiting on the reviewer.' };
+  return { tier: 'pending', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
+}
+
 // Split failing checks into: code CI (worker fixes), compliance (needs your input,
 // e.g. a JIRA ticket), and ignored (policy/bot — dropped). Returns the first two.
 export function categorizeChecks(failing, cfg = config) {
