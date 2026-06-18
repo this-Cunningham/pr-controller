@@ -75,6 +75,26 @@ export default function PRCard({ pr, needsYou, dash }) {
         <ReviewPill review={pr.review} />
       </div>
 
+      {pr.surfaced && (
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--accent-bg)',
+            borderLeft: '2px solid var(--accent)',
+            padding: '10px 13px',
+            borderRadius: '0 5px 5px 0',
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--ink)',
+          }}
+        >
+          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Agent surfaced
+          </span>
+          <div style={{ marginTop: 5, color: 'var(--ink-2)' }}>{pr.surfaced}</div>
+        </div>
+      )}
+
       {pr.pills.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
           {pr.pills.map((pill, i) => (

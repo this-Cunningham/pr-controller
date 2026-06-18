@@ -25,7 +25,7 @@ async function postThreadReply(threadId, body) {
     '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
 }
 import { scanAll } from './scanner.mjs';
-import { preClassify, spawnDiscussTerminal, runWorker } from './worker.mjs';
+import { preClassify, spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { dispatchable, needsJira, rebaseAllowed } from './rules.mjs';
 
@@ -73,6 +73,7 @@ async function poll() {
 
       // Diff vs last poll: new threads, and whether branch health changed.
       const prKey = `${pr.repo}#${pr.number}`;
+      const outPath = join(DATA, `worker-${pr.repo}-${pr.number}.json`);
       const prev = seen.get(prKey) || { threads: new Set(), health: '' };
       const newThreads = pr.threads.filter((t) => !t.error && !prev.threads.has(fp(t)) && dispatchable(t));
       const healthSig = `${h.mergeable}|${h.mergeState}|${h.checkState}|${(h.failingChecks||[]).map(c=>c.name+c.state).join(',')}`;
@@ -89,7 +90,6 @@ async function poll() {
           pr.outOfSync = true;
           console.log(`[dispatch] ${prKey}: branch out of sync, surfacing instead of launching`);
         } else {
-          const outPath = join(DATA, `worker-${pr.repo}-${pr.number}.json`);
           const r = await runWorker(pr, newThreads, wt.path, outPath,
             { detached: wt.detached, pushRefspec: wt.pushRefspec, branchHealth: pr.branchHealth, rebaseAllowed: pr.behindBase });
           console.log(`[dispatch] ${prKey}: ${newThreads.length} thread(s)${healthWork?' +health':''} ->`, r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason, wt.plan || '');
@@ -101,6 +101,18 @@ async function poll() {
             if (!existsSync(outPath)) console.warn(`[worker ${prKey}] WARN: no result JSON at ${outPath} — worker took no action (errored or empty run)`);
           }
         }
+      }
+
+      // Merge the last worker run's verdict so the dashboard reflects what the
+      // worker actually decided — not just the heuristic. The worker resolves
+      // threads it fixed (so they're gone from the scan above); what remains to
+      // surface is branch-health it couldn't fix (e.g. a rebase it wasn't allowed
+      // to do). A surfaced health reason is YOUR call, so it escalates to needsYou.
+      const result = await readWorkerResult(outPath);
+      const surfaced = result?.branchHealth?.surfaced;
+      if (surfaced) {
+        pr.needsYou = true;
+        pr.workerSurfaced = surfaced;
       }
     }
     prs.sort((a, b) => a.priority - b.priority || (b.needsYou - a.needsYou));

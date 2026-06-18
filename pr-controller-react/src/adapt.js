@@ -10,7 +10,7 @@
 //     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, error }] }
 //
 // UI PR shape (what components consume):
-//   { id, repo, number, title, review, jira, pills[], threads[] }
+//   { id, repo, number, title, review, jira, pills[], surfaced, threads[] }
 //   thread: { id, tag, loc, author, body, reason }
 
 const TIER_TO_TAG = {
@@ -47,6 +47,12 @@ function adaptPills(pr) {
   return pills;
 }
 
+// The worker writes a surfaced reason when it hit branch-health it couldn't
+// (or wasn't allowed to) fix and punted to the user. Render it as a banner.
+function adaptSurfaced(pr) {
+  return pr.workerSurfaced || null;
+}
+
 export function adaptPR(pr) {
   return {
     id: `${pr.repo}#${pr.number}`,
@@ -57,6 +63,7 @@ export function adaptPR(pr) {
     review: pr.isDraft ? 'DRAFT' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
     jira: !!pr.needsJira,
     pills: adaptPills(pr),
+    surfaced: adaptSurfaced(pr),
     threads: (pr.threads || []).map(adaptThread),
   };
 }

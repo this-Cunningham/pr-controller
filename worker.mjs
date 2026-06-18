@@ -39,6 +39,13 @@ async function recordSeenSha(prKey, worktreePath) {
   } catch {}
 }
 
+// Read back the last worker run's result JSON for a PR (the file the worker was
+// told to write). Null if absent/unparseable. Lets the poller reflect what the
+// worker actually decided — surfaced branch-health, per-thread responses.
+export async function readWorkerResult(outPath) {
+  try { return JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
+}
+
 // Cheap heuristic pre-classification (no Claude). Used to render the dashboard
 // before/without a worker, and to decide priority. The real judgment is the
 // worker's job. (Scaffolding — slated for retirement once worker output is
