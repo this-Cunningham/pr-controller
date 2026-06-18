@@ -1,0 +1,82 @@
+// Locks the deterministic behavior of pr-controller. Run: node --test
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  dispatchable, categorizeChecks, needsJira, rebaseAllowed, repoSlug,
+} from '../rules.mjs';
+
+const ME = 'ccunningham';
+const TOKEN = '@claude-plz-fix';
+
+test('dispatchable: reviewer had the last word -> dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: 'jheipler', lastBody: 'please fix' }, ME, TOKEN), true);
+});
+
+test('dispatchable: my plain annotation -> no dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: ME, lastBody: 'note for future reviewers' }, ME, TOKEN), false);
+});
+
+test('dispatchable: my reply (waiting on reviewer) -> no dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: ME, lastBody: 'done, ptal' }, ME, TOKEN), false);
+});
+
+test('dispatchable: my comment WITH trigger token -> dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: ME, lastBody: 'this is gross @claude-plz-fix' }, ME, TOKEN), true);
+});
+
+test('dispatchable: reviewer replies on MY thread -> dispatch (keys on last author)', () => {
+  assert.equal(dispatchable({ lastAuthor: 'jheipler', lastBody: 'actually, change this' }, ME, TOKEN), true);
+});
+
+test('dispatchable: after bot replies "fixed" as me -> no re-dispatch', () => {
+  assert.equal(dispatchable({ lastAuthor: ME, lastBody: 'fixed' }, ME, TOKEN), false);
+});
+
+const cfg = {
+  ignoreChecks: ['license/', 'cla', 'dco'],
+  complianceChecks: ['compliance/sox', 'compliance/'],
+  jiraPattern: '[A-Z]{2,}-\\d+',
+};
+
+test('categorizeChecks: splits code / compliance, drops ignored', () => {
+  const failed = [
+    { name: 'pr-test/typecheck', state: 'FAILURE' },
+    { name: 'compliance/sox', state: 'FAILURE' },
+    { name: 'license/cla', state: 'FAILURE' },
+  ];
+  const { codeChecks, complianceChecks } = categorizeChecks(failed, cfg);
+  assert.deepEqual(codeChecks.map(c => c.name), ['pr-test/typecheck']);
+  assert.deepEqual(complianceChecks.map(c => c.name), ['compliance/sox']);
+});
+
+test('categorizeChecks: empty input -> empty buckets', () => {
+  const { codeChecks, complianceChecks } = categorizeChecks([], cfg);
+  assert.equal(codeChecks.length, 0);
+  assert.equal(complianceChecks.length, 0);
+});
+
+test('needsJira: compliance failing + no ticket in title -> true', () => {
+  assert.equal(needsJira('Migrate agent-router to single-agent', [{ name: 'compliance/sox' }], cfg.jiraPattern), true);
+});
+
+test('needsJira: compliance failing + ticket present -> false', () => {
+  assert.equal(needsJira('[CNAI-277] chip copy', [{ name: 'compliance/sox' }], cfg.jiraPattern), false);
+});
+
+test('needsJira: no compliance failure -> false even without ticket', () => {
+  assert.equal(needsJira('no ticket here', [], cfg.jiraPattern), false);
+});
+
+test('rebaseAllowed: only when APPROVED and behind/conflicted', () => {
+  assert.equal(rebaseAllowed('APPROVED', 'BEHIND', 'MERGEABLE'), true);
+  assert.equal(rebaseAllowed('APPROVED', 'CLEAN', 'MERGEABLE'), false);
+  assert.equal(rebaseAllowed('REVIEW_REQUIRED', 'BEHIND', 'MERGEABLE'), false);
+  assert.equal(rebaseAllowed('APPROVED', 'DIRTY', 'CONFLICTING'), true);
+});
+
+test('repoSlug: handles ssh and https, with/without .git', () => {
+  assert.equal(repoSlug('git@code.cargurus.com:cargurus-eng/universal-ai.git'), 'cargurus-eng/universal-ai');
+  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/chassis.git'), 'cargurus-eng/chassis');
+  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/site-vdp-remix'), 'cargurus-eng/site-vdp-remix');
+  assert.equal(repoSlug(''), null);
+});

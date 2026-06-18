@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config, ghEnv } from './config.mjs';
+import { categorizeChecks } from './rules.mjs';
 
 const exec = promisify(execFile);
 
@@ -100,21 +101,19 @@ export async function fetchThreads(repo, num) {
         body: first.body,
         url: first.url,
         commentCount: t.comments.nodes.length,
-        // last author tells us if WE already replied last
+        // last author/body tell us who spoke last and what they said
         lastAuthor: last.author?.login || 'unknown',
+        lastBody: last.body || '',
         lastCommentId: last.databaseId,
       };
     });
   const rollup = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup;
-  const matches = (name, list) => list.some((s) => (name || '').toLowerCase().includes(s.toLowerCase()));
-  const allFailing = (rollup?.contexts?.nodes || [])
+  const failed = (rollup?.contexts?.nodes || [])
     .map((c) => c.__typename === 'CheckRun'
       ? { name: c.name, state: c.conclusion || c.status, url: c.detailsUrl }
       : { name: c.context, state: c.state, url: c.targetUrl })
-    .filter((c) => ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED'].includes(c.state))
-    .filter((c) => !matches(c.name, config.ignoreChecks));
-  const complianceChecks = allFailing.filter((c) => matches(c.name, config.complianceChecks));
-  const failingChecks = allFailing.filter((c) => !matches(c.name, config.complianceChecks));
+    .filter((c) => ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED'].includes(c.state));
+  const { codeChecks: failingChecks, complianceChecks } = categorizeChecks(failed);
   const branchHealth = {
     mergeable: pr.mergeable,            // MERGEABLE | CONFLICTING | UNKNOWN
     mergeState: pr.mergeStateStatus,    // BEHIND | DIRTY | BLOCKED | CLEAN | ...

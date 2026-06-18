@@ -23,6 +23,11 @@ export const config = {
   // PR title must contain a JIRA key like ABC-123 to satisfy compliance.
   jiraPattern: '[A-Z]{2,}-\\d+',
 
+  // A thread whose latest comment is yours normally does NOT dispatch a worker
+  // (you're annotating or waiting on the reviewer). Including this token in your
+  // comment overrides that — it opts that one thread in, actioned on the next poll.
+  triggerToken: '@claude-plz-fix',
+
   baseDir: new URL('.', import.meta.url).pathname,
 };
 export const ghEnv = { ...process.env, GH_HOST: config.host };

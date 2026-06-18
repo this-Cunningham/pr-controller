@@ -14,6 +14,7 @@ async function setPrJira(pr, ticket) {
 import { scanAll } from './scanner.mjs';
 import { preClassify, spawnDiscussTerminal, runWorker } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
+import { dispatchable, needsJira, rebaseAllowed } from './rules.mjs';
 
 const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
@@ -38,20 +39,17 @@ async function poll() {
 
       // Branch-health flags (separate trigger from review threads).
       const h = pr.branchHealth || {};
-      const approved = pr.reviewDecision === 'APPROVED';
-      // Rebase only once approved — don't churn the branch while still under review.
-      pr.behindBase = approved && (h.mergeState === 'BEHIND' || h.mergeable === 'CONFLICTING' || h.mergeState === 'DIRTY');
+      pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
       pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
 
       // Compliance failing + no JIRA key in title => surface an input box for the ticket.
-      const hasJira = new RegExp(config.jiraPattern).test(pr.title);
-      pr.needsJira = (h.complianceChecks || []).length > 0 && !hasJira;
+      pr.needsJira = needsJira(pr.title, h.complianceChecks);
       if (pr.needsJira) pr.needsYou = true;
 
       // Diff vs last poll: new threads, and whether branch health changed.
       const prKey = `${pr.repo}#${pr.number}`;
       const prev = seen.get(prKey) || { threads: new Set(), health: '' };
-      const newThreads = pr.threads.filter((t) => !t.error && !prev.threads.has(fp(t)));
+      const newThreads = pr.threads.filter((t) => !t.error && !prev.threads.has(fp(t)) && dispatchable(t));
       const healthSig = `${h.mergeable}|${h.mergeState}|${h.checkState}|${(h.failingChecks||[]).map(c=>c.name+c.state).join(',')}`;
       const healthChanged = healthSig !== prev.health;
       seen.set(prKey, { threads: new Set(pr.threads.filter((t) => !t.error).map(fp)), health: healthSig });

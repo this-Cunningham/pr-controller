@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { config } from './config.mjs';
+import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
 
 const exec = promisify(execFile);
@@ -16,13 +16,18 @@ const SESSIONS = join(config.baseDir, 'data', 'sessions.json');
 async function loadSessions() {
   try { return JSON.parse(await readFile(SESSIONS, 'utf8')); } catch { return {}; }
 }
+// Compute the session for a PR WITHOUT persisting. Persisting before a worker
+// actually launches creates a phantom session that --resume can't find, so we
+// only commit it via persistSession() once the spawn really happens.
 export async function getOrCreateSession(prKey) {
   const map = await loadSessions();
   if (map[prKey]) return { id: map[prKey].id, isNew: false, lastSeenSha: map[prKey].lastSeenSha || null };
-  const id = randomUUID();
-  map[prKey] = { id, createdAt: new Date().toISOString() };
-  await writeFile(SESSIONS, JSON.stringify(map, null, 2));
-  return { id, isNew: true, lastSeenSha: null };
+  return { id: randomUUID(), isNew: true, lastSeenSha: null };
+}
+
+async function persistSession(prKey, id) {
+  const map = await loadSessions();
+  if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
 }
 
 // Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`.
@@ -120,10 +125,14 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   const args = isNew
     ? ['--session-id', id, '-p', task]
     : ['--resume', id, '-p', task];
-  args.push('--output-format', 'stream-json', '--verbose', '--dangerously-skip-permissions');
+  args.push('--output-format', 'stream-json', '--verbose');
+  // plan mode = enforced read-only (classify/observe trials); bypassPermissions =
+  // full autonomy for unattended go-live. Default to the latter.
+  args.push('--permission-mode', opts.permissionMode || 'bypassPermissions');
 
+  if (isNew) await persistSession(prKey, id);
   return await new Promise((resolve) => {
-    const child = spawn('claude', args, { cwd: worktreePath, env: process.env });
+    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.on('close', async (code) => {

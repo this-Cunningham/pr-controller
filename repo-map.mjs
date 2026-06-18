@@ -8,16 +8,11 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { config } from './config.mjs';
+import { repoSlug } from './rules.mjs';
 
 const exec = promisify(execFile);
 const SEARCH_ROOT = join(homedir(), 'cargurus');
 const CACHE = join(config.baseDir, 'data', 'repo-map.json');
-
-// Normalize any origin URL to "owner/repo" (https or ssh, with/without .git).
-function repoSlug(url) {
-  const m = url.trim().match(/[:/]([^/:]+\/[^/]+?)(?:\.git)?$/);
-  return m ? m[1] : null;
-}
 
 // Recursively find git clones up to `maxDepth` below SEARCH_ROOT.
 // depth 0 = ~/cargurus/<repo>, depth 1 = ~/cargurus/<workspace>/<repo>, etc.

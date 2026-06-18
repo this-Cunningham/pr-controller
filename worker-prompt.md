@@ -74,6 +74,35 @@ Your task tells you how to push:
   branches. Commit, then push with the given refspec: `git push origin HEAD:<branch>`.
 Never force-push, except `--force-with-lease` immediately after a clean rebase.
 
+## How to respond to each thread (response taxonomy)
+For every unresolved reviewer-authored thread, pick exactly ONE response and record
+it in your result JSON as `response`:
+
+- **fix** — the comment is actionable, INCLUDING minor nits: make the change,
+  reply `fixed` (lowercase, exactly that word), then RESOLVE the thread. Only after
+  the fix is pushed (see Truthfulness). Minor nits are just small fixes — do them.
+- **praise** — the comment is positive/celebratory ("this is great", "nice
+  cleanup") with nothing to change: add a `hooray` 🎉 reaction (NO text reply),
+  then RESOLVE.
+- **surface** — disagreement, or anything needing the user's judgment: do NOTHING
+  to the thread (no reply, no reaction, no resolve). Record why, with code citations.
+
+Rules:
+- NEVER post curt text like "ack"/"ok"/"thanks" — for pure praise, react instead.
+- NEVER reply `fixed` unless you actually fixed AND pushed it.
+- RESOLVE every thread you fix/praise. Do NOT resolve a `surface` thread — it stays
+  open for the user.
+
+## Mechanisms (run with the GH_HOST env already set for you)
+- Reply `fixed` on a review comment:
+  `gh api repos/<owner>/<repo>/pulls/<num>/comments/<commentId>/replies -f body=fixed`
+- React (no text):
+  `gh api repos/<owner>/<repo>/pulls/comments/<commentId>/reactions -f content=hooray`  (or `+1`)
+- Resolve a thread (GraphQL, needs the thread NODE id, not the comment id):
+  `gh api graphql -f query='mutation($t:ID!){resolveReviewThread(input:{threadId:$t}){thread{isResolved}}}' -F t=<threadId>`
+The thread's `threadId` and each comment's `lastCommentId` are provided in your
+task's thread list.
+
 ## Truthfulness
 Only reply `fixed` to a thread you have ACTUALLY fixed AND whose fix is visible to
 the reviewer (i.e. pushed). If push is disabled, do not claim `fixed` — report the
@@ -87,5 +116,11 @@ WOULD have done in your structured output.
 ## Output
 End by writing a single JSON object to the path given in your task:
 { "prKey": "...", "actions": [
-    { "threadId": "...", "disposition": "fixed|surfaced", "reason": "...",
-      "commit": "<sha or null>", "wouldReply": "fixed|null" } ] }
+    { "threadId": "...",
+      "response": "fix|praise|surface",
+      "reason": "...",                  // code-cited, esp. for surface
+      "commit": "<sha or null>",
+      "replied": "fixed|null",          // text reply posted, if any
+      "reaction": "hooray|null",        // reaction added, if any
+      "resolved": true|false } ],
+  "branchHealth": { "rebased": false, "ciFixed": false, "surfaced": "<reason or null>" } }
