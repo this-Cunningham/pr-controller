@@ -46,6 +46,12 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 let state = { updatedAt: null, scope: config.onlyPRs || [], prs: [] };
 // prKey -> Set of "threadId:lastCommentId" seen last poll, for diff detection.
 const seen = new Map();
+// prKeys whose worktree could not fast-forward on the last dispatch (the branch
+// diverged from the remote — force-push/rebase). The dispatcher reports this via
+// markOutOfSync(); it's set on a ff-only failure and cleared on a clean sync. We
+// track it here (not on the scanned PR object, which is rebuilt from GitHub and
+// has no worktree knowledge) so it survives refreshOnePR into the dashboard.
+const outOfSyncPRs = new Set();
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
 
@@ -87,6 +93,12 @@ async function deriveAndSetPrFields(pr) {
   const surfaced = result?.branchHealth?.surfaced;
   if (surfaced) pr.workerSurfaced = surfaced;
 
+  // The branch diverged from the remote and the worktree couldn't fast-forward,
+  // so the last dispatch bailed without running. Read from the durable set (the
+  // dispatcher sets it; a clean sync clears it) — it can't live on the scanned
+  // PR object, which is rebuilt from GitHub each refresh.
+  pr.outOfSync = outOfSyncPRs.has(`${pr.repo}#${pr.number}`);
+
   // PR-level fields derived from the per-thread tiers + branch state.
   pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync || !!surfaced;
   pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
@@ -118,8 +130,13 @@ async function refreshOnePR(prKey) {
   events.notifyStateUpdated();
 }
 
-// Wire the dispatcher's injected dependencies once at module load.
-dispatcher.init({ events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor });
+// Wire the dispatcher's injected dependencies once at module load. markOutOfSync
+// lets the dispatcher report whether the worktree could fast-forward, so the
+// diverged-branch state survives into the dashboard (see outOfSyncPRs).
+dispatcher.init({
+  events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor,
+  markOutOfSync: (prKey, v) => { if (v) outOfSyncPRs.add(prKey); else outOfSyncPRs.delete(prKey); },
+});
 
 async function poll() {
   if (polling) { console.log('[poll] already running, skipped'); return; }

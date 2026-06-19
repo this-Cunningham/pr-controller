@@ -17,10 +17,15 @@ the runtime files here (`tokens/*.css`, `styles.css`, `components/**/*.jsx`).
   (resets + `ws-*` keyframes).
 - `components/`
   - `core/` — Button, Badge, DispositionTag
-  - `feedback/` — Toast, Confirmation, EmptyState, Skeleton, TerminalNote
+  - `feedback/` — Toast, Confirmation, EmptyState, Skeleton
   - `navigation/` — Tabs, ModeBadge
+
+This tree is a faithful mirror of the canonical design system's component set —
+nothing is added here that the design system doesn't ship.
 
 The product compositions (PRCard, ThreadRow, JiraBanner, Header) live in
 `../components/` and are built ON these primitives — they carry the app's real,
 backend-wired behavior, which is richer than the design system's reference
-compositions.
+compositions. Patterns the design system does NOT cover (e.g. the `›_` terminal
+hand-off note, the left-ruled callout banner) also live in `../components/` as
+app compositions — flagged in the PR, not grafted into the system here.

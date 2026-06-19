@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
 import { DispositionTag } from '../design-system/components/core/DispositionTag.jsx';
-import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
+import TerminalNote from './TerminalNote.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
 

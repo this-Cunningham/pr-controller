@@ -3,7 +3,7 @@ import StatusPill from './StatusPill.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
 import Button from './Button.jsx';
-import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
+import TerminalNote from './TerminalNote.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -102,6 +102,29 @@ export default function PRCard({ pr, needsYou, dash }) {
         </div>
       )}
 
+      {pr.outOfSync && (
+        <div
+          style={{
+            marginTop: 12,
+            background: 'var(--accent-bg)',
+            borderLeft: '2px solid var(--accent)',
+            padding: '10px 13px',
+            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--ink)',
+          }}
+        >
+          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Branch out of sync
+          </span>
+          <div style={{ marginTop: 5, color: 'var(--ink-2)' }}>
+            The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
+            fast-forward and didn’t run. Reconcile it in a terminal.
+          </div>
+        </div>
+      )}
+
       {working && (
         <div
           style={{
@@ -164,6 +187,18 @@ export default function PRCard({ pr, needsYou, dash }) {
               onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
             >
               {working ? 'Rebasing…' : pr.surfaced ? '›_ Resolve in terminal' : 'Rebase (merge conflict)'}
+            </Button>
+          </div>
+        )
+      )}
+
+      {pr.outOfSync && !pr.needsRebase && (
+        rebaseDiscussing ? (
+          <TerminalNote>Terminal session opened — reconcile the branch there.</TerminalNote>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            <Button variant="outline" onClick={() => dash.discussRebase(pr.id)}>
+              ›_ Resolve in terminal
             </Button>
           </div>
         )

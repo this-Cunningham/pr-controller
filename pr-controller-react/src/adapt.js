@@ -5,7 +5,7 @@
 //
 // Backend PR shape (state.json):
 //   { number, title, repo, nameWithOwner, url, isDraft, reviewDecision,
-//     needsYou, needsJira, behindBase, ciFailing, needsRebase, autoFixable, pending,
+//     needsYou, needsJira, behindBase, ciFailing, needsRebase, outOfSync, autoFixable, pending,
 //     workerSurfaced, branchHealth: { failingChecks[], complianceChecks[] },
 //     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, error }] }
 //   tier is derived from the worker's verdict (rules.deriveTier): hash-out |
@@ -71,6 +71,9 @@ export function adaptPR(pr) {
     // A genuine merge conflict the worker didn't auto-resolve (nothing else was
     // queued, so we don't force-push a quiet PR) — drives the manual Rebase CTA.
     needsRebase: !!pr.needsRebase,
+    // The branch diverged from the remote (force-push/rebase) so the worktree
+    // couldn't fast-forward and the agent never ran — hand-resolve in a terminal.
+    outOfSync: !!pr.outOfSync,
     pills: adaptPills(pr),
     surfaced: adaptSurfaced(pr),
     threads: (pr.threads || []).map(adaptThread),
