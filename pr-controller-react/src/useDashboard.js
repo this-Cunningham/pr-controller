@@ -197,11 +197,20 @@ export function useDashboard(seed = null) {
   // interactive terminal in the worktree to resolve it by hand instead. No threadId.
   const discussRebase = useCallback(
     async (prId) => {
+      // Show the "›_ Terminal session opened…" note in the card immediately on
+      // click (same instant feedback as the thread-level Discuss). Branch-health
+      // has no threadId, so we key the overlay by the PR id itself. Revert only
+      // if a real dispatch fails.
+      setThread(prId, { status: 'discussing' });
       showToast('Opening a terminal session…');
+      if (seeded) return;
       const res = await postDecision({ action: 'discuss', prKey: prId });
-      if (!res?.spawn?.spawned) showToast(res?.spawn?.reason || 'Could not open a terminal session');
+      if (!res?.spawn?.spawned) {
+        setThread(prId, { status: 'pending' });
+        showToast(res?.spawn?.reason || 'Could not open a terminal session');
+      }
     },
-    [showToast]
+    [seeded, setThread, showToast]
   );
 
   const discuss = useCallback(

@@ -3,6 +3,7 @@ import StatusPill from './StatusPill.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
 import Button from './Button.jsx';
+import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -10,6 +11,9 @@ export default function PRCard({ pr, needsYou, dash }) {
   const hasThreads = pr.threads.length > 0;
   const showNoThreads = !hasThreads && !pr.jira;
   const working = dash.prWorking ? dash.prWorking(pr.id) : false;
+  // Branch-health "Resolve in terminal" opens a session keyed by the PR id (no
+  // thread). Once opened, swap the CTA for the same ›_ note the thread rows use.
+  const rebaseDiscussing = dash.threadStatus ? dash.threadStatus(pr.id) === 'discussing' : false;
   const stagedCount = dash.stagedFor ? dash.stagedFor(pr.id).length : 0;
 
   return (
@@ -146,19 +150,23 @@ export default function PRCard({ pr, needsYou, dash }) {
       )}
 
       {pr.needsRebase && stagedCount === 0 && (
-        <div style={{ marginTop: 12 }}>
-          {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
-              auto-retrying would just bail again — offer an interactive terminal to
-              resolve it by hand (›_ = terminal hand-off). Otherwise offer the
-              one-click agent rebase. */}
-          <Button
-            variant="outline"
-            disabled={working}
-            onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
-          >
-            {working ? 'Rebasing…' : pr.surfaced ? '›_ Resolve in terminal' : 'Rebase (merge conflict)'}
-          </Button>
-        </div>
+        rebaseDiscussing ? (
+          <TerminalNote>Terminal session opened — resolve the rebase there.</TerminalNote>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
+                auto-retrying would just bail again — offer an interactive terminal to
+                resolve it by hand (›_ = terminal hand-off). Otherwise offer the
+                one-click agent rebase. */}
+            <Button
+              variant="outline"
+              disabled={working}
+              onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
+            >
+              {working ? 'Rebasing…' : pr.surfaced ? '›_ Resolve in terminal' : 'Rebase (merge conflict)'}
+            </Button>
+          </div>
+        )
       )}
 
       {hasThreads && (
