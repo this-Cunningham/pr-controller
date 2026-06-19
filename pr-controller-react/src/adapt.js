@@ -1,208 +1,125 @@
-// Adapts the pr-controller backend's state.json into the shape the design
-// components expect. The pipeline is the source of truth for DATA; this file
-// reshapes it for the UI (per project decision: optimize the React side, not
-// the pipeline). Keep this the ONLY translation point.
+// Adapts the pr-controller backend's state.json into the shapes the vendored
+// wabi-sabi design-system components consume (PullRequest / Thread, see
+// design-system/components/pr/*.d.ts). The pipeline is the source of truth for
+// DATA; this file reshapes it for the UI. Keep this the ONLY translation point.
 //
 // Backend PR shape (state.json):
 //   { number, title, repo, nameWithOwner, url, isDraft, reviewDecision,
 //     needsYou, needsJira, behindBase, ciFailing, needsRebase, outOfSync, autoFixable, pending,
 //     workerSurfaced, branchHealth: { failingChecks[], complianceChecks[] },
-//     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, error }] }
-//   tier is derived from the worker's verdict (rules.deriveTier) and is the shared
-//   DISPOSITION vocabulary used end-to-end: needsYourApproval | agentAutoFixed |
-//   agentAcknowledged | awaitingReviewer | notYetReviewed | agentError
+//     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, suggested*, error }] }
+//   tier is the worker's verdict (rules.deriveTier): needsYourApproval |
+//   agentAutoFixed | agentAcknowledged | awaitingReviewer | notYetReviewed | agentError
 //
-// UI PR shape (what components consume):
-//   { id, repo, number, title, review, jira, pills[], surfaced, threads[] }
-//   thread: { id, tag, loc, author, body, reason }  — `tag` IS the disposition name.
+// DS shapes (what the components consume):
+//   PullRequest { id, repo, number, title, review, jira, pills[], branch?, threads[] }
+//   Thread { id, tag, loc, author, body, reasonSummary, reasonFull?, approach?, reply? }
+//   tag is the DS SHORT vocabulary: input | fixed | waiting | pending | praise | error
 
-// Per-PR branch health, given the same first-class shape the threads already have:
-// a list of { kind, severity, label, cta?, detail? } signals derived in ONE place,
-// instead of the scattered booleans (needsYou/needsJira/needsRebase/outOfSync/
-// behindBase/autoFixable/pending/workerSurfaced) each consumer used to cherry-pick.
-//   severity ordering (most urgent first): needsYou > auto > info
-//     needsYou — you must act before the agent can continue
-//     auto     — the agent is handling it (or will); no action from you
-//     info     — purely informational
-// Everything downstream (pills, the surfaced banner, needsYou, the section bucket)
-// derives from this list, so there is one source of truth for PR-level status.
-//
-// The `!surfaced` guard around the auto block reproduces EXACTLY the old
-// `!ui.surfaced && (...)` guard in adaptSections: when the worker surfaced a
-// branch-health reason it already tried and bailed, so its CI/behind/rebase signals
-// are not "auto-handling" — the PR floats to "needs you" on the surfaced signal alone.
-export function deriveHealthSignals(raw) {
-  const signals = [];
-  const h = raw.branchHealth || {};
-  const ci = h.failingChecks || [];
-  const surfaced = raw.workerSurfaced || null;
+// Backend disposition tier -> DS thread tag.
+const TIER_TO_DSTAG = {
+  needsYourApproval: 'input',
+  agentAutoFixed: 'fixed',
+  awaitingReviewer: 'waiting',
+  notYetReviewed: 'pending',
+  agentAcknowledged: 'praise',
+  agentError: 'error',
+};
 
-  // needsYou — blocks the agent until you act
-  if (raw.needsJira)
-    signals.push({ kind: 'needsJira', severity: 'needsYou', label: 'needs ticket', cta: 'setJira' });
-  if (raw.outOfSync)
-    signals.push({ kind: 'outOfSync', severity: 'needsYou', label: 'branch out of sync', cta: 'resolveTerminal',
-      detail: 'The branch diverged from the remote — the agent could not fast-forward.' });
-  if (surfaced)
-    signals.push({ kind: 'surfaced', severity: 'needsYou', label: 'agent surfaced', detail: surfaced });
+// Disposition tag -> tab, and branch kind -> tab. Mirrors the DS's own TAG_TAB /
+// BRANCH_TAB (design-system PRCard.jsx). Kept here too so routing/section
+// membership stays pure (React-free) and unit-testable; the DS card re-derives the
+// same result internally from the identical tag vocabulary.
+//   input/error -> Needs you · pending -> In progress · fixed/waiting -> Waiting · praise -> none
+export const TAG_TAB = { input: 'needs', error: 'needs', pending: 'progress', fixed: 'waiting', waiting: 'waiting', praise: null };
+//   conflict -> In progress (agent is rebasing) · surfaced/outofsync -> Needs you
+export const BRANCH_TAB = { conflict: 'progress', surfaced: 'needs', outofsync: 'needs' };
 
-  // auto — the agent handles these; suppressed entirely when the worker surfaced
-  // (it already bailed, so these are not in-flight auto-handling work).
-  if (!surfaced) {
-    if (raw.needsRebase)
-      signals.push({ kind: 'needsRebase', severity: 'auto', label: 'merge conflict', cta: 'rebase' });
-    if (ci.length)
-      signals.push({ kind: 'ci', severity: 'auto', label: `CI failing: ${ci.map((c) => c.name).join(', ')}` });
-    if (raw.behindBase)
-      signals.push({ kind: 'behindBase', severity: 'auto', label: 'behind base' });
-    if (raw.autoFixable)
-      signals.push({ kind: 'autoFixable', severity: 'auto', label: `${raw.autoFixable} auto-fixable` });
-  }
-
-  // info — bucketing only (the pending count drives the "auto" section but renders
-  // no pill, matching prior behavior).
-  if (raw.pending)
-    signals.push({ kind: 'pending', severity: 'info', label: `${raw.pending} pending` });
-
-  return signals;
+// Does this PR have at least one item routing to `tab`?
+export function prInTab(pr, tab) {
+  const hasThread = (pr.threads || []).some((t) => TAG_TAB[t.tag] === tab);
+  const hasBranch = pr.branch && BRANCH_TAB[pr.branch.kind] === tab;
+  const hasJira = !!pr.jira && tab === 'needs';
+  return hasThread || hasBranch || hasJira;
 }
 
-// Badge-class signal kinds become the PR's pill row. kind -> StatusPill `kind`
-// (pillMeta key). The set + labels are identical to the old adaptPills output.
-const PILL_KIND = { autoFixable: 'auto', behindBase: 'behind', ci: 'ci' };
+// Per-PR branch health, derived once. Returns the DS BranchHealth shape (or null).
+// surfaced (agent tried the rebase and bailed) wins over a raw conflict; out-of-sync
+// (the agent never ran) is its own state. A plain conflict means the agent is
+// auto-rebasing right now (informational, In progress).
+function deriveBranch(raw) {
+  const surfaced = raw.workerSurfaced || null;
+  if (surfaced) return { kind: 'surfaced', details: surfaced };
+  if (raw.outOfSync) return { kind: 'outofsync' };
+  if (raw.needsRebase) return { kind: 'conflict' };
+  return null;
+}
 
-function adaptThread(t, i) {
+// Signal pills the DS renders (behind base, CI failing). The "N auto-fixable" count
+// pill is intentionally dropped — those threads now appear as real rows in Waiting.
+function derivePills(raw) {
+  const pills = [];
+  if (raw.behindBase) pills.push({ label: 'behind base', kind: 'behind' });
+  const ci = (raw.branchHealth?.failingChecks || []);
+  if (ci.length) pills.push({ label: `CI failing: ${ci.map((c) => c.name).join(', ')}`, kind: 'ci' });
+  return pills;
+}
+
+function adaptThread(t, i, prId, isDispatched) {
   if (t.error) {
-    return { id: `err-${i}`, tag: 'agentError', loc: '', author: '', body: String(t.error), reason: 'Scan error.' };
+    return { id: `err-${i}`, tag: 'error', loc: '', author: '', body: String(t.error), reasonSummary: 'Scan error.' };
   }
-  // lastAuthor (who replied last) differs from author (who opened the thread)
-  // once the conversation has moved; show it so a replied-to thread doesn't look stale.
+  // lastAuthor (who replied last) differs from author (who opened the thread) once
+  // the conversation has moved; show it so a replied-to thread doesn't look stale.
   const author = t.lastAuthor && t.lastAuthor !== t.author ? t.lastAuthor : t.author;
+  let tag = TIER_TO_DSTAG[t.tier] || 'waiting';
+  // App-only live nuance: a surfaced thread the user approved + ran (dispatched)
+  // should move Needs-you -> In progress before the worker finishes. Re-tag it as
+  // `pending` so the DS routes it to progress; state.json catches up post-run.
+  if (tag === 'input' && isDispatched(prId, t.threadId)) tag = 'pending';
   return {
     id: t.threadId,
-    // `tag` is the disposition name straight from the backend tier — one vocabulary.
-    tag: t.tier || 'awaitingReviewer',
+    tag,
     loc: `${t.path || ''}${t.line != null ? ':' + t.line : ''}`,
     author: author ? `@${author}` : '',
     body: t.body || '',
-    reason: t.reason || '',
-    // Worker-drafted helpers on surfaced threads (Phase 1 / Phase 2).
-    suggestedReply: t.suggestedReply || '',
-    suggestedApproach: t.suggestedApproach || '',
+    reasonSummary: t.reason || '',
+    reasonFull: t.reason || '',
+    // Worker-drafted aids on a surfaced (input) thread.
+    approach: t.suggestedApproach || undefined,
+    reply: t.suggestedReply || undefined,
   };
 }
 
-// Badge-class signals -> the pill row, in the canonical display order
-// (auto, then behind, then ci) the UI has always used.
-const PILL_ORDER = ['autoFixable', 'behindBase', 'ci'];
-function pillsFromSignals(signals) {
-  return PILL_ORDER
-    .map((kind) => signals.find((s) => s.kind === kind))
-    .filter(Boolean)
-    .map((s) => ({ label: s.label, kind: PILL_KIND[s.kind] }));
-}
-
-export function adaptPR(pr) {
-  const healthSignals = deriveHealthSignals(pr);
+export function adaptPR(pr, overlays = {}) {
+  const isDispatched = overlays.isDispatched || (() => false);
+  const id = `${pr.repo}#${pr.number}`;
   return {
-    id: `${pr.repo}#${pr.number}`,
+    id,
     repo: pr.repo,
     number: pr.number,
     title: pr.title,
     url: pr.url,
     review: pr.isDraft ? 'DRAFT' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
     jira: !!pr.needsJira,
-    // A genuine merge conflict the worker didn't auto-resolve (nothing else was
-    // queued, so we don't force-push a quiet PR) — drives the manual Rebase CTA.
-    needsRebase: !!pr.needsRebase,
-    // The branch diverged from the remote (force-push/rebase) so the worktree
-    // couldn't fast-forward and the agent never ran — hand-resolve in a terminal.
-    outOfSync: !!pr.outOfSync,
-    // PR-level status, all derived from the one signal list:
-    healthSignals,
-    pills: pillsFromSignals(healthSignals),
-    // The worker surfaced a branch-health reason it couldn't (or wasn't allowed to)
-    // fix and punted to you — rendered as a banner.
-    surfaced: healthSignals.find((s) => s.kind === 'surfaced')?.detail || null,
-    threads: (pr.threads || []).map(adaptThread),
+    pills: derivePills(pr),
+    branch: deriveBranch(pr),
+    threads: (pr.threads || []).map((t, i) => adaptThread(t, i, id, isDispatched)),
   };
 }
 
-// Route ONE thread's disposition to a tab key, given the action overlays.
-//   needsYourApproval -> needs (your call) — UNLESS you approved + Run began
-//                        (dispatched), which moves it to In progress mid-flight.
-//   agentError        -> needs
-//   notYetReviewed    -> auto (In progress — the agent will judge it)
-//   agentAutoFixed    -> waiting (replied `fixed`, left open; the reviewer's move)
-//   awaitingReviewer  -> waiting
-//   agentAcknowledged -> null (praise: reacted 🎉, never occupies a tab)
-function threadTab(thread, prId, isDispatched) {
-  switch (thread.tag) {
-    case 'agentAcknowledged': return null;
-    case 'needsYourApproval': return isDispatched(prId, thread.id) ? 'auto' : 'needs';
-    case 'agentError': return 'needs';
-    case 'notYetReviewed': return 'auto';
-    default: return 'waiting';  // agentAutoFixed, awaitingReviewer
-  }
-}
-
-// Per-ITEM tab routing. The unit of placement is the item (a thread or a PR-health
-// signal), NOT the PR card — so one PR can appear in several tabs, each rendering
-// only the slice of items that belong there. Each emitted slice is a full PR-shape
-// object (so PRCard renders it unchanged); the chrome each tab owns is scoped:
-//   needs    — needsYou threads + the surfaced banner / JIRA banner / outOfSync.
-//   auto     — notYetReviewed + dispatched threads + CI/behind pills + an
-//              auto-rebasing conflict. (The "N auto-fixable" count pill is dropped:
-//              those threads now show as real rows in Waiting.)
-//   waiting  — agentAutoFixed + awaitingReviewer threads only.
-// `overlays.isWorking(prId)` / `overlays.isDispatched(prId,threadId)` come from the
-// frontend SSE/cart state, so routing reacts to in-flight work before state.json
-// catches up (a just-approved thread leaves Needs-you the instant Run fires).
+// Section membership: each tab lists the FULL DS PRs that have ≥1 item routing to
+// it (the DS PRCard then renders only that tab's slice). A PR can appear in several
+// tabs. `overlays.isWorking(prId)` also pulls an in-flight PR into In progress even
+// before a verdict lands (e.g. a rebase-only run with no threads yet).
 export function adaptSections(prs, overlays = {}) {
   const isWorking = overlays.isWorking || (() => false);
-  const isDispatched = overlays.isDispatched || (() => false);
-  const needs = [], auto = [], waiting = [];
-
-  for (const raw of prs) {
-    const ui = adaptPR(raw);
-
-    const buckets = { needs: [], auto: [], waiting: [] };
-    for (const t of ui.threads) {
-      const tab = threadTab(t, ui.id, isDispatched);
-      if (tab) buckets[tab].push(t);
-    }
-
-    // PR-health items route by severity: needsYou signals (needsJira/outOfSync/
-    // surfaced) -> needs; the agent's in-flight branch work (CI/behind/rebase) ->
-    // In progress. autoFixable/pending are derived COUNTS, not routable items.
-    const healthNeeds = ui.healthSignals.some((s) => s.severity === 'needsYou');
-    const healthAuto = ui.healthSignals.some(
-      (s) => s.kind === 'ci' || s.kind === 'behindBase' || s.kind === 'needsRebase'
-    );
-
-    if (buckets.needs.length || healthNeeds)
-      needs.push({ ...ui, threads: buckets.needs, pills: [], needsRebase: false });
-
-    if (buckets.auto.length || healthAuto || isWorking(ui.id))
-      auto.push({
-        ...ui,
-        threads: buckets.auto,
-        surfaced: null, jira: false, outOfSync: false,
-        pills: ui.pills.filter((p) => p.kind !== 'auto'),
-      });
-
-    if (buckets.waiting.length)
-      waiting.push({
-        ...ui,
-        threads: buckets.waiting,
-        pills: [], surfaced: null, jira: false, outOfSync: false, needsRebase: false,
-      });
-  }
-
+  const ui = prs.map((p) => adaptPR(p, overlays));
+  const inTab = (key) => ui.filter((p) => prInTab(p, key) || (key === 'progress' && isWorking(p.id)));
   return [
-    { key: 'needs', title: 'Needs you', needsYou: true, prs: needs },
-    { key: 'auto', title: 'In progress', needsYou: false, prs: auto },
-    { key: 'waiting', title: 'Waiting on reviewer', needsYou: false, prs: waiting },
+    { key: 'needs', title: 'Needs you', needsYou: true, prs: inTab('needs') },
+    { key: 'progress', title: 'In progress', needsYou: false, prs: inTab('progress') },
+    { key: 'waiting', title: 'Waiting on reviewer', needsYou: false, prs: inTab('waiting') },
   ];
 }
 

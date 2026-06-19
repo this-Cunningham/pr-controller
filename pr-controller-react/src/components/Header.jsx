@@ -1,10 +1,14 @@
-import ScopeBadge from './ModeBadge.jsx';
-import Button from './Button.jsx';
+import { ScopeBadge } from '../design-system/components/navigation/ScopeBadge.jsx';
+import { ThemeSwitcher } from '../design-system/components/core/ThemeSwitcher.jsx';
+import { Button } from '../design-system/components/core/Button.jsx';
 
 const mono = 'var(--font-mono)';
+const THEME_KEY = 'pr-controller-theme';
 
 export default function Header({ dash }) {
   const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, runPoll } = dash;
+  const scoped = (scope || []).length > 0;
+
   return (
     <header
       style={{
@@ -31,7 +35,7 @@ export default function Header({ dash }) {
           >
             PR Controller
           </h1>
-          <ScopeBadge scope={scope} onExplain={explainScope} />
+          <ScopeBadge scope={scoped ? 'scoped' : 'all'} count={(scope || []).length} onToggle={explainScope} />
         </div>
         <div style={{ marginTop: 11, fontSize: 13, color: 'var(--ink-2)', fontFamily: mono }}>
           {openCount} open&nbsp;&nbsp;·&nbsp;&nbsp;
@@ -40,13 +44,13 @@ export default function Header({ dash }) {
         </div>
       </div>
 
-      <div style={{ flex: 'none', display: 'flex', gap: 8 }}>
-        {/* TEMP (debug): trigger a backend poll instead of waiting the 30-min timer.
-            Low-stakes utility -> ghost; the dashed-border debug treatment was dropped
-            because the design system has no such variant. */}
-        <Button variant="ghost" onClick={runPoll}>
-          Run poll
-        </Button>
+      <div style={{ flex: 'none', display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* 6-theme picker; persists the choice so a reload keeps it. ThemeSwitcher
+            writes <html data-theme>, which retints every token. */}
+        <ThemeSwitcher onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch {} }} />
+
+        {/* TEMP (debug): trigger a backend poll instead of waiting the 30-min timer. */}
+        <Button variant="ghost" onClick={runPoll}>Run poll</Button>
 
         <Button variant="outline" onClick={refresh}>
           <span
