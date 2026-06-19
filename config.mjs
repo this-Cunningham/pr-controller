@@ -12,7 +12,7 @@ export const config = {
   //                   invisible to the daemon).
   // This is both the hardening sandbox (scope to one throwaway PR and exercise the
   // real push/comment/resolve/rebase paths) and a permanent prod kill-switch.
-  onlyPRs: ['site-vdp-remix#835'],
+  onlyPRs: ['site-vdp-remix#835', 'cargurus-listings-ui#2129', 'site-vdp-remix#717'],
 
   // Check categorization (substring, case-insensitive):
   //  - complianceChecks: red because of a missing JIRA ticket etc. — fixable, but
@@ -35,6 +35,11 @@ export const config = {
   // PR without a second account. Set to null/'' to disable; remove entirely once
   // real reviewer threads are available.
   debugToken: '@claude-debug',
+
+  // Model the headless workers run as. Fixed at session birth (a --resume keeps the
+  // session's original model). `haiku` for fast/cheap testing; switch to `sonnet`
+  // for prod. Unset/null -> the `claude` CLI default.
+  workerModel: 'haiku',
 
   baseDir: new URL('.', import.meta.url).pathname,
 };

@@ -6,12 +6,34 @@ import { config } from './config.mjs';
 const includesAny = (name, list) =>
   list.some((s) => (name || '').toLowerCase().includes(s.toLowerCase()));
 
+// TEMP (debug): the synthetic login a @claude-debug comment is attributed to, so a
+// comment from YOUR OWN account on the sandbox PR behaves like a real REVIEWER's
+// (not just an opt-in token). Lets you exercise the full reviewer-last-word flow —
+// dispatch + notYetReviewed -> In progress -> disposition — without a 2nd account.
+export const DEBUG_REVIEWER = 'claude-debug-reviewer';
+
+// TEMP (debug): rewrite a thread so a comment carrying config.debugToken counts as
+// if a different person reviewed the PR. When the latest comment is YOURS and has
+// the token, re-attribute lastAuthor (and author, if you also opened the thread) to
+// DEBUG_REVIEWER. Pure: returns a new thread (or the same one untouched). Applied in
+// the scanner so EVERY downstream consumer (dispatchable, deriveTier, the UI author
+// line) sees the simulated reviewer. Remove with the rest of the debug path.
+export function applyDebugReviewer(thread, login = config.login, debugToken = config.debugToken) {
+  if (!debugToken || !thread || thread.error) return thread;
+  if (thread.lastAuthor !== login || !(thread.lastBody || '').includes(debugToken)) return thread;
+  return {
+    ...thread,
+    author: thread.author === login ? DEBUG_REVIEWER : thread.author,
+    lastAuthor: DEBUG_REVIEWER,
+  };
+}
+
 // A changed thread should dispatch a worker UNLESS your own comment is the latest
 // one (you're annotating or waiting on the reviewer) — except when you include the
 // trigger token, which opts that single thread back in.
-// TEMP (debug): config.debugToken (@claude-debug) does the same, so you can seed
-// dispatchable threads from your OWN account on the sandbox PR. Remove once real
-// reviewer threads are available. See SPEC §Dispatch.
+// TEMP (debug): config.debugToken (@claude-debug) also opts in, but note threads are
+// normally re-attributed to DEBUG_REVIEWER upstream (applyDebugReviewer), so they
+// already read as reviewer-authored here; the token check remains as a fallback.
 export function dispatchable(thread, login = config.login, token = config.triggerToken) {
   if (thread.lastAuthor !== login) return true;
   const body = thread.lastBody || '';
@@ -55,26 +77,33 @@ export function validateWorkerResult(raw) {
   return { result: { ...raw, actions }, problems };
 }
 
-// Derive a thread's dashboard tier from the WORKER's verdict (its code-grounded
+// Derive a thread's DISPOSITION from the WORKER's verdict (its code-grounded
 // `response`), falling back to who-spoke-last when the worker hasn't judged it.
 // This replaces the keyword `preClassify` heuristic — the worker actually reads
 // the code, so its verdict is the source of truth. `action` is the matching entry
 // from the worker result JSON's `actions[]` (or undefined if none yet).
-//   surface            -> hash-out      (worker wants YOUR call; reason is code-cited)
-//   fix | praise        -> waiting-reviewer (worker acted + replied; ball is the reviewer's)
-//   no verdict, we last -> waiting-reviewer (we replied; waiting on the reviewer)
-//   no verdict, them last -> pending      ("No feedback yet" — worker hasn't run/judged)
+//
+// The disposition vocabulary is shared end-to-end (backend `tier` === frontend
+// `tag`); per-item tab routing keys off these names:
+//   surface              -> needsYourApproval  (Needs you; reason is code-cited)
+//   fix                  -> agentAutoFixed      (Waiting; agent changed code, replied `fixed`)
+//   praise               -> agentAcknowledged   (never shown; agent reacted 🎉, no code)
+//   no verdict, we last  -> awaitingReviewer    (Waiting; we replied, ball is the reviewer's)
+//   no verdict, them last-> notYetReviewed       (In progress; worker hasn't judged yet)
+//   thread error         -> agentError          (Needs you)
 export function deriveTier(thread, action, login = config.login) {
-  if (thread.error) return { tier: 'error', reason: thread.error };
+  if (thread.error) return { tier: 'agentError', reason: thread.error };
   if (action) {
     if (action.response === 'surface')
-      return { tier: 'hash-out', reason: action.reason || 'The agent surfaced this for your judgment.' };
-    // fix/praise: the worker acted and (for fix) replied — it's the reviewer's move now.
-    return { tier: 'waiting-reviewer', reason: action.reason || 'The agent handled this; waiting on the reviewer.' };
+      return { tier: 'needsYourApproval', reason: action.reason || 'The agent surfaced this for your judgment.' };
+    if (action.response === 'praise')
+      return { tier: 'agentAcknowledged', reason: action.reason || 'The agent acknowledged this — positive feedback.' };
+    // fix (incl. apply-approved): agent changed code and replied — reviewer's move now.
+    return { tier: 'agentAutoFixed', reason: action.reason || 'The agent fixed this; waiting on the reviewer.' };
   }
   if (thread.lastAuthor === login)
-    return { tier: 'waiting-reviewer', reason: 'You replied last — waiting on the reviewer.' };
-  return { tier: 'pending', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
+    return { tier: 'awaitingReviewer', reason: 'You replied last — waiting on the reviewer.' };
+  return { tier: 'notYetReviewed', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
 }
 
 // Merge incoming threads into a pending Map keyed by threadId, in place. Used by
@@ -121,6 +150,29 @@ export function rebaseAllowed(reviewDecision, mergeState, mergeable) {
 // dashboard shows a manual "Rebase" CTA. See server.poll / decision 'rebase'.
 export function needsRebase(mergeState, mergeable) {
   return mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
+}
+
+// Decide what (if anything) to dispatch for a PR on a poll, given the diff since
+// the last poll. Pure: returns a plan; server.poll() executes it. Extracted from
+// poll() so the dispatch rules — including Phase E's idle-conflict auto-rebase —
+// are locked by tests instead of buried in I/O.
+//   { kind: 'feedback', rebaseOnConflict } -> enqueue(pr, newThreads, {rebaseOnConflict})
+//   { kind: 'rebase' }                     -> enqueueRebase(pr)  (idle conflict, Phase E)
+//   { kind: 'none' }                       -> do nothing this poll
+// Rules:
+//  - Dispatch a feedback/CI run only when there's work AND something CHANGED this
+//    poll (new threads, or health changed) — a CI failure we already saw doesn't
+//    re-spin. A conflict present alongside that work folds in (rebaseOnConflict).
+//  - Otherwise, an idle merge conflict (nothing else to do) auto-rebases, but only
+//    when health changed — so the same standing conflict isn't re-dispatched every
+//    poll (it would force-push in a loop).
+export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false }) {
+  const workToDo = newThreadCount > 0 || ciFailing;
+  if (workToDo && (newThreadCount > 0 || healthChanged))
+    return { kind: 'feedback', rebaseOnConflict: !!needsRebase };
+  if (needsRebase && healthChanged)
+    return { kind: 'rebase' };
+  return { kind: 'none' };
 }
 
 // Scope gate: is this PR in the allowlist? An empty/null `onlyPRs` means no scope

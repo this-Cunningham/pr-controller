@@ -12,7 +12,7 @@ import Button from './Button.jsx';
 //     fast-forward). Both reconcile in a terminal; conflict can also be rebased.
 //   - When the agent ALREADY tried the rebase and surfaced it (`surfaced`),
 //     retrying would just bail, so we suppress the Rebase button and offer only
-//     the terminal hand-off — a deliberate behavior the mock's component lacks.
+//     the terminal hand-off.
 //
 // `kind`: 'conflict' | 'outOfSync'. `discussing` shows the terminal note (the
 // session was opened). Handlers: onRebase, onResolveTerminal.

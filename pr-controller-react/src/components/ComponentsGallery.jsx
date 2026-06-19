@@ -5,7 +5,6 @@ import {
   EX_CALM,
   EX_DENSE,
   EX_NONE,
-  GALLERY_ALL,
   GALLERY_TAKEN,
   GALLERY_JIRA,
   GALLERY_JIRA_SET,
@@ -141,8 +140,8 @@ export default function ComponentsGallery() {
         <PRCard pr={EX_NONE} needsYou={false} dash={dash} />
       </Frame>
 
-      <Frame title="Thread rows · all dispositions" caption="Each tag with its own action controls.">
-        <PRCard pr={GALLERY_ALL} needsYou={false} dash={dash} />
+      <Frame title="PR card · in progress" caption="Calm card with the pulsing ‘Agent working’ cue.">
+        <PRCard pr={EX_CALM} needsYou={false} inProgress dash={dash} />
       </Frame>
 
       <Frame title="After you act · confirmations" caption="Approved, skipped and rebutted threads.">

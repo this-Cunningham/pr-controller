@@ -1,11 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { adaptState } from './adapt.js';
-import { MOCK_STATE } from './mockState.js';
-
-// `?mock` (or `?mock=1`) loads a static state.json-shaped fixture through the
-// real adaptState pipeline instead of hitting the backend — for validating every
-// design state without a live PR. No network, no SSE.
-const MOCK = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mock');
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { adaptState, adaptSections } from './adapt.js';
 
 // Central dashboard state + actions.
 //
@@ -39,12 +33,13 @@ async function postDecision(payload) {
 export function useDashboard(seed = null) {
   const seeded = !!seed;
 
-  const [sections, setSections] = useState(seed?.sections || []);
+  // Raw backend PRs (state.json). Sections are NOT stored — they're derived
+  // reactively below (useMemo) because per-item routing depends on the frontend
+  // overlays (workingPRs/dispatched), not only on what was fetched.
+  const [rawPrs, setRawPrs] = useState(seed?.prs || []);
   // scope = config.onlyPRs: [] means all PRs (full production), a list means the
   // daemon is restricted to those PR keys. The worker always acts on what it sees.
   const [scope, setScope] = useState(seed?.scope || []);
-  const [openCount, setOpenCount] = useState(seed?.openCount ?? 0);
-  const [needCount, setNeedCount] = useState(seed?.needCount ?? 0);
 
   const [tab, setTab] = useState(seed?.tab || 'needs');
   const [loading, setLoading] = useState(seed?.skipLoading ? false : true);
@@ -52,6 +47,10 @@ export function useDashboard(seed = null) {
   const [updated, setUpdated] = useState('just now');
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
+  // Branch-health interaction state, keyed by PR id: { status: 'idle'|'discussing' }.
+  // Kept SEPARATE from `threads` (which is keyed by thread id) so a PR id never
+  // pollutes the thread-overlay store — branch health has no thread.
+  const [branchHealth, setBranchHealth] = useState(seed?.branchHealth || {});
   const [jira, setJira] = useState(seed?.jira || {});
   // prKeys with a worker running right now (from the SSE in-flight set).
   const [workingPRs, setWorkingPRs] = useState(() => new Set(seed?.workingPRs || []));
@@ -74,20 +73,20 @@ export function useDashboard(seed = null) {
   }, []);
 
   const applyState = useCallback((adapted) => {
-    setSections(adapted.sections);
+    setRawPrs(adapted.prs);
     setScope(adapted.scope);
-    setOpenCount(adapted.openCount);
-    setNeedCount(adapted.needCount);
+    // thread id -> prKey, so user actions can address the backend. Built from the
+    // raw PRs (every thread is present once here, regardless of which tab it routes
+    // to) — the per-section slices would only see a subset.
     const map = new Map();
-    for (const s of adapted.sections)
-      for (const pr of s.prs) for (const t of pr.threads) map.set(t.id, pr.id);
+    for (const pr of adapted.prs)
+      for (const t of pr.threads || []) if (t.threadId) map.set(t.threadId, `${pr.repo}#${pr.number}`);
     threadToPr.current = map;
     setUpdated(adapted.updatedAt ? new Date(adapted.updatedAt).toLocaleTimeString() : 'just now');
   }, []);
 
   const fetchState = useCallback(async () => {
     if (seeded) return;
-    if (MOCK) { applyState(adaptState(MOCK_STATE)); return; }
     try {
       const r = await fetch('/state.json');
       applyState(adaptState(await r.json()));
@@ -95,6 +94,25 @@ export function useDashboard(seed = null) {
       showToast('Could not reach the agent backend');
     }
   }, [seeded, applyState, showToast]);
+
+  // Sections are derived per-item from the raw PRs PLUS the live overlays, so a
+  // thread re-routes the moment an overlay changes (e.g. approving + running an
+  // approach moves it Needs-you -> In progress before the worker even finishes).
+  // Seeded gallery passes sections straight through (it renders PRCards directly,
+  // not via these sections, but keep the shape consistent).
+  const sections = useMemo(() => {
+    if (seeded) return seed?.sections || [];
+    return adaptSections(rawPrs, {
+      isWorking: (prId) => workingPRs.has(prId),
+      isDispatched: (prId, threadId) => (dispatched[prId] || []).includes(threadId),
+    });
+  }, [seeded, seed, rawPrs, workingPRs, dispatched]);
+
+  const openCount = rawPrs.length;
+  const needCount = useMemo(
+    () => sections.find((s) => s.key === 'needs')?.prs.length ?? 0,
+    [sections]
+  );
 
   // initial load + poll + live status (SSE)
   useEffect(() => {
@@ -104,8 +122,6 @@ export function useDashboard(seed = null) {
       await fetchState();
       if (alive) setLoading(false);
     })();
-    // Mock mode is static — no polling, no SSE (there's no backend).
-    if (MOCK) return () => { alive = false; };
     // 60s poll stays as a fallback when the SSE stream is unavailable.
     const id = setInterval(fetchState, POLL_MS);
 
@@ -144,6 +160,13 @@ export function useDashboard(seed = null) {
   const setThread = useCallback((id, val) => {
     setThreads((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...val } }));
   }, []);
+
+  // Branch-health overlay (keyed by PR id), parallel to setThread/threadStatus but
+  // for the PR-level "Resolve in terminal" flow, which has no thread.
+  const setBranchHealthState = useCallback((prId, val) => {
+    setBranchHealth((prev) => ({ ...prev, [prId]: { ...(prev[prId] || {}), ...val } }));
+  }, []);
+  const branchHealthStatus = useCallback((prId) => branchHealth[prId]?.status || 'idle', [branchHealth]);
 
   const threadStatus = useCallback((id) => threads[id]?.status || 'pending', [threads]);
   const threadRebuttal = useCallback((id) => threads[id]?.rebuttal || '', [threads]);
@@ -208,18 +231,18 @@ export function useDashboard(seed = null) {
     async (prId) => {
       // Show the "›_ Terminal session opened…" note in the card immediately on
       // click (same instant feedback as the thread-level Discuss). Branch-health
-      // has no threadId, so we key the overlay by the PR id itself. Revert only
+      // has no threadId, so we key its OWN overlay store by the PR id. Revert only
       // if a real dispatch fails.
-      setThread(prId, { status: 'discussing' });
+      setBranchHealthState(prId, { status: 'discussing' });
       showToast('Opening a terminal session…');
       if (seeded) return;
       const res = await postDecision({ action: 'discuss', prKey: prId });
       if (!res?.spawn?.spawned) {
-        setThread(prId, { status: 'pending' });
+        setBranchHealthState(prId, { status: 'idle' });
         showToast(res?.spawn?.reason || 'Could not open a terminal session');
       }
     },
-    [seeded, setThread, showToast]
+    [seeded, setBranchHealthState, showToast]
   );
 
   const discuss = useCallback(
@@ -330,6 +353,7 @@ export function useDashboard(seed = null) {
     openCount,
     needCount,
     threadStatus,
+    branchHealthStatus,
     threadRebuttal,
     jiraState,
     prWorking,

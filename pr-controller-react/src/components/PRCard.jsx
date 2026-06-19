@@ -5,16 +5,22 @@ import JiraBanner from './JiraBanner.jsx';
 import Button from './Button.jsx';
 import BranchStatus from './BranchStatus.jsx';
 import { Callout } from '../design-system/components/core/Callout.jsx';
+import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
 
 const mono = 'var(--font-mono)';
 
-export default function PRCard({ pr, needsYou, dash }) {
+export default function PRCard({ pr, needsYou, inProgress = false, dash }) {
   const hasThreads = pr.threads.length > 0;
   const showNoThreads = !hasThreads && !pr.jira;
   const working = dash.prWorking ? dash.prWorking(pr.id) : false;
+  // The "Agent working" pulse shows when a worker is actually in-flight for this
+  // PR, OR on the In-progress tab's slice (where every item is, by definition,
+  // the agent's to handle — a calm card with a sign the agent is on it).
+  const showWorking = working || inProgress;
   // Branch-health "Resolve in terminal" opens a session keyed by the PR id (no
-  // thread). Once opened, swap the CTA for the same ›_ note the thread rows use.
-  const rebaseDiscussing = dash.threadStatus ? dash.threadStatus(pr.id) === 'discussing' : false;
+  // thread). It reads its OWN overlay store (branchHealthStatus), separate from the
+  // thread-keyed one. Once opened, swap the CTA for the same ›_ note the rows use.
+  const rebaseDiscussing = dash.branchHealthStatus ? dash.branchHealthStatus(pr.id) === 'discussing' : false;
   const stagedCount = dash.stagedFor ? dash.stagedFor(pr.id).length : 0;
 
   return (
@@ -86,10 +92,21 @@ export default function PRCard({ pr, needsYou, dash }) {
       {pr.surfaced && (
         <div style={{ marginTop: 12 }}>
           <Callout tone="urgency" eyebrow="Agent surfaced">{pr.surfaced}</Callout>
+          {/* The agent surfaced this for your judgment — always give a terminal
+              escape hatch (no thread; PR-level discuss). */}
+          {rebaseDiscussing ? (
+            <TerminalNote>Terminal session opened — pick it up there.</TerminalNote>
+          ) : (
+            <div style={{ marginTop: 9 }}>
+              <Button variant="outline" disabled={working} onClick={() => dash.discussRebase(pr.id)}>
+                ›_ Open in terminal
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
-      {working && (
+      {showWorking && (
         <div style={{ marginTop: 12 }}>
           <Callout tone="agent" dot pulse eyebrow="Agent working" />
         </div>

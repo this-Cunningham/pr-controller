@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, rebaseAllowed, needsRebase, repoSlug, inScope, deriveTier,
-  validateWorkerResult, mergePending,
+  validateWorkerResult, mergePending, dispatchDecision, applyDebugReviewer, DEBUG_REVIEWER,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -42,31 +42,31 @@ test('dispatchable: my comment WITH @claude-debug -> dispatch', () => {
 
 const ME2 = 'ccunningham';
 
-test('deriveTier: worker surfaced -> hash-out with the code-cited reason', () => {
+test('deriveTier: worker surfaced -> needsYourApproval with the code-cited reason', () => {
   const r = deriveTier({ lastAuthor: 'jheipler' }, { response: 'surface', reason: 'breaks the guard' }, ME2);
-  assert.equal(r.tier, 'hash-out');
+  assert.equal(r.tier, 'needsYourApproval');
   assert.equal(r.reason, 'breaks the guard');
 });
 
-test('deriveTier: worker fixed -> waiting-reviewer', () => {
+test('deriveTier: worker fixed -> agentAutoFixed (Phase B: split from praise)', () => {
   const r = deriveTier({ lastAuthor: ME2 }, { response: 'fix', reason: 'fixed it' }, ME2);
-  assert.equal(r.tier, 'waiting-reviewer');
+  assert.equal(r.tier, 'agentAutoFixed');
 });
 
-test('deriveTier: worker praised -> waiting-reviewer', () => {
-  assert.equal(deriveTier({ lastAuthor: ME2 }, { response: 'praise' }, ME2).tier, 'waiting-reviewer');
+test('deriveTier: worker praised -> agentAcknowledged (Phase B: distinct from fix)', () => {
+  assert.equal(deriveTier({ lastAuthor: ME2 }, { response: 'praise' }, ME2).tier, 'agentAcknowledged');
 });
 
-test('deriveTier: no worker action, reviewer last word -> pending (no feedback yet)', () => {
-  assert.equal(deriveTier({ lastAuthor: 'jheipler' }, undefined, ME2).tier, 'pending');
+test('deriveTier: no worker action, reviewer last word -> notYetReviewed', () => {
+  assert.equal(deriveTier({ lastAuthor: 'jheipler' }, undefined, ME2).tier, 'notYetReviewed');
 });
 
-test('deriveTier: no worker action, I replied last -> waiting-reviewer', () => {
-  assert.equal(deriveTier({ lastAuthor: ME2 }, undefined, ME2).tier, 'waiting-reviewer');
+test('deriveTier: no worker action, I replied last -> awaitingReviewer', () => {
+  assert.equal(deriveTier({ lastAuthor: ME2 }, undefined, ME2).tier, 'awaitingReviewer');
 });
 
-test('deriveTier: thread error -> error', () => {
-  assert.equal(deriveTier({ error: 'scan failed' }, undefined, ME2).tier, 'error');
+test('deriveTier: thread error -> agentError', () => {
+  assert.equal(deriveTier({ error: 'scan failed' }, undefined, ME2).tier, 'agentError');
 });
 
 test('validateWorkerResult: valid result passes with no problems', () => {
@@ -176,6 +176,78 @@ test('needsRebase: true only on a genuine conflict, not merely behind base', () 
   assert.equal(needsRebase('DIRTY', 'UNKNOWN'), true);
   assert.equal(needsRebase('BEHIND', 'MERGEABLE'), false);  // behind base, no conflict -> no CTA
   assert.equal(needsRebase('CLEAN', 'MERGEABLE'), false);
+});
+
+const DBG = '@claude-debug';
+
+test('applyDebugReviewer: my comment with the token -> re-attributed to a reviewer', () => {
+  const t = applyDebugReviewer(
+    { author: 'someone', lastAuthor: ME, lastBody: `surface this @claude-debug` }, ME, DBG);
+  assert.equal(t.lastAuthor, DEBUG_REVIEWER);
+  // dispatchable now sees a reviewer last word, and deriveTier (no verdict) -> notYetReviewed
+  assert.equal(dispatchable(t, ME), true);
+  assert.equal(deriveTier(t, undefined, ME).tier, 'notYetReviewed');
+});
+
+test('applyDebugReviewer: also rewrites author when I opened the thread too', () => {
+  const t = applyDebugReviewer(
+    { author: ME, lastAuthor: ME, lastBody: `@claude-debug` }, ME, DBG);
+  assert.equal(t.author, DEBUG_REVIEWER);
+  assert.equal(t.lastAuthor, DEBUG_REVIEWER);
+});
+
+test('applyDebugReviewer: my comment WITHOUT the token -> untouched', () => {
+  const t = applyDebugReviewer({ author: ME, lastAuthor: ME, lastBody: 'plain note' }, ME, DBG);
+  assert.equal(t.lastAuthor, ME);
+});
+
+test('applyDebugReviewer: a real reviewer comment -> untouched', () => {
+  const t = applyDebugReviewer({ author: 'jheipler', lastAuthor: 'jheipler', lastBody: 'fix @claude-debug' }, ME, DBG);
+  assert.equal(t.lastAuthor, 'jheipler');
+});
+
+test('applyDebugReviewer: disabled (no token configured) -> untouched', () => {
+  const t = applyDebugReviewer({ author: ME, lastAuthor: ME, lastBody: '@claude-debug' }, ME, '');
+  assert.equal(t.lastAuthor, ME);
+});
+
+test('applyDebugReviewer: errored thread -> untouched', () => {
+  const t = applyDebugReviewer({ error: 'scan failed' }, ME, DBG);
+  assert.deepEqual(t, { error: 'scan failed' });
+});
+
+test('dispatchDecision: new threads -> feedback run (no conflict to fold)', () => {
+  const d = dispatchDecision({ newThreadCount: 2, healthChanged: false });
+  assert.equal(d.kind, 'feedback');
+  assert.equal(d.rebaseOnConflict, false);
+});
+
+test('dispatchDecision: new threads + conflict -> feedback run folds the rebase', () => {
+  const d = dispatchDecision({ newThreadCount: 1, needsRebase: true, healthChanged: true });
+  assert.equal(d.kind, 'feedback');
+  assert.equal(d.rebaseOnConflict, true);
+});
+
+test('dispatchDecision: failing CI that already existed (no change) -> none', () => {
+  // ciFailing is work, but nothing CHANGED this poll, so we don't re-spin.
+  assert.equal(dispatchDecision({ ciFailing: true, healthChanged: false }).kind, 'none');
+});
+
+test('dispatchDecision: failing CI newly appeared (health changed) -> feedback', () => {
+  assert.equal(dispatchDecision({ ciFailing: true, healthChanged: true }).kind, 'feedback');
+});
+
+test('dispatchDecision: Phase E — idle conflict + health changed -> rebase', () => {
+  const d = dispatchDecision({ newThreadCount: 0, ciFailing: false, needsRebase: true, healthChanged: true });
+  assert.equal(d.kind, 'rebase');
+});
+
+test('dispatchDecision: Phase E — standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false }).kind, 'none');
+});
+
+test('dispatchDecision: nothing actionable -> none', () => {
+  assert.equal(dispatchDecision({}).kind, 'none');
 });
 
 test('inScope: empty/null allowlist -> all PRs in scope', () => {

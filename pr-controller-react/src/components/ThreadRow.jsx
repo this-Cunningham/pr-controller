@@ -109,16 +109,7 @@ function HashOutControls({ thread, prId, dash }) {
   );
 }
 
-// agree-fix: auto-handled by the backend poller — informational only, no CTAs.
-function AgreeControls() {
-  return (
-    <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
-      The agent is auto-handling this fix.
-    </div>
-  );
-}
-
-// pending: the worker hasn't reviewed this thread yet — it's queued, no CTA.
+// notYetReviewed: the worker hasn't reviewed this thread yet — it's queued, no CTA.
 // Two distinct states: "agent working…" (a worker is running now for this PR)
 // vs "no feedback yet" (none queued/running).
 function PendingControls({ working }) {
@@ -200,13 +191,12 @@ export default function ThreadRow({ thread, prId, dash }) {
         <span>{thread.reason}</span>
       </div>
 
-      {thread.tag === 'hashout' && <HashOutControls thread={thread} prId={prId} dash={dash} />}
-      {thread.tag === 'agree' && <AgreeControls />}
-      {thread.tag === 'pending' && <PendingControls working={working} />}
-      {thread.tag === 'error' && <ErrorControls thread={thread} dash={dash} />}
-      {(thread.tag === 'waiting' || thread.tag === 'praise') && (
+      {thread.tag === 'needsYourApproval' && <HashOutControls thread={thread} prId={prId} dash={dash} />}
+      {thread.tag === 'notYetReviewed' && <PendingControls working={working} />}
+      {thread.tag === 'agentError' && <ErrorControls thread={thread} dash={dash} />}
+      {(thread.tag === 'agentAutoFixed' || thread.tag === 'awaitingReviewer' || thread.tag === 'agentAcknowledged') && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
-          {noActionLabel(thread.tag)}
+          {thread.tag === 'agentAutoFixed' ? 'The agent fixed this — waiting on the reviewer to confirm.' : noActionLabel(thread.tag)}
         </div>
       )}
     </div>

@@ -1,13 +1,5 @@
 import React from "react";
-
-const tones = {
-  accent: { background: "var(--accent-bg)", color: "var(--accent)", border: "none" }, // disagree / hash-out
-  sage: { background: "var(--auto-bg)", color: "var(--auto-fg)", border: "none" }, // agree / auto-fix
-  neutral: { background: "var(--surface-2)", color: "var(--ink-2)", border: "none" }, // waiting
-  praise: { background: "var(--praise-bg)", color: "var(--praise-fg)", border: "none" }, // praise
-  ochre: { background: "var(--err-bg)", color: "var(--err-fg)", border: "none" }, // agent error
-  pending: { background: "transparent", color: "var(--pending-fg)", border: "1px dashed var(--pending-border)" }, // not yet judged
-};
+import { TAG_TONES as tones } from "../../tokens/tones.js";
 
 /**
  * Uppercase mono disposition tag for a reviewer thread. Six tones map

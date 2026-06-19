@@ -133,6 +133,10 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // plan mode = enforced read-only (classify/observe trials); bypassPermissions =
   // full autonomy for unattended go-live. Default to the latter.
   args.push('--permission-mode', opts.permissionMode || 'bypassPermissions');
+  // Worker model is configurable (config.workerModel): haiku for fast/cheap testing,
+  // sonnet for prod. Unset -> the CLI default. Only passed on a NEW session — the
+  // model is fixed at session birth; --resume keeps the session's original model.
+  if (isNew && config.workerModel) args.push('--model', config.workerModel);
 
   if (isNew) await persistSession(prKey, id);
   return await new Promise((resolve) => {
