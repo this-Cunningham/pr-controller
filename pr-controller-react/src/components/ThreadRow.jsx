@@ -6,6 +6,7 @@ import { DispositionTag } from '../design-system/components/core/DispositionTag.
 import TerminalNote from './TerminalNote.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
+import { Callout } from '../design-system/components/feedback/Callout.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -34,20 +35,7 @@ function HashOutControls({ thread, prId, dash }) {
   if (status === 'rebutted') {
     return (
       <>
-        <div
-          style={{
-            marginTop: 11,
-            background: 'var(--surface-2)',
-            borderLeft: '2px solid var(--line-2)',
-            padding: '9px 12px',
-            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink-2)',
-          }}
-        >
-          You: {dash.threadRebuttal(thread.id)}
-        </div>
+        <Callout tone="neutral">You: {dash.threadRebuttal(thread.id)}</Callout>
         <Confirmation text="✓ Reply posted to the reviewer." fg="var(--auto-fg)" />
       </>
     );
@@ -60,22 +48,8 @@ function HashOutControls({ thread, prId, dash }) {
       )}
 
       {thread.suggestedApproach && (
-        <div
-          style={{
-            marginTop: 11,
-            background: 'var(--auto-bg)',
-            borderLeft: '2px solid var(--auto-fg)',
-            padding: '9px 12px',
-            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink-2)',
-          }}
-        >
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Suggested approach
-          </span>
-          <div style={{ marginTop: 5 }}>{thread.suggestedApproach}</div>
+        <Callout tone="sage" label="Suggested approach">
+          {thread.suggestedApproach}
           <div style={{ marginTop: 9 }}>
             {dispatched ? (
               <span style={{ fontSize: 12.5, color: 'var(--auto-fg)' }}>⟳ The agent is applying this approach…</span>
@@ -87,7 +61,7 @@ function HashOutControls({ thread, prId, dash }) {
               </Button>
             )}
           </div>
-        </div>
+        </Callout>
       )}
 
       {thread.suggestedReply && (

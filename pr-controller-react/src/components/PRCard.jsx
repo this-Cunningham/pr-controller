@@ -4,6 +4,7 @@ import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
 import Button from './Button.jsx';
 import TerminalNote from './TerminalNote.jsx';
+import { Callout } from '../design-system/components/feedback/Callout.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -83,78 +84,17 @@ export default function PRCard({ pr, needsYou, dash }) {
       </div>
 
       {pr.surfaced && (
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--accent-bg)',
-            borderLeft: '2px solid var(--accent)',
-            padding: '10px 13px',
-            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink)',
-          }}
-        >
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Agent surfaced
-          </span>
-          <div style={{ marginTop: 5, color: 'var(--ink-2)' }}>{pr.surfaced}</div>
-        </div>
+        <Callout tone="accent" label="Agent surfaced">{pr.surfaced}</Callout>
       )}
 
       {pr.outOfSync && (
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--accent-bg)',
-            borderLeft: '2px solid var(--accent)',
-            padding: '10px 13px',
-            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink)',
-          }}
-        >
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Branch out of sync
-          </span>
-          <div style={{ marginTop: 5, color: 'var(--ink-2)' }}>
-            The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
-            fast-forward and didn’t run. Reconcile it in a terminal.
-          </div>
-        </div>
+        <Callout tone="accent" label="Branch out of sync">
+          The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
+          fast-forward and didn’t run. Reconcile it in a terminal.
+        </Callout>
       )}
 
-      {working && (
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--auto-bg)',
-            borderLeft: '2px solid var(--auto-fg)',
-            padding: '10px 13px',
-            borderRadius: '0 var(--radius-card) var(--radius-card) 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: 'var(--auto-fg)',
-              animation: 'ws-pulse 1.6s ease-in-out infinite',
-            }}
-          />
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Agent working
-          </span>
-        </div>
-      )}
+      {working && <Callout tone="sage" dot pulse label="Agent working" />}
 
       {pr.pills.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>

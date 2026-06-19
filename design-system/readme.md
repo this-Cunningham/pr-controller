@@ -149,7 +149,7 @@ keep it `--ink-2`, 1.5px stroke, to match the hairline language — and flag the
 - `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Brand).
 - `components/`
   - `core/` — **Button**, **Badge**, **DispositionTag**, **ThemeSwitcher**
-  - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**
+  - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**, **Callout**
   - `navigation/` — **Tabs**, **ModeBadge**
   - `pr/` — **PRCard**, **ThreadRow**, **JiraBanner** (product compositions, built on the above)
   - each: `<Name>.jsx` + `<Name>.d.ts` + `<Name>.prompt.md`, plus one `*.card.html` per group.
