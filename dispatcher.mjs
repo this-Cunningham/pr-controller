@@ -95,7 +95,7 @@ async function maybeDrain(prKey) {
   e.approved = new Set();
   e.rebase = false;
 
-  deps.events.markStarted(prKey);
+  deps.events.markStarted(prKey, { rebase });
   const outPath = deps.outPath(pr);
   try {
     const wt = await deps.ensureWorktree(pr);

@@ -2,7 +2,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config, ghEnv } from './config.mjs';
-import { categorizeChecks, inScope } from './rules.mjs';
+import { categorizeChecks, inScope, applyDebugReviewer } from './rules.mjs';
 
 const exec = promisify(execFile);
 
@@ -106,7 +106,11 @@ export async function fetchThreads(repo, num) {
         lastBody: last.body || '',
         lastCommentId: last.databaseId,
       };
-    });
+    })
+    // TEMP (debug): a @claude-debug comment from your own account is re-attributed
+    // to a synthetic reviewer, so the whole pipeline treats it like real reviewer
+    // feedback. Remove with the rest of the debug path.
+    .map((t) => applyDebugReviewer(t));
   const rollup = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup;
   const failed = (rollup?.contexts?.nodes || [])
     .map((c) => c.__typename === 'CheckRun'

@@ -46,14 +46,6 @@ product/design decision that is genuinely yours to make.
 When you do surface, give a specific reason that cites the code or diff you read,
 not a generic "this is a judgment call". Never reply to a thread you'd surface.
 
-## Pushing your fix
-Your task tells you how to push:
-- Normal worktree (on the PR branch): commit, then `git push`.
-- Detached worktree (`detached: true`, the PR branch was checked out dirty
-  elsewhere): you are on detached HEAD on purpose — DO NOT create or switch
-  branches. Commit, then push with the given refspec: `git push origin HEAD:<branch>`.
-Never force-push.
-
 ## Branch health: rebasing & CI
 Your task's "Branch health" section tells you the state and whether to rebase this run.
 - REBASE only if it says "REBASE this run: YES" (the branch has a merge conflict).
@@ -79,8 +71,11 @@ For every unresolved reviewer-authored thread, pick exactly ONE response and rec
 it in your result JSON as `response`:
 
 - **fix** — the comment is actionable, INCLUDING minor nits: make the change,
-  reply `fixed` (lowercase, exactly that word), then RESOLVE the thread. Only after
-  the fix is pushed (see Truthfulness). Minor nits are just small fixes — do them.
+  then reply `fixed` (lowercase, exactly that word). Only after the fix is pushed
+  (see Truthfulness). Minor nits are just small fixes — do them. Do NOT resolve the
+  thread: `fixed` is your internal done-marker, and leaving the thread OPEN lets the
+  reviewer confirm and resolve it themselves (their resolve is the real done + merge
+  gate). Record `resolved: false`.
 - **praise** — the comment is positive/celebratory ("this is great", "nice
   cleanup") with nothing to change: add a `hooray` 🎉 reaction (NO text reply),
   then RESOLVE.
@@ -96,14 +91,15 @@ it in your result JSON as `response`:
 ## Apply-approved mode
 If your task says the user APPROVED an approach you proposed on the listed threads,
 this is no longer a surface: execute the approach as a normal **fix** (make the
-change, commit, push, reply `fixed`, resolve). You already reasoned about these
+change, commit, push, reply `fixed`, leave open). You already reasoned about these
 threads in a prior round — pick up that analysis. Record each as `response: "fix"`.
 
 Rules:
 - NEVER post curt text like "ack"/"ok"/"thanks" — for pure praise, react instead.
 - NEVER reply `fixed` unless you actually fixed AND pushed it.
-- RESOLVE every thread you fix/praise. Do NOT resolve a `surface` thread — it stays
-  open for the user.
+- RESOLVE a thread you `praise` (after the 🎉 reaction). Do NOT resolve a `fix`
+  thread — reply `fixed` and leave it open for the reviewer to confirm. Do NOT
+  resolve a `surface` thread — it stays open for the user.
 
 ## Mechanisms (run with the GH_HOST env already set for you)
 - Reply `fixed` on a review comment:

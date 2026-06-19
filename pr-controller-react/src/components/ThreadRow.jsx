@@ -60,9 +60,16 @@ function HashOutControls({ thread, prId, dash }) {
             ) : staged ? (
               <span style={{ fontSize: 12.5, color: 'var(--auto-fg)' }}>✓ Approved — staged for the next agent run.</span>
             ) : (
-              <Button variant="primary" onClick={() => dash.stageApproach(prId, thread.id)}>
-                Approve approach
-              </Button>
+              <>
+                <Button variant="primary" onClick={() => dash.stageApproach(prId, thread.id)}>
+                  Approve approach
+                </Button>
+                {/* To change the approach, hash it out in the terminal (the Discuss
+                    button below) rather than editing it inline. */}
+                <div style={{ marginTop: 7, fontSize: 12, color: 'var(--ink-3)', fontStyle: 'italic' }}>
+                  Want changes? Discuss in terminal below.
+                </div>
+              </>
             )}
           </div>
         </Callout>
@@ -109,16 +116,7 @@ function HashOutControls({ thread, prId, dash }) {
   );
 }
 
-// agree-fix: auto-handled by the backend poller — informational only, no CTAs.
-function AgreeControls() {
-  return (
-    <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
-      The agent is auto-handling this fix.
-    </div>
-  );
-}
-
-// pending: the worker hasn't reviewed this thread yet — it's queued, no CTA.
+// notYetReviewed: the worker hasn't reviewed this thread yet — it's queued, no CTA.
 // Two distinct states: "agent working…" (a worker is running now for this PR)
 // vs "no feedback yet" (none queued/running).
 function PendingControls({ working }) {
@@ -151,8 +149,12 @@ export default function ThreadRow({ thread, prId, dash }) {
   const working = dash.prWorking ? dash.prWorking(prId) : false;
   const meta = tagMeta[thread.tag];
   const [expanded, setExpanded] = useState(false);
+  const [reasonOpen, setReasonOpen] = useState(false);
   // Long bodies clamp to a few lines and expand on demand; short ones fit fully.
   const isLong = (thread.body || '').length > 280;
+  // The agent's reasoning can be a long paragraph (esp. on surfaced threads). Keep
+  // the row scannable: collapse it by default behind a quiet toggle when it's long.
+  const reasonLong = (thread.reason || '').length > 140;
   return (
     <div style={{ padding: '14px 0', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
@@ -186,27 +188,33 @@ export default function ThreadRow({ thread, prId, dash }) {
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: 7,
-          fontSize: 12.5,
-          color: 'var(--ink-2)',
-          display: 'flex',
-          gap: 7,
-          alignItems: 'baseline',
-        }}
-      >
-        <span style={{ color: 'var(--ink-3)' }}>↳</span>
-        <span>{thread.reason}</span>
-      </div>
+      {thread.reason && (
+        reasonLong ? (
+          <div style={{ marginTop: 7 }}>
+            <TextButton tone="muted" underline={false} onClick={() => setReasonOpen((v) => !v)}>
+              {reasonOpen ? '↳ Hide agent’s reasoning' : '↳ Show agent’s reasoning'}
+            </TextButton>
+            {reasonOpen && (
+              <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, display: 'flex', gap: 7, alignItems: 'baseline' }}>
+                <span style={{ color: 'var(--ink-3)' }}>↳</span>
+                <span>{thread.reason}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginTop: 7, fontSize: 12.5, color: 'var(--ink-2)', display: 'flex', gap: 7, alignItems: 'baseline' }}>
+            <span style={{ color: 'var(--ink-3)' }}>↳</span>
+            <span>{thread.reason}</span>
+          </div>
+        )
+      )}
 
-      {thread.tag === 'hashout' && <HashOutControls thread={thread} prId={prId} dash={dash} />}
-      {thread.tag === 'agree' && <AgreeControls />}
-      {thread.tag === 'pending' && <PendingControls working={working} />}
-      {thread.tag === 'error' && <ErrorControls thread={thread} dash={dash} />}
-      {(thread.tag === 'waiting' || thread.tag === 'praise') && (
+      {thread.tag === 'needsYourApproval' && <HashOutControls thread={thread} prId={prId} dash={dash} />}
+      {thread.tag === 'notYetReviewed' && <PendingControls working={working} />}
+      {thread.tag === 'agentError' && <ErrorControls thread={thread} dash={dash} />}
+      {(thread.tag === 'agentAutoFixed' || thread.tag === 'awaitingReviewer' || thread.tag === 'agentAcknowledged') && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--ink-3)', fontStyle: 'italic' }}>
-          {noActionLabel(thread.tag)}
+          {thread.tag === 'agentAutoFixed' ? 'The agent fixed this — waiting on the reviewer to confirm.' : noActionLabel(thread.tag)}
         </div>
       )}
     </div>

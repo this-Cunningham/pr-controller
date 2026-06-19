@@ -133,6 +133,10 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // plan mode = enforced read-only (classify/observe trials); bypassPermissions =
   // full autonomy for unattended go-live. Default to the latter.
   args.push('--permission-mode', opts.permissionMode || 'bypassPermissions');
+  // Worker model is configurable (config.workerModel): haiku for fast/cheap testing,
+  // sonnet for prod. Unset -> the CLI default. Only passed on a NEW session — the
+  // model is fixed at session birth; --resume keeps the session's original model.
+  if (isNew && config.workerModel) args.push('--model', config.workerModel);
 
   if (isNew) await persistSession(prKey, id);
   return await new Promise((resolve) => {
@@ -146,6 +150,16 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   });
 }
 
+// Short, generic conversation-openers for a branch-health discuss (no thread). The
+// resumed session already holds the detailed blocker; these just kick off the chat.
+const BRANCH_DISCUSS_OPENERS = {
+  rebase: 'Can you help me figure out what to do with this rebase?',
+  conflict: 'Can you help me figure out what to do with this rebase?',
+  outOfSync: 'The branch is out of sync with the remote — can you help me reconcile it?',
+  surfaced: 'You surfaced something on this PR for me — can you walk me through it and what you’d suggest?',
+  default: 'Can you help me with the branch issue you flagged on this PR?',
+};
+
 // Open an INTERACTIVE Claude in a native Terminal — for a disputed review thread
 // (thread given) or a branch-health/rebase conflict the agent surfaced (no thread).
 // The seed prompt is free-form prose (apostrophes, quotes, slashes, newlines), so
@@ -153,12 +167,13 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
 // (silent syntax errors). Instead we write the seed and a tiny launcher script to
 // temp files and have AppleScript run the launcher; the only value crossing into
 // AppleScript is a safe temp path.
-export async function spawnDiscussTerminal(pr, thread, worktreePath) {
+export async function spawnDiscussTerminal(pr, thread, worktreePath, branchKind = null) {
   // A seed is only useful when it tells the session something it doesn't already
   // know. For a review THREAD it disambiguates which of (possibly many) threads you
-  // clicked. For branch-health there's no seed: we resume the PR's durable session
-  // (below), which already surfaced the blocker and why — so we just drop you into
-  // it and let you talk, rather than inject (possibly stale) canned prose.
+  // clicked. For branch-health (no thread) we inject only a SHORT, generic opener
+  // keyed by what you clicked on — not the detailed blocker text, which the resumed
+  // session already holds (so it can't go stale). It's a conversation starter, not
+  // a re-statement of the problem.
   let seed = null;
   if (thread) {
     const quote = (thread.body || '').slice(0, 400);
@@ -169,6 +184,8 @@ export async function spawnDiscussTerminal(pr, thread, worktreePath) {
     seed = `Let's think through the surfaced thread on ${pr.nameWithOwner}#${pr.number}, `
       + `file ${thread.path}:${thread.line}. ${thread.author} said: "${quote}". `
       + `Remind me why you surfaced it and what you'd suggest; if we land on a reply, post it.`;
+  } else if (branchKind) {
+    seed = BRANCH_DISCUSS_OPENERS[branchKind] || BRANCH_DISCUSS_OPENERS.default;
   }
 
   // Continue the PR's DURABLE session so the interactive terminal picks up the

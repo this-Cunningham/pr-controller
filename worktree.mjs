@@ -38,6 +38,16 @@ async function isDirty(path) {
   try { return (await git(path, ['status', '--porcelain'])).length > 0; } catch { return true; }
 }
 
+// Fetch + fast-forward `dir` to its remote head. Returns null on success (the
+// caller builds its own ready result); if the branch diverged and can't
+// fast-forward, returns the outOfSync bail result so the dispatcher surfaces it
+// instead of launching a worker on an out-of-sync tree.
+async function syncFfOnly(dir) {
+  await git(dir, ['fetch', 'origin']);
+  try { await git(dir, ['pull', '--ff-only']); return null; }
+  catch (e) { return { path: dir, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
+}
+
 // Returns { path, ready, branch, detached?, pushRefspec?, reused?, outOfSync?, plan }.
 // Decision tree (clean reuse > detached worktree > fresh worktree), so we never
 // stash or disturb in-progress work in your clones.
@@ -50,9 +60,8 @@ export async function ensureWorktree(pr) {
 
   // RESUME: our managed worktree already exists -> ff-only to remote head.
   if (existsSync(path)) {
-    await git(path, ['fetch', 'origin']);
-    try { await git(path, ['pull', '--ff-only']); }
-    catch (e) { return { path, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
+    const bail = await syncFfOnly(path);
+    if (bail) return bail;
     return { path, ready: true, branch, plan: [] };
   }
 
@@ -62,9 +71,8 @@ export async function ensureWorktree(pr) {
 
   if (existingCheckout && !dirty) {
     // CLEAN reuse — work directly in the checkout you already have.
-    await git(existingCheckout, ['fetch', 'origin']);
-    try { await git(existingCheckout, ['pull', '--ff-only']); }
-    catch (e) { return { path: existingCheckout, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
+    const bail = await syncFfOnly(existingCheckout);
+    if (bail) return bail;
     return { path: existingCheckout, ready: true, branch, reused: true, plan: [] };
   }
 

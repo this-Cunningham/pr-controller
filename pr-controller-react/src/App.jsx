@@ -33,7 +33,17 @@ function Dashboard({ dash }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
               {active.prs.length > 0 ? (
                 active.prs.map((pr) => (
-                  <PRCard key={pr.id} pr={pr} needsYou={active.needsYou} dash={dash} />
+                  // Key by section+PR: per-item routing means the same PR id can
+                  // render in multiple tabs (a different item slice in each).
+                  // `inProgress` drives the pulsing "Agent working" cue on the
+                  // In-progress tab's slice (calm look + a sign the agent is on it).
+                  <PRCard
+                    key={`${active.key}:${pr.id}`}
+                    pr={pr}
+                    needsYou={active.needsYou}
+                    inProgress={active.key === 'auto'}
+                    dash={dash}
+                  />
                 ))
               ) : (
                 <EmptyState label={emptyLabel(active.key)} />

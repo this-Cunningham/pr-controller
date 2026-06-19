@@ -1,12 +1,5 @@
 import React from "react";
-
-const tones = {
-  neutral: { background: "var(--surface-2)", color: "var(--ink-2)", border: "transparent" },
-  sage: { background: "var(--auto-bg)", color: "var(--auto-fg)", border: "transparent" },
-  accent: { background: "var(--accent-bg)", color: "var(--accent)", border: "transparent" },
-  praise: { background: "var(--praise-bg)", color: "var(--praise-fg)", border: "transparent" },
-  outline: { background: "transparent", color: "var(--ink-3)", border: "var(--line-2)" },
-};
+import { BADGE_TONES as tones } from "../../tokens/tones.js";
 
 /**
  * Small status pill. Used for review status (Approved / Review required /

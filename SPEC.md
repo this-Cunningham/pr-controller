@@ -74,9 +74,14 @@ and refreshes each PR when its worker exits.
 ## Response taxonomy [prompt]
 For each unresolved reviewer-authored thread, exactly one:
 - **fix** (includes minor nits — nits are actionable): make the change, reply
-  `fixed` (lowercase, exact), then resolve. Only after the fix is pushed.
+  `fixed` (lowercase, exact), and leave the thread OPEN. Only after the fix is
+  pushed. The worker does NOT resolve a fixed thread: `fixed` is the internal
+  done-marker, and the reviewer's resolve is the real "done" + their merge gate. An
+  unresolved-`fixed` thread is an honest signal ("agent addressed it; reviewer
+  hasn't confirmed") and is what keeps the thread visible in the Waiting tier
+  (`agentAutoFixed`) instead of vanishing from the scan.
 - **praise** (positive, nothing to change): add a 🎉 `hooray` reaction, no text,
-  then resolve.
+  then resolve (praise still resolves — there's nothing for the reviewer to confirm).
 - **surface** (needs the user's judgment — a disagreement, a scope/product call, a
   risk the agent won't take on its own, or something it can't confidently decide):
   do nothing to the thread
@@ -88,8 +93,13 @@ For each unresolved reviewer-authored thread, exactly one:
     **approve** it (staged, not auto-run); see §Apply-approved.
 
 Rules: never post curt text like "ack"/"ok"/"thanks" (react instead); never reply
-`fixed` without an actual pushed fix; resolve every fixed/praised thread; never
-resolve a surfaced thread.
+`fixed` without an actual pushed fix; resolve a praised thread but leave a fixed
+thread OPEN for the reviewer to confirm; never resolve a surfaced thread.
+
+**Accepted tradeoff:** an unresolved `fixed` thread may block merge on repos that
+require conversation resolution. That's fine — the reviewer resolves it to merge
+(the resolve they'd do anyway), and the open thread is an honest "awaiting
+confirmation" signal.
 
 ## Apply-approved (staged Apply) [prompt]
 A surfaced thread carrying `suggestedApproach` can be **approved** by the user. The
@@ -120,15 +130,20 @@ something as a question is not by itself a reason to surface.
   that prepends `[TICKET]` to the title.
 - **Ignored checks** (`config.ignoreChecks`, e.g. license/CLA/DCO) → dropped.
 - **Rebase on merge conflict** (`needsRebase` = `mergeable CONFLICTING` or
-  `mergeState DIRTY` [tested]) — NOT gated on approval. Two paths:
+  `mergeState DIRTY` [tested]) — NOT gated on approval. ANY merge conflict
+  auto-dispatches a rebase. Two paths:
   - **Folded into a worker run.** When the worker is already dispatched for feedback
     or CI, and the branch also has a conflict, the run also rebases (`rebaseOnConflict`
     → `opts.rebase`): the branch is changing anyway, so it dismisses no extra reviews.
-  - **Manual CTA.** When a conflict exists but there's *nothing else to do*, the daemon
-    does NOT auto-spin a worker (a quiet force-push would dismiss the PR's reviews).
-    Instead the PR floats to "Needs you" with a **Rebase** CTA; clicking it POSTs
-    `/decision {action:'rebase'}` → `dispatcher.enqueueRebase`. Clean rebase → push
-    `--force-with-lease`; non-trivial conflicts → surface, never guess.
+  - **Idle conflict → auto-rebase (Phase E, REVERSAL).** When a conflict exists with
+    *nothing else to do*, the daemon now AUTO-enqueues a rebase-only run
+    (`dispatcher.enqueueRebase`, gated on `healthChanged` so it doesn't re-spin every
+    poll). This REVERSES the prior "don't auto-spin a quiet PR" rule: a conflicted PR
+    can't merge anyway, so freshness wins over approval-preservation. **Conscious
+    tradeoff:** auto-rebasing an already-approved idle PR force-pushes and dismisses
+    its approval. Clean rebase → push `--force-with-lease`; non-trivial conflicts →
+    surface, never guess. The manual **Rebase** CTA (`/decision {action:'rebase'}`)
+    is kept as a redundant manual re-trigger.
   - `rebaseAllowed` (approval-gated) is retained only for the informational
     "behind base" pill; it no longer triggers an automatic rebase.
 
@@ -186,20 +201,36 @@ resolve / rebase) on the PRs it can see.
   can't find.
 - `lastSeenSha` records the worktree HEAD after each run for the resume delta diff.
 
-## Dashboard tiers — derived from the worker's verdict [tested: `deriveTier`]
-The dashboard's per-thread tier comes from the worker's code-grounded `response`
-(read back from `data/worker-<repo>-<num>.json` and merged by `threadId` in
-`poll()`), NOT a keyword heuristic. The old `preClassify` guess is retired.
-- **surface** → `hash-out` (Needs you), carrying the worker's code-cited reason.
-- **fix / praise** → `waiting-reviewer`. The worker resolves these threads, so they
-  usually drop out of the scan entirely; if still open, the ball is the reviewer's.
-- **No worker verdict yet:** the user replied last → `waiting-reviewer`; the reviewer
-  had the last word → **`pending`** ("No feedback yet" — the worker hasn't judged it).
-- A thread scan error → `error`.
+## Dashboard dispositions — derived from the worker's verdict [tested: `deriveTier`]
+Each thread's `tier` (the shared **disposition** vocabulary) comes from the worker's
+code-grounded `response` (read back from `data/worker-<repo>-<num>.json` and merged
+by `threadId` in `poll()`), NOT a keyword heuristic. The old `preClassify` guess is
+retired. The same names are used end-to-end (backend `tier` === frontend `tag`):
+- **surface** → `needsYourApproval` (carries the worker's code-cited reason).
+- **fix** (incl. apply-approved) → `agentAutoFixed` — the worker changed code and
+  replied `fixed` but does NOT resolve (§taxonomy), so the thread stays OPEN and is
+  scanned naturally; this is the stable, visible "addressed, awaiting reviewer" state.
+- **praise** → `agentAcknowledged` — the worker reacted 🎉 and resolved; never shown.
+- **No worker verdict yet:** the user replied last → `awaitingReviewer`; the reviewer
+  had the last word → `notYetReviewed` ("No feedback yet" — the worker hasn't judged it).
+- A thread scan error → `agentError`.
 
-PR-level fields follow from the tiers: `needsYou` = any `hash-out` OR `needsJira` OR
-`outOfSync`; `autoFixable` = count of `agree-fix`; `pending` = count of `pending`.
-A worker-`surfaced` branch-health reason (e.g. an approval-gated rebase) is carried
-as `workerSurfaced` for context but does NOT escalate to `needsYou` — the next actor
-is the reviewer, so the PR waits. `pending` PRs bucket into Auto-handling (the
-agent's queue), not Waiting-on-reviewer.
+PR-level fields still follow from the dispositions: `needsYou` = any
+`needsYourApproval` OR `needsJira` OR `outOfSync` OR a worker-`surfaced` branch-health
+reason; `autoFixable` = count of `agentAutoFixed`; `pending` = count of `notYetReviewed`.
+
+## Dashboard tabs — per-ITEM routing [tested: `adapt.adaptSections`]
+The unit of tab placement is the **item** (a thread, or a PR-health signal), NOT the
+PR card. The same PR therefore appears in every tab where it has ≥1 item, each card
+rendering only that tab's slice. Routing happens in the frontend adapter
+(`pr-controller-react/src/adapt.js`), reacting to both `state.json` and the live
+frontend overlays (SSE in-flight set + the staged/dispatched "cart").
+- **Needs you:** `needsYourApproval` (untouched or staged) + `agentError` threads;
+  `needsJira` / `outOfSync` / worker-`surfaced` health. A staged approval moves OUT
+  the instant its Run fires (the `dispatched` overlay → In progress).
+- **In progress:** `notYetReviewed` + `dispatched` threads; in-flight branch work
+  (failing CI, behind-base, an auto-rebasing conflict); any PR with a worker actually
+  in flight. Calm card + a pulsing "Agent working" cue.
+- **Waiting on reviewer:** `agentAutoFixed` + `awaitingReviewer` threads — the agent
+  addressed it; the reviewer is the next actor. `agentAcknowledged` (praise) is shown
+  in no tab.

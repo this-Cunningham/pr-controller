@@ -6,7 +6,15 @@ import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { config, ghEnv } from './config.mjs';
 
+import { scanAll, scanOnePr } from './scanner.mjs';
+import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
+import { ensureWorktree } from './worktree.mjs';
+import { dispatchable, needsJira, rebaseAllowed, needsRebase, deriveTier, dispatchDecision } from './rules.mjs';
+import * as events from './events.mjs';
+import * as dispatcher from './dispatcher.mjs';
+
 const exec = promisify(execFile);
+
 // Prepend "[TICKET]" to the PR title to satisfy the compliance check.
 async function setPrJira(pr, ticket) {
   const newTitle = `[${ticket}] ${pr.title}`;
@@ -24,12 +32,6 @@ async function postThreadReply(threadId, body) {
   await exec('gh', ['api', 'graphql', '-f', `query=${REPLY_MUTATION}`,
     '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
 }
-import { scanAll, scanOnePr } from './scanner.mjs';
-import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
-import { ensureWorktree } from './worktree.mjs';
-import { dispatchable, needsJira, rebaseAllowed, needsRebase, deriveTier } from './rules.mjs';
-import * as events from './events.mjs';
-import * as dispatcher from './dispatcher.mjs';
 
 const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
@@ -55,7 +57,7 @@ const outOfSyncPRs = new Set();
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
 
-const TIER_RANK = { 'hash-out': 0, error: 1, 'agree-fix': 2, pending: 3, 'waiting-reviewer': 4 };
+const TIER_RANK = { needsYourApproval: 0, agentError: 1, agentAutoFixed: 2, notYetReviewed: 3, awaitingReviewer: 4, agentAcknowledged: 5 };
 
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
 const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
@@ -100,9 +102,9 @@ async function deriveAndSetPrFields(pr) {
   pr.outOfSync = outOfSyncPRs.has(`${pr.repo}#${pr.number}`);
 
   // PR-level fields derived from the per-thread tiers + branch state.
-  pr.needsYou = pr.threads.some((t) => t.tier === 'hash-out') || pr.needsJira || !!pr.outOfSync || !!surfaced;
-  pr.autoFixable = pr.threads.filter((t) => t.tier === 'agree-fix').length;
-  pr.pending = pr.threads.filter((t) => t.tier === 'pending').length;
+  pr.needsYou = pr.threads.some((t) => t.tier === 'needsYourApproval') || pr.needsJira || !!pr.outOfSync || !!surfaced;
+  pr.autoFixable = pr.threads.filter((t) => t.tier === 'agentAutoFixed').length;
+  pr.pending = pr.threads.filter((t) => t.tier === 'notYetReviewed').length;
   pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
 }
 
@@ -157,20 +159,21 @@ async function poll() {
       const healthChanged = healthSig !== prev.health;
       seen.set(prKey, { threads: new Set(pr.threads.filter((t) => !t.error).map(fp)), health: healthSig });
 
-      // Dispatch a worker when there's real work: new feedback, or failing code CI.
-      // If the branch ALSO has a merge conflict, fold the rebase into that run
-      // (rebaseOnConflict) — the branch is changing anyway, so resolving the
-      // conflict here doesn't dismiss any extra reviews. A conflict with NOTHING
-      // else to do is NOT auto-dispatched: that would force-push a quiet PR and
-      // dismiss its reviews. Instead the dashboard shows a manual "Rebase" CTA
-      // (pr.needsRebase), actioned via POST /decision { action:'rebase' }.
-      const workToDo = newThreads.length || pr.ciFailing;
-      if (workToDo && (newThreads.length || healthChanged)) {
-        dispatcher.enqueue(pr, newThreads, {
-          branchHealth: pr.branchHealth,
-          rebaseOnConflict: pr.needsRebase,
-        });
-      }
+      // What to dispatch is a pure decision (rules.dispatchDecision, tested):
+      //  - 'feedback' — new threads or failing code CI changed this poll; a merge
+      //    conflict folds in (rebaseOnConflict), since the branch is changing anyway.
+      //  - 'rebase'   — Phase E: an idle merge conflict (nothing else to do) now
+      //    AUTO-rebases (reversing the old manual-CTA-only rule; SPEC §CI & rebase),
+      //    gated on healthChanged so a standing conflict isn't re-spun every poll.
+      //    CONSCIOUS TRADEOFF: dismisses the approval on an already-approved idle PR.
+      const decision = dispatchDecision({
+        newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
+        needsRebase: pr.needsRebase, healthChanged,
+      });
+      if (decision.kind === 'feedback')
+        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth, rebaseOnConflict: decision.rebaseOnConflict });
+      else if (decision.kind === 'rebase')
+        dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
     }
     await writeState(prs);
     console.log(`[poll] ${prs.length} PRs, ${prs.filter(p=>p.needsYou).length} need you`);
@@ -251,7 +254,10 @@ const server = createServer(async (req, res) => {
         if (!pr || (payload.threadId && !thread)) spawn = { spawned: false, reason: 'PR or thread not found' };
         else {
           const wt = await ensureWorktree(pr);
-          spawn = await spawnDiscussTerminal(pr, thread, wt.path);
+          // For a branch-health (no-thread) discuss, payload.kind names what was
+          // clicked (rebase/conflict/outOfSync/surfaced) so the terminal opens with
+          // a short generic opener about that thing.
+          spawn = await spawnDiscussTerminal(pr, thread, wt.path, thread ? null : payload.kind);
         }
       }
       if (payload.action === 'note') {

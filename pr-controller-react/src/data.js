@@ -6,7 +6,8 @@
 //   review: 'APPROVED' | 'REVIEW_REQUIRED' | 'DRAFT'
 //   pill:   { label, kind: 'auto' | 'behind' | 'ci' }
 //   thread: { id, tag, loc, author, body, reason }
-//   tag:    'hashout' | 'agree' | 'waiting' | 'pending' | 'praise' | 'error'
+//   tag:    'needsYourApproval' | 'agentAutoFixed' | 'agentAcknowledged'
+//           | 'awaitingReviewer' | 'notYetReviewed' | 'agentError'
 // ============================================================
 
 const pr2412 = {
@@ -24,7 +25,7 @@ const pr2412 = {
   threads: [
     {
       id: 't1',
-      tag: 'hashout',
+      tag: 'needsYourApproval',
       loc: 'src/auth/middleware.ts:88',
       author: '@dana-k',
       body: 'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.',
@@ -32,7 +33,7 @@ const pr2412 = {
     },
     {
       id: 't2',
-      tag: 'agree',
+      tag: 'agentAutoFixed',
       loc: 'src/auth/sso.ts:142',
       author: '@marco',
       body: 'Nit: use const here and destructure the config object instead of repeated property access.',
@@ -40,7 +41,7 @@ const pr2412 = {
     },
     {
       id: 't3',
-      tag: 'error',
+      tag: 'agentError',
       loc: '.github/workflows/ci.yml:30',
       author: '@ci-bot',
       body: 'Step “cache restore” failed to parse — unexpected key “path” at line 30.',
@@ -60,7 +61,7 @@ const pr874 = {
   threads: [
     {
       id: 't4',
-      tag: 'hashout',
+      tag: 'needsYourApproval',
       loc: 'jobs/backfill.py:55',
       author: '@priya',
       body: 'Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this.',
@@ -80,7 +81,7 @@ const pr2399 = {
   threads: [
     {
       id: 't5',
-      tag: 'agree',
+      tag: 'agentAutoFixed',
       loc: 'package.json:24',
       author: '@deps-bot',
       body: 'Lockfile is out of sync with package.json.',
@@ -88,7 +89,7 @@ const pr2399 = {
     },
     {
       id: 't6',
-      tag: 'waiting',
+      tag: 'awaitingReviewer',
       loc: 'CHANGELOG.md:1',
       author: '@sam',
       body: 'LGTM once the changelog entry lands.',
@@ -109,10 +110,10 @@ const pr561 = {
     { label: 'behind base', kind: 'behind' },
   ],
   threads: [
-    { id: 't7', tag: 'agree', loc: 'tokens/spacing.json:12', author: '@lee', body: 'Base unit should be 4px, not 5 — matches the grid.', reason: 'Matches the documented grid — auto-fixing.' },
-    { id: 't8', tag: 'agree', loc: 'tokens/spacing.json:30', author: '@lee', body: 'Missing an xl token between lg and 2xl.', reason: 'Adding the token per the scale spec.' },
-    { id: 't9', tag: 'agree', loc: 'components/Stack.tsx:8', author: '@lee', body: 'Import order — group external before internal.', reason: 'Lint-aligned reorder.' },
-    { id: 't10', tag: 'praise', loc: 'tokens/spacing.json:1', author: '@lee', body: 'Really clean approach to this, thank you.', reason: 'Positive feedback — no action.' },
+    { id: 't7', tag: 'agentAutoFixed', loc: 'tokens/spacing.json:12', author: '@lee', body: 'Base unit should be 4px, not 5 — matches the grid.', reason: 'Matches the documented grid — auto-fixing.' },
+    { id: 't8', tag: 'agentAutoFixed', loc: 'tokens/spacing.json:30', author: '@lee', body: 'Missing an xl token between lg and 2xl.', reason: 'Adding the token per the scale spec.' },
+    { id: 't9', tag: 'agentAutoFixed', loc: 'components/Stack.tsx:8', author: '@lee', body: 'Import order — group external before internal.', reason: 'Lint-aligned reorder.' },
+    { id: 't10', tag: 'agentAcknowledged', loc: 'tokens/spacing.json:1', author: '@lee', body: 'Really clean approach to this, thank you.', reason: 'Positive feedback — no action.' },
   ],
 };
 
@@ -125,8 +126,8 @@ const pr2380 = {
   jira: false,
   pills: [],
   threads: [
-    { id: 't11', tag: 'praise', loc: 'README.md:42', author: '@dana-k', body: 'This was overdue — much clearer now.', reason: 'Positive feedback — no action.' },
-    { id: 't12', tag: 'waiting', loc: 'README.md:60', author: '@sam', body: 'One tiny follow-up in-thread, nothing blocking.', reason: 'Waiting on the reviewer.' },
+    { id: 't11', tag: 'agentAcknowledged', loc: 'README.md:42', author: '@dana-k', body: 'This was overdue — much clearer now.', reason: 'Positive feedback — no action.' },
+    { id: 't12', tag: 'awaitingReviewer', loc: 'README.md:60', author: '@sam', body: 'One tiny follow-up in-thread, nothing blocking.', reason: 'Waiting on the reviewer.' },
   ],
 };
 
@@ -150,13 +151,13 @@ export const SECTIONS = [
 
 export function sectionCaption(key) {
   if (key === 'needs') return 'Resolve these before the agent continues.';
-  if (key === 'auto') return 'The agent is fixing these — just glance.';
-  return 'No action needed from you.';
+  if (key === 'auto') return 'The agent is working on these — just glance.';
+  return 'Addressed — waiting on the reviewer.';
 }
 
 export function emptyLabel(key) {
   if (key === 'needs') return 'Nothing needs you right now.';
-  if (key === 'auto') return 'Nothing being auto-handled.';
+  if (key === 'auto') return 'Nothing in progress.';
   return 'Nothing waiting.';
 }
 
@@ -170,24 +171,6 @@ export const EX_CALM = pr2399; // calm / auto-handled
 export const EX_DENSE = pr561; // many threads
 export const EX_NONE = pr203; // no threads
 
-// One PR showing every thread disposition.
-export const GALLERY_ALL = {
-  id: 'gAll',
-  repo: 'acme/web-app',
-  number: 9001,
-  title: 'One PR showing every thread disposition',
-  review: 'REVIEW_REQUIRED',
-  jira: false,
-  pills: [{ label: '2 auto-fixable', kind: 'auto' }],
-  threads: [
-    { id: 'ga1', tag: 'hashout', loc: 'src/x.ts:10', author: '@dana-k', body: 'I disagree with this change — please keep the old behavior.', reason: 'Conflicting intent — your call.' },
-    { id: 'ga2', tag: 'agree', loc: 'src/x.ts:20', author: '@marco', body: 'Nit: rename to camelCase.', reason: 'Mechanical — safe to auto-apply.' },
-    { id: 'ga3', tag: 'waiting', loc: 'src/x.ts:30', author: '@sam', body: 'Looks good, will approve shortly.', reason: 'Waiting on the reviewer.' },
-    { id: 'ga4', tag: 'praise', loc: 'src/x.ts:40', author: '@lee', body: 'Nice cleanup here!', reason: 'Positive feedback.' },
-    { id: 'ga5', tag: 'error', loc: 'ci.yml:5', author: '@ci-bot', body: 'Step failed to parse.', reason: 'Agent couldn’t classify.' },
-  ],
-};
-
 // Threads pre-set to their confirmation states (seeded via GALLERY_SEED).
 export const GALLERY_TAKEN = {
   id: 'gTaken',
@@ -198,9 +181,9 @@ export const GALLERY_TAKEN = {
   jira: false,
   pills: [],
   threads: [
-    { id: 'gt1', tag: 'agree', loc: 'src/a.ts:1', author: '@marco', body: 'Use const here.', reason: 'Mechanical fix.' },
-    { id: 'gt3', tag: 'agree', loc: 'src/b.ts:2', author: '@marco', body: 'Remove the unused import.', reason: 'Lint fix.' },
-    { id: 'gt2', tag: 'hashout', loc: 'jobs/x.py:9', author: '@priya', body: 'This will lock the table in prod.', reason: 'Architectural — your call.' },
+    { id: 'gt1', tag: 'agentAutoFixed', loc: 'src/a.ts:1', author: '@marco', body: 'Use const here.', reason: 'Mechanical fix.' },
+    { id: 'gt3', tag: 'agentAutoFixed', loc: 'src/b.ts:2', author: '@marco', body: 'Remove the unused import.', reason: 'Lint fix.' },
+    { id: 'gt2', tag: 'needsYourApproval', loc: 'jobs/x.py:9', author: '@priya', body: 'This will lock the table in prod.', reason: 'Architectural — your call.' },
   ],
 };
 
