@@ -89,15 +89,6 @@ export default function PRCard({ pr, needsYou, dash }) {
         </div>
       )}
 
-      {pr.outOfSync && (
-        <div style={{ marginTop: 12 }}>
-          <Callout tone="urgency" eyebrow="Branch out of sync">
-            The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
-            fast-forward and didn’t run. Reconcile it in a terminal.
-          </Callout>
-        </div>
-      )}
-
       {working && (
         <div style={{ marginTop: 12 }}>
           <Callout tone="agent" dot pulse eyebrow="Agent working" />

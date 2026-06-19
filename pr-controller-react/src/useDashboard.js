@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adaptState } from './adapt.js';
+import { MOCK_STATE } from './mockState.js';
+
+// `?mock` (or `?mock=1`) loads a static state.json-shaped fixture through the
+// real adaptState pipeline instead of hitting the backend — for validating every
+// design state without a live PR. No network, no SSE.
+const MOCK = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mock');
 
 // Central dashboard state + actions.
 //
@@ -81,6 +87,7 @@ export function useDashboard(seed = null) {
 
   const fetchState = useCallback(async () => {
     if (seeded) return;
+    if (MOCK) { applyState(adaptState(MOCK_STATE)); return; }
     try {
       const r = await fetch('/state.json');
       applyState(adaptState(await r.json()));
@@ -97,6 +104,8 @@ export function useDashboard(seed = null) {
       await fetchState();
       if (alive) setLoading(false);
     })();
+    // Mock mode is static — no polling, no SSE (there's no backend).
+    if (MOCK) return () => { alive = false; };
     // 60s poll stays as a fallback when the SSE stream is unavailable.
     const id = setInterval(fetchState, POLL_MS);
 
