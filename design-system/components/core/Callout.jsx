@@ -1,5 +1,10 @@
 import React from "react";
-import { CALLOUT_TONES as tones } from "../../tokens/tones.js";
+
+const tones = {
+  urgency: { rule: "var(--accent)", bg: "var(--accent-soft)", mark: "var(--accent)" },
+  agent: { rule: "var(--auto-fg)", bg: "var(--auto-bg)", mark: "var(--auto-fg)" },
+  quiet: { rule: "var(--line-2)", bg: "var(--surface-2)", mark: "var(--ink-3)" },
+};
 
 /**
  * Left-ruled status box. The system's workhorse for ambient status:

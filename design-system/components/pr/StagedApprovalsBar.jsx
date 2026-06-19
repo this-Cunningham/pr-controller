@@ -2,9 +2,9 @@ import React from "react";
 import { Button } from "../core/Button.jsx";
 
 /**
- * PR-level CTA bar: run the agent against the changes you've staged by
- * approving them. Distinct from a single thread's Approve — this applies
- * the whole batch. Quiet when count is 0.
+ * Per-PR cart action: fire ONE agent run that carries out every approach
+ * you've staged (via a thread's "Approve approach"). Distinct from a
+ * single thread action. Quiet — and disabled — when nothing is staged.
  */
 export function StagedApprovalsBar({ count = 0, running = false, onRun }) {
   const none = count === 0;
@@ -24,19 +24,26 @@ export function StagedApprovalsBar({ count = 0, running = false, onRun }) {
     >
       <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
         {none ? (
-          "No staged approvals yet."
+          "No approaches staged yet."
+        ) : running ? (
+          <span style={{ display: "inline-flex", gap: 7, alignItems: "center" }}>
+            <span style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>›_</span>
+            Agent run started — {count} staged item{count === 1 ? "" : "s"} queued.
+          </span>
         ) : (
           <>
             <span style={{ color: "var(--ink)", fontWeight: 600 }}>
-              {count} approval{count === 1 ? "" : "s"} staged
+              {count} approach{count === 1 ? "" : "es"} staged
             </span>{" "}
-            — ready to apply.
+            for this PR.
           </>
         )}
       </span>
-      <Button variant="primary" onClick={onRun} disabled={none}>
-        {running ? "Running…" : "Run agent"}
-      </Button>
+      {!running && (
+        <Button variant="primary" onClick={onRun} disabled={none}>
+          Run agent ({count})
+        </Button>
+      )}
     </div>
   );
 }

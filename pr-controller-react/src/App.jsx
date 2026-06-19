@@ -1,22 +1,34 @@
+import { useMemo } from 'react';
 import { useDashboard } from './useDashboard.js';
-import { sectionCaption, emptyLabel } from './data.js';
+import { makeController } from './controller.js';
 import GrainOverlay from './components/GrainOverlay.jsx';
 import Header from './components/Header.jsx';
-import SectionTabs from './components/SectionTabs.jsx';
-import PRCard from './components/PRCard.jsx';
-import Skeleton from './components/Skeleton.jsx';
-import EmptyState from './components/EmptyState.jsx';
-import Toast from './components/Toast.jsx';
+import { Tabs } from './design-system/components/navigation/Tabs.jsx';
+import { PRCard } from './design-system/components/pr/PRCard.jsx';
+import { Skeleton } from './design-system/components/feedback/Skeleton.jsx';
+import { EmptyState } from './design-system/components/feedback/EmptyState.jsx';
+import { Toast } from './design-system/components/feedback/Toast.jsx';
 
-function Dashboard({ dash }) {
+const CAPTION = {
+  needs: 'Resolve these before the agent continues.',
+  progress: 'The agent is working on these — just glance.',
+  waiting: 'Addressed — waiting on the reviewer.',
+};
+const EMPTY = {
+  needs: 'Nothing needs you right now.',
+  progress: 'Nothing in progress.',
+  waiting: 'Nothing waiting on a reviewer.',
+};
+
+function Dashboard({ dash, controller }) {
   const sections = dash.sections;
+  const active = sections.find((s) => s.key === dash.tab) || sections[0];
   const tabs = sections.map((s) => ({
     key: s.key,
     label: s.title,
     count: s.prs.length,
-    needs: s.key === 'needs',
+    emphasize: s.key === 'needs',
   }));
-  const active = sections.find((s) => s.key === dash.tab) || sections[0];
 
   return (
     <>
@@ -25,30 +37,21 @@ function Dashboard({ dash }) {
         <Skeleton />
       ) : (
         <>
-          <SectionTabs tabs={tabs} active={dash.tab} onSelect={dash.setTab} />
-          <div style={{ marginTop: 34 }}>
-            <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>
-              {sectionCaption(active.key)}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-              {active.prs.length > 0 ? (
-                active.prs.map((pr) => (
-                  // Key by section+PR: per-item routing means the same PR id can
-                  // render in multiple tabs (a different item slice in each).
-                  // `inProgress` drives the pulsing "Agent working" cue on the
-                  // In-progress tab's slice (calm look + a sign the agent is on it).
-                  <PRCard
-                    key={`${active.key}:${pr.id}`}
-                    pr={pr}
-                    needsYou={active.needsYou}
-                    inProgress={active.key === 'auto'}
-                    dash={dash}
-                  />
-                ))
-              ) : (
-                <EmptyState label={emptyLabel(active.key)} />
-              )}
-            </div>
+          <Tabs tabs={tabs} active={active.key} onChange={dash.setTab} />
+          <div style={{ marginTop: 16, fontSize: 13, color: 'var(--ink-2)', fontStyle: 'italic' }}>
+            {CAPTION[active.key]}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+            {active.prs.length > 0 ? (
+              active.prs.map((pr) => (
+                // Per-item routing: the same PR id can render in multiple tabs, each
+                // showing only the slice that routes here (the DS PRCard filters by
+                // `tab`). Key by section+PR so React keeps them distinct.
+                <PRCard key={`${active.key}:${pr.id}`} pr={pr} tab={active.key} controller={controller} />
+              ))
+            ) : (
+              <EmptyState label={EMPTY[active.key]} />
+            )}
           </div>
         </>
       )}
@@ -58,6 +61,7 @@ function Dashboard({ dash }) {
 
 export default function App() {
   const dash = useDashboard();
+  const controller = useMemo(() => makeController(dash), [dash]);
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg)' }}>
@@ -71,7 +75,7 @@ export default function App() {
           padding: '34px 28px 120px',
         }}
       >
-        <Dashboard dash={dash} />
+        <Dashboard dash={dash} controller={controller} />
       </div>
       <Toast message={dash.toastMsg} />
     </div>

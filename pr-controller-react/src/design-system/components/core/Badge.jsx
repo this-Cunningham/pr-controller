@@ -1,9 +1,16 @@
 import React from "react";
-import { BADGE_TONES as tones } from "../../tokens/tones.js";
+
+const tones = {
+  neutral: { background: "var(--surface-2)", color: "var(--ink-2)", border: "transparent" },
+  sage: { background: "var(--auto-bg)", color: "var(--auto-fg)", border: "transparent" },
+  accent: { background: "var(--accent-bg)", color: "var(--accent)", border: "transparent" },
+  praise: { background: "var(--praise-bg)", color: "var(--praise-fg)", border: "transparent" },
+  outline: { background: "transparent", color: "var(--ink-3)", border: "var(--line-2)" },
+};
 
 /**
  * Small status pill. Used for review status (Approved / Review required /
- * Draft) and PR signals (N auto-fixable, behind base, CI failing). The
+ * Draft) and PR signals (behind base, CI failing). The
  * `dot` adds a leading marker; `mono` renders uppercase tracked mono
  * (used for review-status pills).
  */

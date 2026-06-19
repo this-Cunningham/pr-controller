@@ -28,5 +28,5 @@
   --radius-card: 5px; /* cards, inputs, buttons */
   --radius-control: 6px; /* segmented control items */
   --radius-toast: 8px;
-  --radius-round: 20px; /* mode badge & count pills */
+  --radius-round: 20px; /* scope badge & count pills */
 }

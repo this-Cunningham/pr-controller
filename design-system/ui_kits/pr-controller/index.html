@@ -17,112 +17,174 @@
       const { useState, useEffect, useRef } = React;
 
       // ---- data (mock; mirrors the agent's state.json) ----
-      const DATA = {
-        needs: [
-          { id:'pr2412', repo:'acme/web-app', number:2412, title:'Refactor auth middleware to support SSO', review:'REVIEW_REQUIRED', jira:true,
-            branch:{state:'suggested', name:'feature/sso', suggestion:'Keep the early-return guard and move the token-refresh path into a dedicated handler in a follow-up commit.'},
-            pills:[['3 auto-fixable','auto'],['behind base','behind'],['CI failing: unit-api','ci']],
-            threads:[
-              { id:'t1', tag:'hashout', loc:'src/auth/middleware.ts:88', author:'@dana-k', body:'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.', reason:'Reviewer disputes the change — conflicting intent, your call.' },
-              { id:'t2', tag:'agree', loc:'src/auth/sso.ts:142', author:'@marco', body:'Nit: use const here and destructure the config object.', reason:'Mechanical refactor — safe to auto-apply.' },
-              { id:'t3', tag:'error', loc:'.github/workflows/ci.yml:30', author:'@ci-bot', body:'Step “cache restore” failed to parse — unexpected key “path”.', reason:'Agent couldn’t classify this failure.' },
-            ] },
-          { id:'pr874', repo:'acme/data-pipeline', number:874, title:'Add backfill job for the events table', review:'DRAFT', jira:false,
-            branch:{state:'out-of-sync', name:'feature/events-backfill', ahead:2, behind:9},
-            pills:[['CI failing: lint','ci']],
-            threads:[ { id:'t4', tag:'hashout', loc:'jobs/backfill.py:55', author:'@priya', body:'Backfilling synchronously will hold a lock on events for hours in prod. This needs chunking with checkpoints, or a replica. I’d block on this.', reason:'Architectural concern with prod impact — your decision.' } ] },
-        ],
-        auto: [
-          { id:'pr2399', repo:'acme/web-app', number:2399, title:'Bump lodash to 4.17.21', review:'APPROVED', jira:false,
-            pills:[['2 auto-fixable','auto']],
-            threads:[
-              { id:'t5', tag:'agree', loc:'package.json:24', author:'@deps-bot', body:'Lockfile is out of sync with package.json.', reason:'Regenerating lockfile — auto-applied.' },
-              { id:'t6', tag:'waiting', loc:'CHANGELOG.md:1', author:'@sam', body:'LGTM once the changelog entry lands.', reason:'Waiting on the reviewer.' },
-            ] },
-          { id:'pr561', repo:'acme/design-system', number:561, title:'Tokenize the spacing scale', review:'REVIEW_REQUIRED', jira:false,
-            branch:{state:'working', name:'ds/spacing-tokens'},
-            pills:[['5 auto-fixable','auto'],['behind base','behind']],
-            threads:[
-              { id:'t7', tag:'agree', loc:'tokens/spacing.json:12', author:'@lee', body:'Base unit should be 4px, not 5.', reason:'Matches the grid — auto-fixing.' },
-              { id:'t8', tag:'agree', loc:'tokens/spacing.json:30', author:'@lee', body:'Missing an xl token between lg and 2xl.', reason:'Adding per the scale spec.' },
-              { id:'t10', tag:'praise', loc:'tokens/spacing.json:1', author:'@lee', body:'Really clean approach to this, thank you.', reason:'Positive feedback — no action.' },
-            ] },
-        ],
-        waiting: [
-          { id:'pr2380', repo:'acme/web-app', number:2380, title:'Docs: clarify local env setup', review:'APPROVED', jira:false, pills:[],
-            threads:[
-              { id:'t11', tag:'praise', loc:'README.md:42', author:'@dana-k', body:'This was overdue — much clearer now.', reason:'Positive feedback — no action.' },
-              { id:'t12', tag:'waiting', loc:'README.md:60', author:'@sam', body:'One tiny follow-up in-thread, nothing blocking.', reason:'Waiting on the reviewer.' },
-            ] },
-          { id:'pr203', repo:'acme/infra', number:203, title:'Bump terraform aws provider to 5.x', review:'REVIEW_REQUIRED', jira:false, pills:[], threads:[] },
-        ],
-      };
+      // The unit is the ITEM: each thread's tag and each PR's branch route to a tab,
+      // so one PR can appear in several tabs at once.
+      const PRS = [
+        { id:'pr2412', repo:'acme/web-app', number:2412, title:'Refactor auth middleware to support SSO', review:'REVIEW_REQUIRED',
+          pills:[['behind base','behind'],['CI failing: unit-api','ci']],
+          branch:{ kind:'conflict' },
+          threads:[
+            { id:'t1', tag:'input', loc:'src/auth/middleware.ts:88', author:'@dana-k',
+              body:'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.',
+              reasonSummary:'Reviewer disputes the change — needs your judgment.',
+              reasonFull:'The reviewer is right that the early return powers silent re-auth. The agent can’t tell whether SSO is meant to replace that path or sit beside it — that’s a product call, so it surfaced the thread with a drafted reply rather than guessing.',
+              reply:'Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it. Pushing a fix shortly.' },
+            { id:'t2', tag:'fixed', loc:'src/auth/sso.ts:142', author:'@marco',
+              body:'Nit: use const here and destructure the config object instead of repeated property access.',
+              reasonSummary:'Mechanical refactor — fixed and replied to the reviewer.',
+              reasonFull:'Pure style change with no behavior impact, so the agent applied it, replied “fixed”, and left the thread open for @marco to confirm.' },
+            { id:'t3', tag:'pending', loc:'src/auth/sso.ts:201', author:'@priya',
+              body:'Should this read the issuer from env rather than hardcoding it?',
+              reasonSummary:'Queued — the agent hasn’t judged this yet.' },
+          ] },
+        { id:'pr874', repo:'acme/data-pipeline', number:874, title:'Add backfill job for the events table', review:'DRAFT', jira:true,
+          pills:[['CI failing: lint','ci']],
+          threads:[
+            { id:'t4', tag:'input', loc:'jobs/backfill.py:55', author:'@priya',
+              body:'Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this.',
+              reasonSummary:'Architectural concern with prod impact — your call.',
+              reasonFull:'The agent agrees the synchronous lock is unsafe in prod, but rewriting the job to chunk-and-checkpoint changes runtime behavior, so it drafted an approach for your approval instead of applying it.',
+              approach:'Rewrite the job to process events in 10k-row chunks against a checkpoint table, and target the read replica for the scan. Keep the synchronous path behind a --small flag for local runs.' },
+          ] },
+        { id:'pr561', repo:'acme/design-system', number:561, title:'Tokenize the spacing scale', review:'REVIEW_REQUIRED',
+          pills:[['behind base','behind']],
+          branch:{ kind:'surfaced', details:'The rebase touched tokens/spacing.json, where both branches renamed the same keys. Auto-merging would silently drop one side’s rename — the agent stopped rather than guess which wins.' },
+          threads:[
+            { id:'t7', tag:'fixed', loc:'tokens/spacing.json:12', author:'@lee',
+              body:'Base unit should be 4px, not 5 — matches the grid.',
+              reasonSummary:'Matched the documented grid — fixed, waiting on @lee.' },
+          ] },
+        { id:'pr2399', repo:'acme/web-app', number:2399, title:'Bump lodash to 4.17.21', review:'APPROVED', pills:[],
+          threads:[
+            { id:'t5', tag:'fixed', loc:'package.json:24', author:'@deps-bot', body:'Lockfile is out of sync with package.json.', reasonSummary:'Regenerated the lockfile — waiting on the reviewer.' },
+            { id:'t6', tag:'waiting', loc:'CHANGELOG.md:1', author:'@sam', body:'LGTM once the changelog entry lands.', reasonSummary:'You added the entry — waiting on @sam to re-approve.' },
+            { id:'t13', tag:'pending', loc:'src/index.ts:3', author:'@ci-bot', body:'Bundle-size check still running.', reasonSummary:'Queued — the agent hasn’t reviewed this yet.' },
+          ] },
+        { id:'pr990', repo:'acme/api', number:990, title:'Add rate limiting to the public API', review:'REVIEW_REQUIRED', pills:[],
+          threads:[
+            { id:'te1', tag:'error', loc:'.github/workflows/ci.yml:30', author:'@ci-bot',
+              body:'Step “cache restore” failed to parse — unexpected key “path” at line 30.',
+              reasonSummary:'The agent couldn’t classify this failure.',
+              reasonFull:'The run failed before any test executed, with a YAML parse error the agent doesn’t have enough context to fix safely. Open a terminal to inspect.' },
+            { id:'te2', tag:'pending', loc:'src/limiter.ts:44', author:'@marco', body:'Does this handle burst windows correctly?', reasonSummary:'Queued — the agent is reviewing this now.' },
+          ] },
+        { id:'pr2380', repo:'acme/web-app', number:2380, title:'Docs: clarify local env setup', review:'APPROVED', pills:[],
+          threads:[
+            { id:'tp1', tag:'praise', loc:'README.md:42', author:'@dana-k', body:'This was overdue — much clearer now.', reasonSummary:'Positive feedback — no action.' },
+            { id:'tw1', tag:'waiting', loc:'README.md:60', author:'@sam', body:'One tiny follow-up in-thread, nothing blocking.', reasonSummary:'Waiting on @sam.' },
+          ] },
+        { id:'pr203', repo:'acme/infra', number:203, title:'Bump terraform aws provider to 5.x', review:'REVIEW_REQUIRED', pills:[],
+          branch:{ kind:'outofsync' }, threads:[] },
+      ];
+
+      const TAG_TAB = { input:'needs', error:'needs', pending:'progress', fixed:'waiting', waiting:'waiting', praise:null };
+      const BRANCH_TAB = { conflict:'progress', surfaced:'needs', outofsync:'needs' };
 
       const tagMeta = {
-        hashout:{ label:'disagree · hash out', bg:'var(--accent-bg)', fg:'var(--accent)' },
-        agree:{ label:'agree · auto-fix', bg:'var(--auto-bg)', fg:'var(--auto-fg)' },
-        waiting:{ label:'waiting on reviewer', bg:'var(--surface-2)', fg:'var(--ink-2)' },
-        praise:{ label:'praise', bg:'var(--praise-bg)', fg:'var(--praise-fg)' },
-        error:{ label:'agent error', bg:'var(--err-bg)', fg:'var(--err-fg)' },
+        input:{ label:'needs your input', bg:'var(--accent-bg)', fg:'var(--accent)', dashed:false },
+        fixed:{ label:'agent fixed · waiting on reviewer', bg:'var(--auto-bg)', fg:'var(--auto-fg)', dashed:false },
+        waiting:{ label:'waiting on reviewer', bg:'var(--surface-2)', fg:'var(--ink-2)', dashed:false },
+        pending:{ label:'no feedback yet', bg:'transparent', fg:'var(--ink-3)', dashed:true },
+        praise:{ label:'praise', bg:'var(--praise-bg)', fg:'var(--praise-fg)', dashed:false },
+        error:{ label:'agent error', bg:'var(--err-bg)', fg:'var(--err-fg)', dashed:false },
       };
       const revMeta = {
         APPROVED:{ label:'Approved', bg:'var(--auto-bg)', fg:'var(--auto-fg)', bd:'transparent' },
         REVIEW_REQUIRED:{ label:'Review required', bg:'var(--surface-2)', fg:'var(--ink-2)', bd:'transparent' },
         DRAFT:{ label:'Draft', bg:'transparent', fg:'var(--ink-3)', bd:'var(--line-2)' },
       };
-      const pillMeta = { auto:{bg:'var(--surface-2)',fg:'var(--ink-2)',dot:true}, behind:{bg:'var(--surface-2)',fg:'var(--ink-2)'}, ci:{bg:'var(--accent-bg)',fg:'var(--accent)'} };
+      const pillMeta = { behind:{bg:'var(--surface-2)',fg:'var(--ink-2)'}, ci:{bg:'var(--accent-bg)',fg:'var(--accent)'} };
       const mono = "var(--font-mono)";
 
-      function Btn({ v='primary', onClick, children }) {
-        const s = { primary:{background:'var(--ink)',color:'var(--bg)',border:'1px solid var(--ink)'}, outline:{background:'transparent',color:'var(--ink)',border:'1px solid var(--line-2)'}, ghost:{background:'transparent',color:'var(--ink-2)',border:'1px solid transparent'} }[v];
-        return <button onClick={onClick} style={{cursor:'pointer',font:"500 13px var(--font-sans)",padding:'8px 14px',borderRadius:'var(--radius-card)',...s}}>{children}</button>;
+      const prInTab = (pr, tab) =>
+        (pr.threads||[]).some(t=>TAG_TAB[t.tag]===tab) ||
+        (pr.branch && BRANCH_TAB[pr.branch.kind]===tab) ||
+        (!!pr.jira && tab==='needs');
+
+      function Btn({ v='primary', onClick, disabled, children }) {
+        const s = { primary:{background:'var(--ink)',color:'var(--bg)',border:'1px solid var(--ink)'}, outline:{background:'transparent',color:'var(--ink)',border:'1px solid var(--line-2)'}, accent:{background:'var(--accent)',color:'#fff',border:'1px solid var(--accent)',fontWeight:600} }[v];
+        return <button onClick={onClick} disabled={disabled} style={{cursor:disabled?'not-allowed':'pointer',opacity:disabled?.45:1,font:"500 13px var(--font-sans)",padding:'8px 14px',borderRadius:'var(--radius-card)',...s}}>{children}</button>;
+      }
+      function Term({ children='Terminal session opened…' }) {
+        return <span style={{fontSize:12.5,color:'var(--ink-2)',display:'inline-flex',gap:6,alignItems:'center',animation:'ws-appear .3s ease'}}><span style={{fontFamily:mono,color:'var(--accent)'}}>›_</span>{children}</span>;
       }
 
-      function ThreadControls({ t, st, setSt }) {
-        const [text, setText] = useState('');
-        const status = st[t.id] ? st[t.id].status : 'pending';
-        const set = (status, extra) => setSt(p => ({...p, [t.id]:{status, ...extra}}));
-        if (t.tag === 'hashout') {
-          if (status === 'rebutted') return (<>
-            <div style={{marginTop:11,background:'var(--surface-2)',borderLeft:'2px solid var(--line-2)',padding:'9px 12px',borderRadius:'0 5px 5px 0',fontSize:13,lineHeight:1.5,color:'var(--ink-2)'}}>You: {st[t.id].rebuttal}</div>
-            <div style={{marginTop:9,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Rebuttal sent to the reviewer. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>
-          </>);
-          return (<>
-            {status==='discussing' && <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}><span style={{fontFamily:mono,color:'var(--accent)'}}>›_</span> Terminal session opened — continue there.</div>}
-            <textarea rows={2} value={text} onChange={e=>setText(e.target.value)} placeholder="Why do you disagree? This goes back to the reviewer." style={{marginTop:11,width:'100%',resize:'vertical',font:"13.5px/1.5 var(--font-sans)",padding:'10px 12px',border:'1px solid var(--line-2)',borderRadius:5,background:'var(--surface)',color:'var(--ink)'}} />
-            <div style={{display:'flex',gap:8,marginTop:9,flexWrap:'wrap'}}><Btn onClick={()=>set('discussing')}>Discuss in terminal</Btn><Btn v="outline" onClick={()=>{ if(text.trim()){ set('rebutted',{rebuttal:text.trim()}); setText('');} }}>Send rebuttal</Btn></div>
-          </>);
-        }
-        if (t.tag === 'agree') {
-          if (status==='approved') return <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Fix approved — staged for the agent. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>;
-          if (status==='applied') return <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Applied by the agent.</div>;
-          if (status==='skipped') return <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)',animation:'ws-appear .3s ease'}}>Skipped — left for you. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>;
-          return (<>
-            <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}>The agent will apply this fix.</div>
-            <div style={{display:'flex',gap:8,marginTop:9}}><Btn onClick={()=>set('approved')}>Approve fix</Btn><Btn v="ghost" onClick={()=>set('skipped')}>Skip</Btn></div>
-          </>);
-        }
-        if (t.tag === 'error') {
-          if (status==='discussing') return <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}><span style={{fontFamily:mono,color:'var(--accent)'}}>›_</span> Terminal session opened.</div>;
-          return (<><div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}>The agent couldn’t classify this automatically.</div><div style={{marginTop:9}}><Btn v="outline" onClick={()=>set('discussing')}>Open in terminal</Btn></div></>);
-        }
-        return <div style={{marginTop:10,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>{t.tag==='praise'?'No action needed — positive feedback.':'No action needed — waiting on the reviewer.'}</div>;
-      }
-
-      function ThreadRow({ t, st, setSt }) {
+      function ThreadRow({ t, ts, setTs }) {
         const m = tagMeta[t.tag];
+        const s = ts[t.id] || {};
+        const set = (extra) => setTs(p => ({...p, [t.id]:{...(p[t.id]||{}), ...extra}}));
+        const [reply, setReply] = useState(t.reply || '');
+        const [bodyOpen, setBodyOpen] = useState(false);
+        const [reasonOpen, setReasonOpen] = useState(false);
+        const isLong = (t.body||'').length > 150;
+        const clamp = isLong && !bodyOpen ? {display:'-webkit-box',WebkitLineClamp:3,WebkitBoxOrient:'vertical',overflow:'hidden'} : {};
+
+        let controls = null;
+        if (t.tag === 'input') {
+          controls = (<>
+            {t.approach && <div style={{marginTop:12,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:6,padding:'12px 13px'}}>
+              <div style={{fontFamily:mono,fontSize:10,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--ink-3)',marginBottom:7}}>Suggested approach</div>
+              <div style={{fontSize:13.5,lineHeight:1.5,color:'var(--ink)'}}>{t.approach}</div>
+              {s.approachStaged
+                ? <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Approach staged — runs with this PR’s next agent run. <a onClick={()=>set({approachStaged:false})} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>
+                : <div style={{marginTop:11}}><Btn onClick={()=>set({approachStaged:true})}>Approve approach</Btn></div>}
+            </div>}
+            {t.reply && (s.replySent
+              ? <>
+                  <div style={{marginTop:11,background:'var(--surface-2)',borderLeft:'2px solid var(--line-2)',padding:'9px 12px',borderRadius:'0 5px 5px 0',fontSize:13,lineHeight:1.5,color:'var(--ink-2)'}}>You: {s.replyText}</div>
+                  <div style={{marginTop:9,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Reply sent to the reviewer. <a onClick={()=>set({replySent:false})} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>
+                </>
+              : <>
+                  <div style={{fontFamily:mono,fontSize:10,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--ink-3)',marginTop:12}}>Suggested reply · editable</div>
+                  <textarea rows={3} value={reply} onChange={e=>setReply(e.target.value)} style={{marginTop:7,width:'100%',resize:'vertical',font:"13.5px/1.5 var(--font-sans)",padding:'10px 12px',border:'1px solid var(--line-2)',borderRadius:5,background:'var(--surface)',color:'var(--ink)'}} />
+                  <div style={{marginTop:9}}><Btn onClick={()=>{ if(reply.trim()) set({replySent:true,replyText:reply.trim()}); }}>Send reply</Btn></div>
+                </>)}
+            <div style={{marginTop:10,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><Btn v="outline" onClick={()=>set({terminalOpen:true})}>Discuss in terminal</Btn>{s.terminalOpen && <Term />}</div>
+          </>);
+        } else if (t.tag === 'error') {
+          controls = <div style={{marginTop:11,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><Btn v="outline" onClick={()=>set({terminalOpen:true})}>Open in terminal</Btn>{s.terminalOpen && <Term />}</div>;
+        } else if (t.tag === 'pending') {
+          controls = <div style={{marginTop:10,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>The agent is reviewing this now…</div>;
+        } else {
+          controls = <div style={{marginTop:10,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>{t.tag==='praise'?'No action needed — positive feedback.':t.tag==='fixed'?'No action needed — waiting on the reviewer to confirm.':'No action needed — waiting on the reviewer.'}</div>;
+        }
+
         return (
           <div style={{padding:'14px 0',borderTop:'1px solid var(--line)'}}>
             <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:9}}>
-              <span style={{fontFamily:mono,fontSize:10.5,letterSpacing:'.07em',textTransform:'uppercase',padding:'3px 8px',borderRadius:4,background:m.bg,color:m.fg}}>{m.label}</span>
+              <span style={{fontFamily:mono,fontSize:10.5,letterSpacing:'.07em',textTransform:'uppercase',padding:'3px 8px',borderRadius:4,background:m.bg,color:m.fg,border:m.dashed?'1px dashed var(--line-2)':'1px solid transparent'}}>{m.label}</span>
               <span style={{fontFamily:mono,fontSize:12,color:'var(--ink-3)'}}>{t.loc}</span>
               <span style={{fontFamily:mono,fontSize:12,color:'var(--ink-2)'}}>{t.author}</span>
             </div>
-            <div style={{marginTop:9,maxHeight:88,overflowY:'auto',fontSize:14,lineHeight:1.5,color:'var(--ink)',paddingRight:6}}>{t.body}</div>
-            <div style={{marginTop:7,fontSize:12.5,color:'var(--ink-2)',display:'flex',gap:7}}><span style={{color:'var(--ink-3)'}}>↳</span><span>{t.reason}</span></div>
-            <ThreadControls t={t} st={st} setSt={setSt} />
+            <div style={{marginTop:9,fontSize:14,lineHeight:1.5,color:'var(--ink)',...clamp}}>{t.body}</div>
+            {isLong && <a onClick={()=>setBodyOpen(v=>!v)} style={{display:'inline-block',marginTop:5,fontSize:12.5,color:'var(--accent)',cursor:'pointer'}}>{bodyOpen?'Show less':'Show more'}</a>}
+            <div style={{marginTop:9,fontSize:12.5,color:'var(--ink-2)',display:'flex',gap:7,alignItems:'baseline',flexWrap:'wrap'}}><span style={{color:'var(--ink-3)'}}>↳</span><span style={{flex:1,minWidth:140}}>{t.reasonSummary}</span><a onClick={()=>setReasonOpen(v=>!v)} style={{flex:'none',fontSize:12,color:'var(--accent)',cursor:'pointer'}}>{reasonOpen?'Hide agent’s reasoning':'Show agent’s reasoning'}</a></div>
+            {reasonOpen && <div style={{marginTop:7,marginLeft:14,fontSize:12.5,lineHeight:1.55,color:'var(--ink-2)',fontStyle:'italic',borderLeft:'2px solid var(--line-2)',paddingLeft:11}}>{t.reasonFull||t.reasonSummary}</div>}
+            {controls}
           </div>
         );
+      }
+
+      function BranchBlock({ pr, bs, setBs }) {
+        const b = pr.branch;
+        const s = bs[pr.id] || {};
+        const set = (extra)=>setBs(p=>({...p,[pr.id]:{...(p[pr.id]||{}),...extra}}));
+        if (b.kind==='conflict') return (
+          <div style={{marginTop:13,display:'flex',gap:9,alignItems:'flex-start',padding:'11px 13px',borderRadius:6,background:'var(--auto-bg)',color:'var(--auto-fg)',fontSize:12.5,lineHeight:1.5}}>
+            <span style={{flex:'none',marginTop:5,width:7,height:7,borderRadius:'50%',background:'currentColor',animation:'ws-pulse 1.8s ease-in-out infinite'}}/>
+            <span>Resolving merge conflict — the agent is rebasing this; if it can’t resolve safely it’ll surface it for you.</span>
+          </div>);
+        if (b.kind==='surfaced') return (
+          <div style={{marginTop:13,background:'var(--accent-soft)',border:'1px solid var(--accent-bg)',borderRadius:6,padding:'12px 14px'}}>
+            <div style={{display:'flex',gap:9,alignItems:'flex-start'}}><span style={{color:'var(--accent)',fontSize:12,lineHeight:1.5}}>◆</span><div style={{fontSize:13,lineHeight:1.5,color:'var(--ink)'}}>Rebase too risky to do automatically — open a terminal to continue.</div></div>
+            {b.details && <><div style={{marginTop:9}}><a onClick={()=>set({detailsOpen:!s.detailsOpen})} style={{fontSize:12.5,color:'var(--ink-2)',cursor:'pointer'}}>↳ {s.detailsOpen?'Hide details':'Show details'}</a></div>{s.detailsOpen && <div style={{marginTop:7,fontSize:12.5,lineHeight:1.55,color:'var(--ink-2)',background:'var(--surface-2)',borderRadius:5,padding:'9px 11px'}}>{b.details}</div>}</>}
+            <div style={{marginTop:11,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><Btn onClick={()=>set({terminalOpen:true})}>Open in terminal</Btn>{s.terminalOpen && <Term />}</div>
+          </div>);
+        return (
+          <div style={{marginTop:13,background:'var(--accent-soft)',border:'1px solid var(--accent-bg)',borderRadius:6,padding:'12px 14px'}}>
+            <div style={{display:'flex',gap:9,alignItems:'flex-start'}}><span style={{color:'var(--accent)',fontSize:12,lineHeight:1.5}}>◆</span><div style={{fontSize:13,lineHeight:1.5,color:'var(--ink)'}}>Branch has diverged from remote — the agent hasn’t run on it.</div></div>
+            <div style={{marginTop:11,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><Btn onClick={()=>set({terminalOpen:true})}>Resolve in terminal</Btn>{s.terminalOpen && <Term />}</div>
+          </div>);
       }
 
       function Jira({ pr, jira, setJira, toast }) {
@@ -141,42 +203,16 @@
         );
       }
 
-      function Callout2({ tone, eyebrow, dot, pulse, children }) {
-        const t = {urgency:{rule:'var(--accent)',bg:'var(--accent-soft)',mark:'var(--accent)'},agent:{rule:'var(--auto-fg)',bg:'var(--auto-bg)',mark:'var(--auto-fg)'},quiet:{rule:'var(--line-2)',bg:'var(--surface-2)',mark:'var(--ink-3)'}}[tone];
-        return <div style={{background:t.bg,borderLeft:'3px solid '+t.rule,borderRadius:'0 5px 5px 0',padding:'12px 14px'}}>
-          {(eyebrow||dot)&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:children?7:0}}>{dot&&<span style={{width:8,height:8,borderRadius:'50%',background:t.mark,flex:'none',animation:pulse?'ws-pulse 1.6s ease-in-out infinite':'none'}}/>}{eyebrow&&<span style={{fontFamily:mono,fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:t.mark}}>{eyebrow}</span>}</div>}
-          {children&&<div style={{fontSize:13,lineHeight:1.5,color:'var(--ink)'}}>{children}</div>}
-        </div>;
-      }
-
-      function Code({ children }) { return <span style={{fontFamily:mono,fontSize:12.5,color:'var(--ink)'}}>{children}</span>; }
-
-      function BranchBlock({ pr, branchState, setBranchState, toast }) {
-        const b = pr.branch;
-        const state = branchState[pr.id] || b.state;
-        const set = (s)=>setBranchState(p=>({...p,[pr.id]:s}));
-        if (state==='working') return <div style={{marginTop:12}}><Callout2 tone="agent" eyebrow="Agent working" dot pulse>Applying approved changes to <Code>{b.name}</Code>…</Callout2></div>;
-        if (state==='rebased') return <div style={{marginTop:12,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Rebased <Code>{b.name}</Code> onto origin — branch up to date.</div>;
-        if (state==='approach-approved') return <div style={{marginTop:12,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Approach approved — the agent will proceed.</div>;
-        if (state==='suggested') return <div style={{marginTop:12}}><Callout2 tone="quiet" eyebrow="Suggested approach">{b.suggestion}</Callout2><div style={{display:'flex',gap:8,marginTop:9}}><Btn onClick={()=>{set('approach-approved');toast('Approach approved');}}>Approve approach</Btn></div></div>;
-        return <div style={{marginTop:12}}>
-          <Callout2 tone="urgency" eyebrow="Branch out of sync" dot><Code>{b.name}</Code> has diverged from origin — {b.ahead} ahead, {b.behind} behind. The agent couldn’t fast-forward.</Callout2>
-          <div style={{display:'flex',gap:8,marginTop:9,flexWrap:'wrap'}}><Btn onClick={()=>{set('rebased');toast('Rebasing '+b.name+'…');}}>Rebase branch</Btn><Btn v="outline" onClick={()=>{set('resolving');toast('Opening a terminal session…');}}>Resolve in terminal</Btn></div>
-          {state==='resolving' && <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}><span style={{fontFamily:mono,color:'var(--accent)'}}>›_</span> Terminal session opened — resolve the conflict there.</div>}
-        </div>;
-      }
-
-      function StagedBar({ st, setSt, toast }) {
-        const ids = Object.keys(st).filter(k=>st[k].status==='approved');
-        if (ids.length===0) return null;
-        return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:14,flexWrap:'wrap',background:'var(--surface)',border:'1px solid var(--line)',borderRadius:5,padding:'12px 14px',marginBottom:14}}>
-          <span style={{fontSize:13,color:'var(--ink-2)'}}><span style={{color:'var(--ink)',fontWeight:600}}>{ids.length} approval{ids.length===1?'':'s'} staged</span> — ready to apply.</span>
-          <Btn onClick={()=>{ setSt(p=>{const n={...p};ids.forEach(k=>n[k]={status:'applied'});return n;}); toast('Applied '+ids.length+' staged fix'+(ids.length===1?'':'es')); }}>Run agent</Btn>
-        </div>;
-      }
-
-      function Card({ pr, needsYou, st, setSt, jira, setJira, toast, branchState, setBranchState }) {
+      function Card({ pr, tab, ts, setTs, bs, setBs, jira, setJira, runs, setRuns, toast }) {
         const rm = revMeta[pr.review];
+        const needsYou = tab==='needs';
+        const agentWorking = tab==='progress';
+        const threads = (pr.threads||[]).filter(t=>TAG_TAB[t.tag]===tab);
+        const branchShown = pr.branch && BRANCH_TAB[pr.branch.kind]===tab;
+        const jiraShown = !!pr.jira && tab==='needs';
+        const staged = needsYou ? (pr.threads||[]).filter(t=>t.tag==='input'&&t.approach&&(ts[t.id]||{}).approachStaged).length : 0;
+        const running = runs[pr.id]==='running';
+        const showNoThreads = threads.length===0 && !branchShown && !jiraShown && !agentWorking;
         return (
           <div style={{position:'relative',overflow:'hidden',background:'var(--surface)',border:'1px solid var(--line)',borderRadius:5,padding:'18px 20px 18px 22px',animation:'ws-appear .3s ease'}}>
             {needsYou && <><div style={{position:'absolute',left:0,top:0,bottom:0,width:3,background:'var(--accent)'}} /><div style={{position:'absolute',top:15,right:15,width:9,height:9,borderRadius:'50%',background:'var(--accent)'}} /></>}
@@ -187,11 +223,17 @@
               </div>
               <span style={{flex:'none',fontFamily:mono,fontSize:11,letterSpacing:'.06em',textTransform:'uppercase',padding:'4px 9px',borderRadius:4,whiteSpace:'nowrap',background:rm.bg,color:rm.fg,border:'1px solid '+rm.bd}}>{rm.label}</span>
             </div>
-            {pr.pills.length>0 && <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:12}}>{pr.pills.map(([label,kind],i)=>{const pm=pillMeta[kind];return <span key={i} style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,padding:'3px 9px',borderRadius:4,background:pm.bg,color:pm.fg}}>{pm.dot&&<span style={{width:5,height:5,borderRadius:'50%',background:'currentColor'}}/>}{label}</span>;})}</div>}
-            {pr.branch && <BranchBlock pr={pr} branchState={branchState} setBranchState={setBranchState} toast={toast} />}
-            {pr.threads.length>0 && <div style={{marginTop:14}}>{pr.threads.map(t=> <ThreadRow key={t.id} t={t} st={st} setSt={setSt} />)}</div>}
-            {pr.threads.length===0 && !pr.jira && <div style={{marginTop:14,borderTop:'1px solid var(--line)',paddingTop:13,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>No open threads — waiting on the reviewer.</div>}
-            {pr.jira && <Jira pr={pr} jira={jira} setJira={setJira} toast={toast} />}
+            {(pr.pills||[]).length>0 && <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:12}}>{pr.pills.map(([label,kind],i)=>{const pm=pillMeta[kind];return <span key={i} style={{fontSize:11.5,padding:'3px 9px',borderRadius:4,background:pm.bg,color:pm.fg}}>{label}</span>;})}</div>}
+            {agentWorking && <div style={{marginTop:13,display:'flex',alignItems:'center',gap:9,padding:'9px 12px',borderRadius:6,background:'var(--auto-bg)',color:'var(--auto-fg)',fontSize:12.5}}><span style={{width:7,height:7,borderRadius:'50%',background:'currentColor',animation:'ws-pulse 1.8s ease-in-out infinite'}}/>Agent working — addressing this PR now.</div>}
+            {branchShown && <BranchBlock pr={pr} bs={bs} setBs={setBs} />}
+            {threads.length>0 && <div style={{marginTop:14}}>{threads.map(t=> <ThreadRow key={t.id} t={t} ts={ts} setTs={setTs} />)}</div>}
+            {showNoThreads && <div style={{marginTop:14,borderTop:'1px solid var(--line)',paddingTop:13,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>No open threads — waiting on the reviewer.</div>}
+            {jiraShown && <Jira pr={pr} jira={jira} setJira={setJira} toast={toast} />}
+            {needsYou && staged>0 && <div style={{marginTop:14,borderTop:'1px solid var(--line)',paddingTop:13,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+              {running
+                ? <Term>Agent run started — {staged} staged item{staged===1?'':'s'} queued.</Term>
+                : <><span style={{fontSize:12.5,color:'var(--ink-2)'}}>{staged} approach{staged===1?'':'es'} staged for this PR</span><Btn v="accent" onClick={()=>{ setRuns(p=>({...p,[pr.id]:'running'})); toast('Running agent — '+staged+' staged item'+(staged===1?'':'s')+' queued'); }}>Run agent ({staged})</Btn></>}
+            </div>}
           </div>
         );
       }
@@ -203,26 +245,28 @@
       }
 
       function App() {
-        const [mode, setMode] = useState('safe');
+        const [scope, setScope] = useState('all');
+        const scopeN = 3;
         const [tab, setTab] = useState('needs');
         const [loading, setLoading] = useState(true);
         const [refreshing, setRefreshing] = useState(false);
         const [updated, setUpdated] = useState('just now');
         const [toastMsg, setToastMsg] = useState(null);
-        const [st, setSt] = useState({});
+        const [ts, setTs] = useState({});
+        const [bs, setBs] = useState({});
         const [jira, setJira] = useState({});
-        const [branchState, setBranchState] = useState({});
+        const [runs, setRuns] = useState({});
         const tt = useRef();
         useEffect(()=>{ const t=setTimeout(()=>setLoading(false),850); return ()=>clearTimeout(t); },[]);
         const toast = (m)=>{ setToastMsg(m); clearTimeout(tt.current); tt.current=setTimeout(()=>setToastMsg(null),2800); };
 
         const sections = [
-          {key:'needs', title:'Needs you', caption:'Resolve these before the agent continues.', prs:DATA.needs, needsYou:true},
-          {key:'auto', title:'Auto-handling', caption: mode==='live'?'The agent is fixing these — just glance.':'Paused in safe mode — these would be auto-fixed when live.', prs:DATA.auto, needsYou:false},
-          {key:'waiting', title:'Waiting on reviewer', caption:'No action needed from you.', prs:DATA.waiting, needsYou:false},
-        ];
+          {key:'needs', title:'Needs you', caption:'Resolve these before the agent continues.', empty:'Nothing needs you right now.'},
+          {key:'progress', title:'In progress', caption:'The agent is working on these — just glance.', empty:'Nothing in progress.'},
+          {key:'waiting', title:'Waiting on reviewer', caption:'Addressed — waiting on the reviewer.', empty:'Nothing waiting on a reviewer.'},
+        ].map(s => ({ ...s, prs: PRS.filter(pr=>prInTab(pr, s.key)) }));
         const active = sections.find(s=>s.key===tab);
-        const open = DATA.needs.length+DATA.auto.length+DATA.waiting.length;
+        const needCount = sections.find(s=>s.key==='needs').prs.length;
 
         return (
           <div style={{maxWidth:900,margin:'0 auto',padding:'34px 28px 120px'}}>
@@ -230,13 +274,13 @@
               <div>
                 <div style={{display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}}>
                   <h1 style={{margin:0,fontFamily:'var(--font-serif)',fontWeight:500,fontSize:28,letterSpacing:'-.01em',whiteSpace:'nowrap'}}>PR Controller</h1>
-                  <button onClick={()=>{const n=mode==='live'?'safe':'live';setMode(n);toast(n==='live'?'Live — the agent will act automatically':'Safe — actions paused');}} style={{background:'none',border:'none',padding:0,cursor:'pointer',font:'inherit'}}>
-                    {mode==='live'
-                      ? <span style={{display:'inline-flex',alignItems:'center',gap:7,padding:'5px 12px',borderRadius:20,background:'var(--accent-bg)',color:'var(--accent)',fontSize:12,fontWeight:600}}><span style={{width:8,height:8,borderRadius:'50%',background:'var(--accent)',animation:'ws-pulse 1.6s ease-in-out infinite'}}/>Live</span>
-                      : <span style={{display:'inline-flex',alignItems:'center',gap:7,padding:'5px 12px',borderRadius:20,background:'var(--surface-2)',color:'var(--ink-2)',fontSize:12,whiteSpace:'nowrap'}}><span style={{width:9,height:9,borderRadius:'50%',border:'1.5px solid var(--ink-3)'}}/>Safe — no actions taken</span>}
+                  <button title="The agent always acts for real — this only changes which PRs it watches." onClick={()=>{const n=scope==='all'?'scoped':'all';setScope(n);toast(n==='all'?'Watching all your open PRs':'Scoped to '+scopeN+' allowlisted PRs');}} style={{background:'none',border:'none',padding:0,cursor:'pointer',font:'inherit'}}>
+                    {scope==='scoped'
+                      ? <span style={{display:'inline-flex',alignItems:'center',gap:7,padding:'5px 12px',borderRadius:20,background:'var(--accent-bg)',color:'var(--accent)',fontSize:12,fontWeight:600,whiteSpace:'nowrap'}}><span style={{width:8,height:8,borderRadius:'50%',border:'1.5px solid var(--accent)'}}/>Scoped · {scopeN} PRs</span>
+                      : <span style={{display:'inline-flex',alignItems:'center',gap:7,padding:'5px 12px',borderRadius:20,background:'var(--surface-2)',color:'var(--ink-2)',fontSize:12,whiteSpace:'nowrap'}}><span style={{width:8,height:8,borderRadius:'50%',background:'var(--auto-fg)'}}/>Watching all PRs</span>}
                   </button>
                 </div>
-                <div style={{marginTop:11,fontSize:13,color:'var(--ink-2)',fontFamily:mono}}>{open} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style={{color:'var(--accent)'}}>{DATA.needs.length} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {updated}</div>
+                <div style={{marginTop:11,fontSize:13,color:'var(--ink-2)',fontFamily:mono}}>{PRS.length} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style={{color:'var(--accent)'}}>{needCount} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {updated}</div>
               </div>
               <div style={{display:'flex',gap:10,alignItems:'center',flex:'none'}}><ThemeSelect /><button onClick={()=>{ if(refreshing)return; setRefreshing(true); setTimeout(()=>{setRefreshing(false);setUpdated('just now');toast('Up to date');},900); }} style={{flex:'none',cursor:'pointer',display:'inline-flex',alignItems:'center',gap:8,font:"500 13px var(--font-sans)",padding:'9px 15px',border:'1px solid var(--line-2)',borderRadius:7,background:'var(--surface)',color:'var(--ink)'}}>
                 <span style={{fontSize:15,display:'inline-block',animation:refreshing?'ws-spin .9s linear infinite':'none'}}>⟳</span>{refreshing?'Refreshing…':'Refresh'}
@@ -256,12 +300,11 @@
                       {s.title}<span style={{font:"500 11.5px var(--font-mono)",padding:'1px 8px',borderRadius:10,background:acc?'var(--accent-bg)':'var(--surface-2)',color:acc?'var(--accent)':'var(--ink-2)'}}>{s.prs.length}</span>
                     </button>);})}
                 </div>
-                <div style={{marginTop:34}}>
-                  <div style={{fontSize:13,color:'var(--ink-2)'}}>{active.caption}</div>
-                  <div style={{display:'flex',flexDirection:'column',gap:14,marginTop:14}}>
-                    <StagedBar st={st} setSt={setSt} toast={toast} />
-                    {active.prs.map(pr=> <Card key={pr.id} pr={pr} needsYou={active.needsYou} st={st} setSt={setSt} jira={jira} setJira={setJira} toast={toast} branchState={branchState} setBranchState={setBranchState} />)}
-                  </div>
+                <div style={{marginTop:16,fontSize:13,color:'var(--ink-2)',fontStyle:'italic'}}>{active.caption}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:14,marginTop:14}}>
+                  {active.prs.length===0
+                    ? <div style={{display:'flex',alignItems:'center',gap:13,padding:'24px 4px',color:'var(--ink-3)'}}><span style={{width:26,height:26,border:'1.5px solid var(--line-2)',borderTopColor:'transparent',borderRadius:'50%',display:'inline-block',transform:'rotate(-20deg)'}}/><span style={{fontSize:13.5,fontStyle:'italic'}}>{active.empty}</span></div>
+                    : active.prs.map(pr=> <Card key={pr.id} pr={pr} tab={tab} ts={ts} setTs={setTs} bs={bs} setBs={setBs} jira={jira} setJira={setJira} runs={runs} setRuns={setRuns} toast={toast} />)}
                 </div>
               </>
             )}

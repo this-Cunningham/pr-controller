@@ -174,6 +174,13 @@ export function useDashboard(seed = null) {
     setBranchHealth((prev) => ({ ...prev, [prId]: { ...(prev[prId] || {}), ...val } }));
   }, []);
   const branchHealthStatus = useCallback((prId) => branchHealth[prId]?.status || 'idle', [branchHealth]);
+  // The surfaced branch card has an independent "Show details" expander (separate
+  // from the terminal-session status above), tracked on the same per-PR overlay.
+  const branchDetailsOpen = useCallback((prId) => !!branchHealth[prId]?.detailsOpen, [branchHealth]);
+  const toggleBranchDetails = useCallback(
+    (prId) => setBranchHealthState(prId, { detailsOpen: !branchHealth[prId]?.detailsOpen }),
+    [branchHealth, setBranchHealthState]
+  );
 
   const threadStatus = useCallback((id) => threads[id]?.status || 'pending', [threads]);
   const threadRebuttal = useCallback((id) => threads[id]?.rebuttal || '', [threads]);
@@ -195,6 +202,16 @@ export function useDashboard(seed = null) {
       const cur = prev[prId] || [];
       if (cur.includes(threadId)) return prev;
       return { ...prev, [prId]: [...cur, threadId] };
+    });
+  }, []);
+
+  // Undo a staged approval (the DS Confirmation's Undo) — pull it back out of the
+  // per-PR cart before "Run agent" fires.
+  const unstageApproach = useCallback((prId, threadId) => {
+    setStaged((prev) => {
+      const cur = prev[prId] || [];
+      if (!cur.includes(threadId)) return prev;
+      return { ...prev, [prId]: cur.filter((t) => t !== threadId) };
     });
   }, []);
 
@@ -296,6 +313,12 @@ export function useDashboard(seed = null) {
     [setThread, showToast]
   );
 
+  // Undo a sent reply (the DS Confirmation's Undo). UI-only: the reply was already
+  // posted to the reviewer, so this just restores the editable draft locally.
+  const undoReply = useCallback((id) => {
+    setThread(id, { status: 'pending' });
+  }, [setThread]);
+
   const setTicket = useCallback(
     (prId, value) => {
       const v = (value || '').trim().toUpperCase();
@@ -363,6 +386,8 @@ export function useDashboard(seed = null) {
     needCount,
     threadStatus,
     branchHealthStatus,
+    branchDetailsOpen,
+    toggleBranchDetails,
     threadRebuttal,
     jiraState,
     prWorking,
@@ -371,6 +396,8 @@ export function useDashboard(seed = null) {
     isStaged,
     isDispatched,
     stageApproach,
+    unstageApproach,
+    undoReply,
     runAgent,
     rebasePR,
     discussRebase,
@@ -380,5 +407,8 @@ export function useDashboard(seed = null) {
     explainScope,
     refresh,
     runPoll,
+    // thread id -> prKey, so the DS controller (whose thread methods are keyed by
+    // thread id only) can resolve the owning PR for stage/unstage/discuss.
+    threadToPr,
   };
 }

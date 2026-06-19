@@ -21,6 +21,7 @@
   ::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:8px}
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes softpulse{0%,100%{opacity:1}50%{opacity:.45}}
   @keyframes fadeup{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
   @keyframes appear{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
   @keyframes shimmer{0%,100%{opacity:.5}50%{opacity:.85}}
@@ -104,15 +105,15 @@
         <div style="min-width:0;">
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
             <h1 style="margin:0;font-family:'Newsreader',Georgia,serif;font-weight:500;font-size:28px;letter-spacing:-.01em;color:var(--ink);white-space:nowrap;">PR Controller</h1>
-            <button onClick="{{ onToggleMode }}" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">
-              <sc-if value="{{ modeIsLive }}">
-                <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:600;">
-                  <span style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease-in-out infinite;"></span>Live
+            <button onClick="{{ onToggleScope }}" title="The agent always acts for real — this only changes which PRs it watches." style="background:none;border:none;padding:0;cursor:pointer;font:inherit;">
+              <sc-if value="{{ scopeAll }}">
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:500;white-space:nowrap;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:var(--auto-fg);"></span>Watching all PRs
                 </span>
               </sc-if>
-              <sc-if value="{{ modeIsSafe }}">
-                <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--surface-2);color:var(--ink-2);font-size:12px;font-weight:500;white-space:nowrap;">
-                  <span style="width:9px;height:9px;border-radius:50%;border:1.5px solid var(--ink-3);"></span>Safe — no actions taken
+              <sc-if value="{{ scopeScoped }}">
+                <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:600;white-space:nowrap;">
+                  <span style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--accent);"></span>Scoped · {{ scopeN }} PRs
                 </span>
               </sc-if>
             </button>
@@ -136,6 +137,9 @@
           </button>
         </sc-for>
       </div>
+      <sc-if value="{{ activeCaption }}">
+        <div style="margin-top:16px;font-size:13px;color:var(--ink-2);font-style:italic;">{{ activeCaption }}</div>
+      </sc-if>
     </sc-if>
 
     <!-- ============ FIRST-FETCH SKELETON ============ -->
@@ -167,27 +171,26 @@
 
       <!-- header swatch -->
       <div style="margin-bottom:30px;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px;">Header bar · safe &amp; live</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px;">Header bar · scope badge</div>
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:12px;"><span style="font-family:'Newsreader',Georgia,serif;font-size:20px;font-weight:500;color:var(--ink);">PR Controller</span><span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--surface-2);color:var(--ink-2);font-size:12px;"><span style="width:9px;height:9px;border-radius:50%;border:1.5px solid var(--ink-3);"></span>Safe — no actions taken</span></div>
-            <span style="font:500 12px 'IBM Plex Mono',monospace;color:var(--ink-2);">6 open · 2 need you</span>
+            <div style="display:flex;align-items:center;gap:12px;"><span style="font-family:'Newsreader',Georgia,serif;font-size:20px;font-weight:500;color:var(--ink);">PR Controller</span><span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--surface-2);color:var(--ink-2);font-size:12px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--auto-fg);"></span>Watching all PRs</span></div>
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:var(--ink-2);">7 open · 5 need you</span>
           </div>
           <div style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:12px;"><span style="font-family:'Newsreader',Georgia,serif;font-size:20px;font-weight:500;color:var(--ink);">PR Controller</span><span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:600;"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.6s ease-in-out infinite;"></span>Live</span></div>
-            <span style="font:500 12px 'IBM Plex Mono',monospace;color:var(--ink-2);">6 open · 2 need you</span>
+            <div style="display:flex;align-items:center;gap:12px;"><span style="font-family:'Newsreader',Georgia,serif;font-size:20px;font-weight:500;color:var(--ink);">PR Controller</span><span style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;background:var(--accent-bg);color:var(--accent);font-size:12px;font-weight:600;"><span style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--accent);"></span>Scoped · 3 PRs</span></div>
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:var(--ink-2);">3 open · 1 need you</span>
           </div>
         </div>
       </div>
 
       <!-- pills swatch -->
       <div style="margin-bottom:30px;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px;">Status pills</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px;">Review &amp; signal pills</div>
         <div style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:18px;display:flex;flex-wrap:wrap;gap:9px;">
           <span style="font:11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:4px;background:var(--auto-bg);color:var(--auto-fg);">Approved</span>
           <span style="font:11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:4px;background:var(--surface-2);color:var(--ink-2);">Review required</span>
           <span style="font:11px 'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:4px;background:transparent;color:var(--ink-3);border:1px solid var(--line-2);">Draft</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 9px;border-radius:4px;background:var(--surface-2);color:var(--ink-2);"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;"></span>3 auto-fixable</span>
           <span style="font-size:11.5px;padding:3px 9px;border-radius:4px;background:var(--surface-2);color:var(--ink-2);">behind base</span>
           <span style="font-size:11.5px;padding:3px 9px;border-radius:4px;background:var(--accent-bg);color:var(--accent);">CI failing: unit-api</span>
         </div>
@@ -197,9 +200,10 @@
       <div style="margin-bottom:30px;">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px;">Thread disposition tags</div>
         <div style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:18px;display:flex;flex-wrap:wrap;gap:9px;">
-          <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--accent-bg);color:var(--accent);">disagree · hash out</span>
-          <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--auto-bg);color:var(--auto-fg);">agree · auto-fix</span>
+          <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--accent-bg);color:var(--accent);">needs your input</span>
+          <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--auto-bg);color:var(--auto-fg);">agent fixed · waiting on reviewer</span>
           <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--surface-2);color:var(--ink-2);">waiting on reviewer</span>
+          <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:transparent;color:var(--ink-3);border:1px dashed var(--line-2);">no feedback yet</span>
           <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--praise-bg);color:var(--praise-fg);">praise</span>
           <span style="font:10.5px 'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--err-bg);color:var(--err-fg);">agent error</span>
         </div>
@@ -220,9 +224,6 @@
     <sc-if value="{{ showPanels }}">
       <sc-for list="{{ panels }}" as="p" hint-placeholder-count="3">
         <div style="margin-top:34px;">
-          <sc-if value="{{ p.isSection }}">
-            <div style="font-size:13px;color:var(--ink-2);">{{ p.caption }}</div>
-          </sc-if>
           <sc-if value="{{ p.isFrame }}">
             <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);">{{ p.title }}</div>
             <sc-if value="{{ p.caption }}"><div style="font-size:12.5px;color:var(--ink-2);margin-top:4px;">{{ p.caption }}</div></sc-if>
@@ -248,67 +249,122 @@
                 <sc-if value="{{ pr.hasPills }}">
                   <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:12px;">
                     <sc-for list="{{ pr.pills }}" as="pill" hint-placeholder-count="2">
-                      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 9px;border-radius:4px;background:{{ pill.bg }};color:{{ pill.fg }};">
-                        <sc-if value="{{ pill.dot }}"><span style="width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;"></span></sc-if>{{ pill.label }}
-                      </span>
+                      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:3px 9px;border-radius:4px;background:{{ pill.bg }};color:{{ pill.fg }};">{{ pill.label }}</span>
                     </sc-for>
                   </div>
                 </sc-if>
 
+                <!-- agent-working callout (in progress) -->
+                <sc-if value="{{ pr.agentWorking }}">
+                  <div style="margin-top:13px;display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:6px;background:var(--auto-bg);color:var(--auto-fg);font-size:12.5px;">
+                    <span style="width:7px;height:7px;border-radius:50%;background:currentColor;animation:softpulse 1.8s ease-in-out infinite;"></span>Agent working — addressing this PR now.
+                  </div>
+                </sc-if>
+
+                <!-- branch health -->
+                <sc-if value="{{ pr.hasBranch }}">
+                  <div style="margin-top:13px;">
+                    <sc-if value="{{ pr.branch.isConflict }}">
+                      <div style="display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:6px;background:var(--auto-bg);color:var(--auto-fg);font-size:12.5px;line-height:1.5;">
+                        <span style="flex:none;margin-top:5px;width:7px;height:7px;border-radius:50%;background:currentColor;animation:softpulse 1.8s ease-in-out infinite;"></span>
+                        <span>Resolving merge conflict — the agent is rebasing this; if it can’t resolve safely it’ll surface it for you.</span>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ pr.branch.isSurfaced }}">
+                      <div style="background:var(--accent-soft);border:1px solid var(--accent-bg);border-radius:6px;padding:12px 14px;">
+                        <div style="display:flex;gap:9px;align-items:flex-start;"><span style="color:var(--accent);font-size:12px;line-height:1.5;">◆</span><div style="font-size:13px;line-height:1.5;color:var(--ink);">Rebase too risky to do automatically — open a terminal to continue.</div></div>
+                        <button onClick="{{ pr.branch.onToggleDetails }}" style="margin-top:9px;background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--ink-2);cursor:pointer;">↳ {{ pr.branch.detailsLabel }}</button>
+                        <sc-if value="{{ pr.branch.detailsOpen }}"><div style="margin-top:7px;font-size:12.5px;line-height:1.55;color:var(--ink-2);background:var(--surface-2);border-radius:5px;padding:9px 11px;animation:appear .25s ease;">{{ pr.branch.details }}</div></sc-if>
+                        <div style="margin-top:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                          <button onClick="{{ pr.branch.onTerminal }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Open in terminal</button>
+                          <sc-if value="{{ pr.branch.terminalOpen }}"><span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened…</span></sc-if>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ pr.branch.isOutOfSync }}">
+                      <div style="background:var(--accent-soft);border:1px solid var(--accent-bg);border-radius:6px;padding:12px 14px;">
+                        <div style="display:flex;gap:9px;align-items:flex-start;"><span style="color:var(--accent);font-size:12px;line-height:1.5;">◆</span><div style="font-size:13px;line-height:1.5;color:var(--ink);">Branch has diverged from remote — the agent hasn’t run on it.</div></div>
+                        <div style="margin-top:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                          <button onClick="{{ pr.branch.onTerminal }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Resolve in terminal</button>
+                          <sc-if value="{{ pr.branch.terminalOpen }}"><span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened…</span></sc-if>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-if>
+
+                <!-- thread rows -->
                 <sc-if value="{{ pr.hasThreads }}">
                   <div style="margin-top:14px;">
                     <sc-for list="{{ pr.threads }}" as="t" hint-placeholder-count="1">
                       <!-- ===== THREAD ROW ===== -->
                       <div style="padding:14px 0;border-top:1px solid var(--line);">
                         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px;">
-                          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:{{ t.chipBg }};color:{{ t.chipFg }};">{{ t.tagLabel }}</span>
+                          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:{{ t.chipBg }};color:{{ t.chipFg }};border:{{ t.chipBorder }};">{{ t.tagLabel }}</span>
                           <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-3);">{{ t.loc }}</span>
                           <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-2);">{{ t.author }}</span>
                         </div>
-                        <div style="margin-top:9px;max-height:88px;overflow-y:auto;font-size:14px;line-height:1.5;color:var(--ink);padding-right:6px;text-wrap:pretty;">{{ t.body }}</div>
-                        <div style="margin-top:7px;font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:baseline;"><span style="color:var(--ink-3);">↳</span><span>{{ t.reason }}</span></div>
+                        <div style="margin-top:9px;font-size:14px;line-height:1.5;color:var(--ink);text-wrap:pretty; {{ t.bodyStyle }}">{{ t.body }}</div>
+                        <sc-if value="{{ t.isLong }}"><button onClick="{{ t.onToggleBody }}" style="margin-top:5px;background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);cursor:pointer;">{{ t.bodyToggleLabel }}</button></sc-if>
 
-                        <!-- controls: hash-out -->
-                        <sc-if value="{{ t.isHashout }}">
-                          <sc-if value="{{ t.isRebutted }}">
-                            <div style="margin-top:11px;background:var(--surface-2);border-left:2px solid var(--line-2);padding:9px 12px;border-radius:0 5px 5px 0;font-size:13px;line-height:1.5;color:var(--ink-2);">You: {{ t.rebuttal }}</div>
-                            <div style="margin-top:9px;display:flex;align-items:center;gap:10px;animation:appear .3s ease;"><span style="font-size:12.5px;color:var(--auto-fg);">✓ Rebuttal sent to the reviewer.</span><button onClick="{{ t.onUndo }}" style="background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer;">Undo</button></div>
-                          </sc-if>
-                          <sc-if value="{{ t.notRebutted }}">
-                            <sc-if value="{{ t.isDiscussing }}"><div style="margin-top:11px;font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened — continue the discussion there.</div></sc-if>
-                            <textarea ref="{{ t.rebuttalRef }}" rows="2" placeholder="Why do you disagree? This goes back to the reviewer." style="margin-top:11px;width:100%;resize:vertical;font:13.5px/1.5 'Hanken Grotesk',sans-serif;padding:10px 12px;border:1px solid var(--line-2);border-radius:5px;background:var(--surface);color:var(--ink);" style-focus="border-color:var(--accent);outline:none"></textarea>
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;">
-                              <button onClick="{{ t.onDiscuss }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Discuss in terminal</button>
-                              <button onClick="{{ t.onSend }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:transparent;color:var(--ink);border:1px solid var(--line-2);" style-hover="background:var(--surface-2)">Send rebuttal</button>
+                        <!-- collapsible agent reasoning -->
+                        <div style="margin-top:9px;font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;">
+                          <span style="color:var(--ink-3);">↳</span>
+                          <span style="flex:1;min-width:140px;">{{ t.reasonSummary }}</span>
+                          <button onClick="{{ t.onToggleReason }}" style="flex:none;background:none;border:none;padding:0;font:12px 'Hanken Grotesk',sans-serif;color:var(--accent);cursor:pointer;">{{ t.reasonToggleLabel }}</button>
+                        </div>
+                        <sc-if value="{{ t.reasonOpen }}"><div style="margin-top:7px;margin-left:14px;font-size:12.5px;line-height:1.55;color:var(--ink-2);font-style:italic;border-left:2px solid var(--line-2);padding-left:11px;animation:appear .25s ease;">{{ t.reasonFull }}</div></sc-if>
+
+                        <!-- controls: needs your input -->
+                        <sc-if value="{{ t.isInput }}">
+                          <!-- suggested approach -->
+                          <sc-if value="{{ t.hasApproach }}">
+                            <div style="margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px 13px;">
+                              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:7px;">Suggested approach</div>
+                              <div style="font-size:13.5px;line-height:1.5;color:var(--ink);text-wrap:pretty;">{{ t.approachText }}</div>
+                              <sc-if value="{{ t.approachIdle }}">
+                                <div style="margin-top:11px;"><button onClick="{{ t.onApproveApproach }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Approve approach</button></div>
+                              </sc-if>
+                              <sc-if value="{{ t.approachStaged }}">
+                                <div style="margin-top:11px;display:flex;align-items:center;gap:10px;animation:appear .3s ease;"><span style="font-size:12.5px;color:var(--auto-fg);">✓ Approach staged — runs with this PR’s next agent run.</span><button onClick="{{ t.onUnstage }}" style="background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer;">Undo</button></div>
+                              </sc-if>
                             </div>
                           </sc-if>
-                        </sc-if>
-
-                        <!-- controls: agree-fix -->
-                        <sc-if value="{{ t.isAgree }}">
-                          <sc-if value="{{ t.isPending }}">
-                            <div style="margin-top:11px;font-size:12.5px;color:var(--ink-2);">The agent will apply this fix.</div>
-                            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;">
-                              <button onClick="{{ t.onApprove }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Approve fix</button>
-                              <button onClick="{{ t.onSkip }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:transparent;color:var(--ink-2);border:1px solid transparent;" style-hover="color:var(--ink)">Skip</button>
-                            </div>
+                          <!-- suggested reply -->
+                          <sc-if value="{{ t.hasReply }}">
+                            <sc-if value="{{ t.replyIdle }}">
+                              <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);">Suggested reply · editable</div>
+                              <textarea ref="{{ t.replyRef }}" rows="3" defaultValue="{{ t.replyDraft }}" style="margin-top:7px;width:100%;resize:vertical;font:13.5px/1.5 'Hanken Grotesk',sans-serif;padding:10px 12px;border:1px solid var(--line-2);border-radius:5px;background:var(--surface);color:var(--ink);" style-focus="border-color:var(--accent);outline:none"></textarea>
+                              <div style="margin-top:9px;"><button onClick="{{ t.onSendReply }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:var(--ink);color:var(--bg);border:1px solid var(--ink);" style-hover="opacity:.86">Send reply</button></div>
+                            </sc-if>
+                            <sc-if value="{{ t.replySent }}">
+                              <div style="margin-top:11px;background:var(--surface-2);border-left:2px solid var(--line-2);padding:9px 12px;border-radius:0 5px 5px 0;font-size:13px;line-height:1.5;color:var(--ink-2);">You: {{ t.replyText }}</div>
+                              <div style="margin-top:9px;display:flex;align-items:center;gap:10px;animation:appear .3s ease;"><span style="font-size:12.5px;color:var(--auto-fg);">✓ Reply sent to the reviewer.</span><button onClick="{{ t.onUndoReply }}" style="background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer;">Undo</button></div>
+                            </sc-if>
                           </sc-if>
-                          <sc-if value="{{ t.isApproved }}"><div style="margin-top:11px;display:flex;align-items:center;gap:10px;animation:appear .3s ease;"><span style="font-size:12.5px;color:var(--auto-fg);">✓ Fix approved — applied by the agent.</span><button onClick="{{ t.onUndo }}" style="background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer;">Undo</button></div></sc-if>
-                          <sc-if value="{{ t.isSkipped }}"><div style="margin-top:11px;display:flex;align-items:center;gap:10px;animation:appear .3s ease;"><span style="font-size:12.5px;color:var(--ink-2);">Skipped — left for you.</span><button onClick="{{ t.onUndo }}" style="background:none;border:none;padding:0;font:12.5px 'Hanken Grotesk',sans-serif;color:var(--accent);text-decoration:underline;cursor:pointer;">Undo</button></div></sc-if>
+                          <!-- discuss -->
+                          <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <button onClick="{{ t.onDiscuss }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:transparent;color:var(--ink);border:1px solid var(--line-2);" style-hover="background:var(--surface-2)">Discuss in terminal</button>
+                            <sc-if value="{{ t.terminalOpen }}"><span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened…</span></sc-if>
+                          </div>
                         </sc-if>
 
-                        <!-- controls: waiting / praise -->
+                        <!-- controls: no feedback yet -->
+                        <sc-if value="{{ t.isPendingTag }}">
+                          <div style="margin-top:10px;font-size:12.5px;color:var(--ink-3);font-style:italic;">The agent is reviewing this now…</div>
+                        </sc-if>
+
+                        <!-- controls: fixed / waiting / praise -->
                         <sc-if value="{{ t.isNoAction }}">
                           <div style="margin-top:10px;font-size:12.5px;color:var(--ink-3);font-style:italic;">{{ t.noActionLabel }}</div>
                         </sc-if>
 
                         <!-- controls: error -->
                         <sc-if value="{{ t.isError }}">
-                          <sc-if value="{{ t.isPending }}">
-                            <div style="margin-top:11px;font-size:12.5px;color:var(--ink-2);">The agent couldn’t classify this automatically.</div>
-                            <div style="margin-top:9px;"><button onClick="{{ t.onDiscuss }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:transparent;color:var(--ink);border:1px solid var(--line-2);" style-hover="background:var(--surface-2)">Open in terminal</button></div>
-                          </sc-if>
-                          <sc-if value="{{ t.isDiscussing }}"><div style="margin-top:11px;font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened.</div></sc-if>
+                          <div style="margin-top:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                            <button onClick="{{ t.onDiscuss }}" style="cursor:pointer;font:500 13px 'Hanken Grotesk',sans-serif;padding:8px 14px;border-radius:5px;background:transparent;color:var(--ink);border:1px solid var(--line-2);" style-hover="background:var(--surface-2)">Open in terminal</button>
+                            <sc-if value="{{ t.terminalOpen }}"><span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Terminal session opened…</span></sc-if>
+                          </div>
                         </sc-if>
                       </div>
                     </sc-for>
@@ -316,7 +372,7 @@
                 </sc-if>
 
                 <sc-if value="{{ pr.showNoThreads }}">
-                  <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px;font-size:12.5px;color:var(--ink-3);font-style:italic;">{{ pr.noThreadLabel }}</div>
+                  <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px;font-size:12.5px;color:var(--ink-3);font-style:italic;">No open threads — waiting on the reviewer.</div>
                 </sc-if>
 
                 <!-- JIRA banner -->
@@ -336,6 +392,19 @@
                     </sc-if>
                     <sc-if value="{{ pr.jiraSet }}">
                       <div style="font-size:12.5px;color:var(--auto-fg);animation:appear .3s ease;">✓ Linked to {{ pr.jiraValue }} — compliance check cleared.</div>
+                    </sc-if>
+                  </div>
+                </sc-if>
+
+                <!-- run-agent footer (needs you, staged approaches) -->
+                <sc-if value="{{ pr.showRunAgent }}">
+                  <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                    <sc-if value="{{ pr.runIdle }}">
+                      <span style="font-size:12.5px;color:var(--ink-2);">{{ pr.runStagedLabel }}</span>
+                      <button onClick="{{ pr.onRun }}" style="cursor:pointer;font:600 13px 'Hanken Grotesk',sans-serif;padding:9px 16px;border-radius:5px;background:var(--accent);color:#fff;border:1px solid var(--accent);" style-hover="opacity:.9">Run agent ({{ pr.runCount }})</button>
+                    </sc-if>
+                    <sc-if value="{{ pr.runStarted }}">
+                      <span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:7px;align-items:center;animation:appear .3s ease;"><span style="font-family:'IBM Plex Mono',monospace;color:var(--accent);">›_</span>Agent run started — {{ pr.runCount }} staged item(s) queued.</span>
                     </sc-if>
                   </div>
                 </sc-if>
@@ -363,7 +432,7 @@
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:940,&quot;height&quot;:920},&quot;startMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;safe&quot;,&quot;options&quot;:[&quot;safe&quot;,&quot;live&quot;],&quot;tsType&quot;:&quot;'safe'|'live'&quot;},&quot;grain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:940,&quot;height&quot;:920},&quot;startScope&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;all&quot;,&quot;options&quot;:[&quot;all&quot;,&quot;scoped&quot;],&quot;tsType&quot;:&quot;'all'|'scoped'&quot;},&quot;grain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -371,28 +440,21 @@ class Component extends DCLogic {
     this.state = {
       view: 'dashboard',
       tab: 's1',
-      mode: (props && props.startMode) || 'safe',
+      scope: (props && props.startScope) || 'all',
+      scopeN: 3,
       loading: true,
       refreshing: false,
       updated: 'just now',
       toast: null,
-      threads: {
-        gt1: { status: 'approved' },
-        gt2: { status: 'rebutted', rebuttal: 'The lock is intentional — this runs in the maintenance window, never during prod hours.' },
-        gt3: { status: 'skipped' },
-      },
-      jira: {
-        gjset: { status: 'set', value: 'ACME-204' },
-      },
+      threads: {},   // per-thread ui flags: bodyExpanded, reasonOpen, approachStaged, replySent, replyText, terminalOpen
+      branch: {},     // per-pr: detailsOpen, terminalOpen
+      runs: {},       // per-pr: 'running'
+      jira: { gjset: { status: 'set', value: 'ACME-204' } },
     };
   }
 
-  componentDidMount() {
-    this._t = setTimeout(() => this.setState({ loading: false }), 850);
-  }
-  componentWillUnmount() {
-    clearTimeout(this._t); clearTimeout(this._toastT); clearTimeout(this._refT);
-  }
+  componentDidMount() { this._t = setTimeout(() => this.setState({ loading: false }), 850); }
+  componentWillUnmount() { clearTimeout(this._t); clearTimeout(this._toastT); clearTimeout(this._refT); }
 
   toast(msg) {
     this.setState({ toast: msg });
@@ -403,11 +465,12 @@ class Component extends DCLogic {
 
   setView(v) { this.setState({ view: v }); }
   setTab(t) { this.setState({ tab: t }); }
-  toggleMode() {
-    this.setState(s => ({ mode: s.mode === 'live' ? 'safe' : 'live' }), () => {
-      this.toast(this.state.mode === 'live'
-        ? 'Live — the agent will act automatically'
-        : 'Safe — actions paused, nothing will change');
+
+  toggleScope() {
+    this.setState(s => ({ scope: s.scope === 'all' ? 'scoped' : 'all' }), () => {
+      this.toast(this.state.scope === 'all'
+        ? 'Watching all your open PRs'
+        : 'Scoped to ' + this.state.scopeN + ' allowlisted PRs');
     });
   }
   refresh() {
@@ -420,17 +483,25 @@ class Component extends DCLogic {
   setThread(id, val) {
     this.setState(s => ({ threads: { ...s.threads, [id]: { ...(s.threads[id] || {}), ...val } } }));
   }
-  approve(id) { this.setThread(id, { status: 'approved' }); this.toast('Fix approved — applied by the agent'); }
-  skip(id) { this.setThread(id, { status: 'skipped' }); this.toast('Skipped — left for you'); }
-  discuss(id) { this.setThread(id, { status: 'discussing' }); this.toast('Opening a terminal session…'); }
-  undo(id) { this.setThread(id, { status: 'pending', rebuttal: '' }); }
-  sendRebuttal(id) {
+  toggleBody(id) { this.setState(s => ({ threads: { ...s.threads, [id]: { ...(s.threads[id] || {}), bodyExpanded: !((s.threads[id] || {}).bodyExpanded) } } })); }
+  toggleReason(id) { this.setState(s => ({ threads: { ...s.threads, [id]: { ...(s.threads[id] || {}), reasonOpen: !((s.threads[id] || {}).reasonOpen) } } })); }
+  approveApproach(id) { this.setThread(id, { approachStaged: true }); this.toast('Approach staged — Run agent to carry it out'); }
+  unstageApproach(id) { this.setThread(id, { approachStaged: false }); }
+  discuss(id) { this.setThread(id, { terminalOpen: true }); this.toast('Opening a terminal session…'); }
+  sendReply(id, fallback) {
     const el = this.inRefs['rb_' + id];
-    const v = ((el && el.value) || '').trim();
-    if (!v) { this.toast('Type why you disagree first'); return; }
-    this.setThread(id, { status: 'rebutted', rebuttal: v });
-    this.toast('Rebuttal sent to the reviewer');
+    const v = ((el && el.value) || fallback || '').trim();
+    if (!v) { this.toast('Reply can’t be empty'); return; }
+    this.setThread(id, { replySent: true, replyText: v });
+    this.toast('Reply sent to the reviewer');
   }
+  undoReply(id) { this.setThread(id, { replySent: false, replyText: '' }); }
+
+  toggleBranchDetails(prId) { this.setState(s => ({ branch: { ...s.branch, [prId]: { ...(s.branch[prId] || {}), detailsOpen: !((s.branch[prId] || {}).detailsOpen) } } })); }
+  branchTerminal(prId) { this.setState(s => ({ branch: { ...s.branch, [prId]: { ...(s.branch[prId] || {}), terminalOpen: true } } })); this.toast('Opening a terminal session…'); }
+
+  runAgent(prId, n) { this.setState(s => ({ runs: { ...s.runs, [prId]: 'running' } })); this.toast('Running agent — ' + n + ' staged item(s) queued'); }
+
   setTicket(prId) {
     const el = this.inRefs['jira_' + prId];
     const v = ((el && el.value) || '').trim().toUpperCase();
@@ -441,141 +512,217 @@ class Component extends DCLogic {
 
   renderVals() {
     const S = this.state;
-    const T = (id) => (S.threads[id] || {});
-    const palette = this.props.palette || 'stone';
-    const appearance = this.props.appearance || 'dark';
+    const TS = (id) => (S.threads[id] || {});
     const grain = this.props.grain !== false;
 
+    // disposition tag -> tab routing + visual meta
     const tagMeta = {
-      hashout: { label: 'disagree · hash out', bg: 'var(--accent-bg)', fg: 'var(--accent)' },
-      agree:   { label: 'agree · auto-fix',    bg: 'var(--auto-bg)',   fg: 'var(--auto-fg)' },
-      waiting: { label: 'waiting on reviewer', bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
-      praise:  { label: 'praise',              bg: 'var(--praise-bg)', fg: 'var(--praise-fg)' },
-      error:   { label: 'agent error',         bg: 'var(--err-bg)',    fg: 'var(--err-fg)' },
+      input:   { label: 'needs your input',                 bg: 'var(--accent-bg)', fg: 'var(--accent)',  border: '1px solid transparent', tab: 's1' },
+      error:   { label: 'agent error',                      bg: 'var(--err-bg)',    fg: 'var(--err-fg)',  border: '1px solid transparent', tab: 's1' },
+      pending: { label: 'no feedback yet',                  bg: 'transparent',      fg: 'var(--ink-3)',   border: '1px dashed var(--line-2)', tab: 's2' },
+      fixed:   { label: 'agent fixed · waiting on reviewer', bg: 'var(--auto-bg)',  fg: 'var(--auto-fg)', border: '1px solid transparent', tab: 's3' },
+      waiting: { label: 'waiting on reviewer',              bg: 'var(--surface-2)', fg: 'var(--ink-2)',   border: '1px solid transparent', tab: 's3' },
+      praise:  { label: 'praise',                           bg: 'var(--praise-bg)', fg: 'var(--praise-fg)', border: '1px solid transparent', tab: null },
     };
+    const branchTab = { conflict: 's2', surfaced: 's1', outofsync: 's1' };
+
     const revMeta = {
       APPROVED:        { label: 'Approved',        bg: 'var(--auto-bg)',   fg: 'var(--auto-fg)', bd: 'transparent' },
       REVIEW_REQUIRED: { label: 'Review required', bg: 'var(--surface-2)', fg: 'var(--ink-2)',   bd: 'transparent' },
       DRAFT:           { label: 'Draft',           bg: 'transparent',      fg: 'var(--ink-3)',   bd: 'var(--line-2)' },
     };
     const pillMeta = {
-      auto:   { bg: 'var(--surface-2)', fg: 'var(--ink-2)',  dot: true },
-      behind: { bg: 'var(--surface-2)', fg: 'var(--ink-2)',  dot: false },
-      ci:     { bg: 'var(--accent-bg)', fg: 'var(--accent)', dot: false },
+      behind: { bg: 'var(--surface-2)', fg: 'var(--ink-2)' },
+      ci:     { bg: 'var(--accent-bg)', fg: 'var(--accent)' },
     };
 
     const enrichThread = (raw) => {
       const id = raw.id;
-      const st = T(id).status || 'pending';
+      const ts = TS(id);
       const tm = tagMeta[raw.tag];
+      const isLong = (raw.body || '').length > 150;
+      const expanded = !!ts.bodyExpanded;
+      const clampStyle = (isLong && !expanded) ? 'display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;' : '';
+      const reasonOpen = !!ts.reasonOpen;
       return {
-        id, loc: raw.loc, author: raw.author, body: raw.body, reason: raw.reason,
-        tagLabel: tm.label, chipBg: tm.bg, chipFg: tm.fg,
-        isHashout: raw.tag === 'hashout', isAgree: raw.tag === 'agree', isError: raw.tag === 'error',
-        isNoAction: raw.tag === 'waiting' || raw.tag === 'praise',
-        noActionLabel: raw.tag === 'praise' ? 'No action needed — positive feedback.' : 'No action needed — waiting on the reviewer.',
-        isPending: st === 'pending', isApproved: st === 'approved', isSkipped: st === 'skipped',
-        isDiscussing: st === 'discussing', isRebutted: st === 'rebutted', notRebutted: st !== 'rebutted',
-        rebuttal: T(id).rebuttal || '',
-        rebuttalRef: this.setRef('rb_' + id),
-        onApprove: () => this.approve(id), onSkip: () => this.skip(id),
-        onDiscuss: () => this.discuss(id), onUndo: () => this.undo(id), onSend: () => this.sendRebuttal(id),
+        id, loc: raw.loc, author: raw.author, body: raw.body,
+        tagLabel: tm.label, chipBg: tm.bg, chipFg: tm.fg, chipBorder: tm.border,
+        isLong, bodyStyle: clampStyle, bodyToggleLabel: expanded ? 'Show less' : 'Show more',
+        onToggleBody: () => this.toggleBody(id),
+        reasonSummary: raw.reasonSummary, reasonFull: raw.reasonFull || raw.reasonSummary,
+        reasonOpen, reasonToggleLabel: reasonOpen ? 'Hide agent’s reasoning' : 'Show agent’s reasoning',
+        onToggleReason: () => this.toggleReason(id),
+        // input
+        isInput: raw.tag === 'input',
+        hasApproach: !!raw.approach,
+        approachText: raw.approach || '',
+        approachStaged: !!ts.approachStaged, approachIdle: !ts.approachStaged,
+        onApproveApproach: () => this.approveApproach(id), onUnstage: () => this.unstageApproach(id),
+        hasReply: !!raw.reply,
+        replyDraft: raw.reply || '',
+        replySent: !!ts.replySent, replyIdle: !ts.replySent, replyText: ts.replyText || '',
+        replyRef: this.setRef('rb_' + id),
+        onSendReply: () => this.sendReply(id, raw.reply), onUndoReply: () => this.undoReply(id),
+        onDiscuss: () => this.discuss(id), terminalOpen: !!ts.terminalOpen,
+        // pending
+        isPendingTag: raw.tag === 'pending',
+        // fixed / waiting / praise
+        isNoAction: raw.tag === 'fixed' || raw.tag === 'waiting' || raw.tag === 'praise',
+        noActionLabel: raw.tag === 'praise'
+          ? 'No action needed — positive feedback.'
+          : (raw.tag === 'fixed' ? 'No action needed — waiting on the reviewer to confirm.' : 'No action needed — waiting on the reviewer.'),
+        // error
+        isError: raw.tag === 'error',
       };
     };
 
-    const enrichPR = (raw, needsYou) => {
+    const enrichBranch = (raw, prId) => {
+      const bs = S.branch[prId] || {};
+      return {
+        isConflict: raw.kind === 'conflict',
+        isSurfaced: raw.kind === 'surfaced',
+        isOutOfSync: raw.kind === 'outofsync',
+        details: raw.details || '',
+        detailsOpen: !!bs.detailsOpen, detailsLabel: bs.detailsOpen ? 'Hide details' : 'Show details',
+        onToggleDetails: () => this.toggleBranchDetails(prId),
+        terminalOpen: !!bs.terminalOpen, onTerminal: () => this.branchTerminal(prId),
+      };
+    };
+
+    const prInTab = (raw, tabKey) => {
+      const ths = (raw.threads || []).filter(t => tagMeta[t.tag].tab === tabKey);
+      const branchShown = raw.branch && branchTab[raw.branch.kind] === tabKey;
+      const jiraShown = !!raw.jira && tabKey === 's1';
+      return ths.length > 0 || branchShown || jiraShown;
+    };
+
+    const enrichPR = (raw, tabKey) => {
       const rm = revMeta[raw.review];
+      const needsYou = tabKey === 's1';
       const j = S.jira[raw.id] || {};
-      const pills = (raw.pills || []);
-      const threads = (raw.threads || []);
       const jiraSet = j.status === 'set';
+      const pills = (raw.pills || []);
+      const ths = (raw.threads || []).filter(t => tagMeta[t.tag].tab === tabKey).map(enrichThread);
+      const branchShown = raw.branch && branchTab[raw.branch.kind] === tabKey;
+      const jiraShown = !!raw.jira && tabKey === 's1';
+      const agentWorking = tabKey === 's2';
+      // staged-approach cart (needs you only)
+      const stagedCount = needsYou
+        ? (raw.threads || []).filter(t => t.tag === 'input' && t.approach && TS(t.id).approachStaged).length
+        : 0;
+      const running = S.runs[raw.id] === 'running';
       return {
         id: raw.id, repo: raw.repo, number: '#' + raw.number, title: raw.title, url: '#',
         revLabel: rm.label, revBg: rm.bg, revFg: rm.fg, revBd: rm.bd,
-        pills: pills.map(p => ({ label: p.label, bg: pillMeta[p.kind].bg, fg: pillMeta[p.kind].fg, dot: pillMeta[p.kind].dot })),
+        pills: pills.map(p => ({ label: p.label, bg: pillMeta[p.kind].bg, fg: pillMeta[p.kind].fg })),
         hasPills: pills.length > 0,
-        needsYou: !!needsYou,
-        threads: threads.map(enrichThread),
-        hasThreads: threads.length > 0,
-        showNoThreads: threads.length === 0 && !raw.jira,
-        noThreadLabel: 'No open threads — waiting on the reviewer.',
-        jiraShow: !!raw.jira, jiraSet, jiraPending: !jiraSet, jiraValue: j.value || '',
-        jiraRef: this.setRef('jira_' + raw.id),
-        onSetTicket: () => this.setTicket(raw.id),
+        needsYou,
+        agentWorking,
+        hasBranch: !!branchShown, branch: branchShown ? enrichBranch(raw.branch, raw.id) : { isConflict: false, isSurfaced: false, isOutOfSync: false },
+        threads: ths, hasThreads: ths.length > 0,
+        showNoThreads: ths.length === 0 && !branchShown && !jiraShown && !agentWorking,
+        jiraShow: jiraShown, jiraSet, jiraPending: !jiraSet, jiraValue: j.value || '',
+        jiraRef: this.setRef('jira_' + raw.id), onSetTicket: () => this.setTicket(raw.id),
+        showRunAgent: needsYou && stagedCount > 0,
+        runCount: stagedCount, runIdle: !running, runStarted: running,
+        runStagedLabel: stagedCount + ' approach' + (stagedCount === 1 ? '' : 'es') + ' staged for this PR',
+        onRun: () => this.runAgent(raw.id, stagedCount),
       };
     };
 
-    // ---- raw data ----
-    const pr2412 = { id: 'pr2412', repo: 'acme/web-app', number: 2412, title: 'Refactor auth middleware to support SSO', review: 'REVIEW_REQUIRED', jira: true,
-      pills: [{ label: '3 auto-fixable', kind: 'auto' }, { label: 'behind base', kind: 'behind' }, { label: 'CI failing: unit-api', kind: 'ci' }],
+    // ---------- raw data — the unit is the ITEM; one PR can span tabs ----------
+    const pr2412 = { id: 'pr2412', repo: 'acme/web-app', number: 2412, title: 'Refactor auth middleware to support SSO', review: 'REVIEW_REQUIRED',
+      pills: [{ label: 'behind base', kind: 'behind' }, { label: 'CI failing: unit-api', kind: 'ci' }],
+      branch: { kind: 'conflict' },
       threads: [
-        { id: 't1', tag: 'hashout', loc: 'src/auth/middleware.ts:88', author: '@dana-k', body: 'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.', reason: 'Reviewer disputes the change — conflicting intent, your call.' },
-        { id: 't2', tag: 'agree', loc: 'src/auth/sso.ts:142', author: '@marco', body: 'Nit: use const here and destructure the config object instead of repeated property access.', reason: 'Mechanical refactor, no behavior change — safe to auto-apply.' },
-        { id: 't3', tag: 'error', loc: '.github/workflows/ci.yml:30', author: '@ci-bot', body: 'Step “cache restore” failed to parse — unexpected key “path” at line 30.', reason: 'Agent couldn’t classify this failure automatically.' },
+        { id: 't1', tag: 'input', loc: 'src/auth/middleware.ts:88', author: '@dana-k',
+          body: 'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.',
+          reasonSummary: 'Reviewer disputes the change — needs your judgment.',
+          reasonFull: 'The reviewer is right that the early return powers silent re-auth. The agent can’t tell whether SSO is meant to replace that path or sit beside it — that’s a product call, so it surfaced the thread with a drafted reply rather than guessing.',
+          reply: 'Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it. Pushing a fix shortly.' },
+        { id: 't2', tag: 'fixed', loc: 'src/auth/sso.ts:142', author: '@marco',
+          body: 'Nit: use const here and destructure the config object instead of repeated property access.',
+          reasonSummary: 'Mechanical refactor — fixed and replied to the reviewer.',
+          reasonFull: 'Pure style change with no behavior impact, so the agent applied it, replied “fixed”, and left the thread open for @marco to confirm.' },
+        { id: 't3', tag: 'pending', loc: 'src/auth/sso.ts:201', author: '@priya',
+          body: 'Should this read the issuer from env rather than hardcoding it?',
+          reasonSummary: 'Queued — the agent hasn’t judged this yet.' },
       ] };
-    const pr874 = { id: 'pr874', repo: 'acme/data-pipeline', number: 874, title: 'Add backfill job for the events table', review: 'DRAFT', jira: false,
+    const pr874 = { id: 'pr874', repo: 'acme/data-pipeline', number: 874, title: 'Add backfill job for the events table', review: 'DRAFT', jira: true,
       pills: [{ label: 'CI failing: lint', kind: 'ci' }],
       threads: [
-        { id: 't4', tag: 'hashout', loc: 'jobs/backfill.py:55', author: '@priya', body: 'Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this.', reason: 'Architectural concern with prod impact — your decision.' },
+        { id: 't4', tag: 'input', loc: 'jobs/backfill.py:55', author: '@priya',
+          body: 'Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this.',
+          reasonSummary: 'Architectural concern with prod impact — your call.',
+          reasonFull: 'The agent agrees the synchronous lock is unsafe in prod, but rewriting the job to chunk-and-checkpoint changes runtime behavior, so it drafted an approach for your approval instead of applying it.',
+          approach: 'Rewrite the job to process events in 10k-row chunks against a checkpoint table, and target the read replica for the scan. Keep the synchronous path behind a --small flag for local runs.' },
       ] };
-    const pr2399 = { id: 'pr2399', repo: 'acme/web-app', number: 2399, title: 'Bump lodash to 4.17.21', review: 'APPROVED', jira: false,
-      pills: [{ label: '2 auto-fixable', kind: 'auto' }],
+    const pr561 = { id: 'pr561', repo: 'acme/design-system', number: 561, title: 'Tokenize the spacing scale', review: 'REVIEW_REQUIRED',
+      pills: [{ label: 'behind base', kind: 'behind' }],
+      branch: { kind: 'surfaced', details: 'The rebase touched tokens/spacing.json, where both branches renamed the same keys. Auto-merging would silently drop one side’s rename — the agent stopped rather than guess which wins.' },
       threads: [
-        { id: 't5', tag: 'agree', loc: 'package.json:24', author: '@deps-bot', body: 'Lockfile is out of sync with package.json.', reason: 'Regenerating lockfile — deterministic, auto-applied.' },
-        { id: 't6', tag: 'waiting', loc: 'CHANGELOG.md:1', author: '@sam', body: 'LGTM once the changelog entry lands.', reason: 'Waiting on the reviewer to re-approve.' },
+        { id: 't7', tag: 'fixed', loc: 'tokens/spacing.json:12', author: '@lee',
+          body: 'Base unit should be 4px, not 5 — matches the grid.',
+          reasonSummary: 'Matched the documented grid — fixed, waiting on @lee.' },
       ] };
-    const pr561 = { id: 'pr561', repo: 'acme/design-system', number: 561, title: 'Tokenize the spacing scale', review: 'REVIEW_REQUIRED', jira: false,
-      pills: [{ label: '5 auto-fixable', kind: 'auto' }, { label: 'behind base', kind: 'behind' }],
+    const pr2399 = { id: 'pr2399', repo: 'acme/web-app', number: 2399, title: 'Bump lodash to 4.17.21', review: 'APPROVED', pills: [],
       threads: [
-        { id: 't7', tag: 'agree', loc: 'tokens/spacing.json:12', author: '@lee', body: 'Base unit should be 4px, not 5 — matches the grid.', reason: 'Matches the documented grid — auto-fixing.' },
-        { id: 't8', tag: 'agree', loc: 'tokens/spacing.json:30', author: '@lee', body: 'Missing an xl token between lg and 2xl.', reason: 'Adding the token per the scale spec.' },
-        { id: 't9', tag: 'agree', loc: 'components/Stack.tsx:8', author: '@lee', body: 'Import order — group external before internal.', reason: 'Lint-aligned reorder.' },
-        { id: 't10', tag: 'praise', loc: 'tokens/spacing.json:1', author: '@lee', body: 'Really clean approach to this, thank you.', reason: 'Positive feedback — no action.' },
+        { id: 't5', tag: 'fixed', loc: 'package.json:24', author: '@deps-bot',
+          body: 'Lockfile is out of sync with package.json.',
+          reasonSummary: 'Regenerated the lockfile — waiting on the reviewer.' },
+        { id: 't6', tag: 'waiting', loc: 'CHANGELOG.md:1', author: '@sam',
+          body: 'LGTM once the changelog entry lands.',
+          reasonSummary: 'You added the entry — waiting on @sam to re-approve.' },
+        { id: 't13', tag: 'pending', loc: 'src/index.ts:3', author: '@ci-bot',
+          body: 'Bundle-size check still running.',
+          reasonSummary: 'Queued — the agent hasn’t reviewed this yet.' },
       ] };
-    const pr2380 = { id: 'pr2380', repo: 'acme/web-app', number: 2380, title: 'Docs: clarify local env setup', review: 'APPROVED', jira: false, pills: [],
+    const pr990 = { id: 'pr990', repo: 'acme/api', number: 990, title: 'Add rate limiting to the public API', review: 'REVIEW_REQUIRED', pills: [],
       threads: [
-        { id: 't11', tag: 'praise', loc: 'README.md:42', author: '@dana-k', body: 'This was overdue — much clearer now.', reason: 'Positive feedback — no action.' },
-        { id: 't12', tag: 'waiting', loc: 'README.md:60', author: '@sam', body: 'One tiny follow-up in-thread, nothing blocking.', reason: 'Waiting on the reviewer.' },
+        { id: 'te1', tag: 'error', loc: '.github/workflows/ci.yml:30', author: '@ci-bot',
+          body: 'Step “cache restore” failed to parse — unexpected key “path” at line 30.',
+          reasonSummary: 'The agent couldn’t classify this failure.',
+          reasonFull: 'The run failed before any test executed, with a YAML parse error the agent doesn’t have enough context to fix safely. Open a terminal to inspect.' },
+        { id: 'te2', tag: 'pending', loc: 'src/limiter.ts:44', author: '@marco',
+          body: 'Does this handle burst windows correctly?',
+          reasonSummary: 'Queued — the agent is reviewing this now.' },
       ] };
-    const pr203 = { id: 'pr203', repo: 'acme/infra', number: 203, title: 'Bump terraform aws provider to 5.x', review: 'REVIEW_REQUIRED', jira: false, pills: [], threads: [] };
+    const pr2380 = { id: 'pr2380', repo: 'acme/web-app', number: 2380, title: 'Docs: clarify local env setup', review: 'APPROVED', pills: [],
+      threads: [
+        { id: 'tp1', tag: 'praise', loc: 'README.md:42', author: '@dana-k', body: 'This was overdue — much clearer now.', reasonSummary: 'Positive feedback — no action.' },
+        { id: 'tw1', tag: 'waiting', loc: 'README.md:60', author: '@sam', body: 'One tiny follow-up in-thread, nothing blocking.', reasonSummary: 'Waiting on @sam.' },
+      ] };
+    const pr203 = { id: 'pr203', repo: 'acme/infra', number: 203, title: 'Bump terraform aws provider to 5.x', review: 'REVIEW_REQUIRED', pills: [],
+      branch: { kind: 'outofsync' }, threads: [] };
 
-    const needs = [pr2412, pr874];
-    const auto = [pr2399, pr561];
-    const waiting = [pr2380, pr203];
+    const allPRs = [pr2412, pr874, pr561, pr2399, pr990, pr2380, pr203];
 
-    const sections = [
-      { key: 's1', isSection: true, isFrame: false, num: '01', title: 'Needs you', caption: 'Resolve these before the agent continues.', count: needs.length, prs: needs.map(p => enrichPR(p, true)), isEmpty: needs.length === 0, emptyLabel: 'Nothing needs you right now.' },
-      { key: 's2', isSection: true, isFrame: false, num: '02', title: 'Auto-handling', caption: S.mode === 'live' ? 'The agent is fixing these — just glance.' : 'Paused in safe mode — these would be auto-fixed when live.', count: auto.length, prs: auto.map(p => enrichPR(p, false)), isEmpty: auto.length === 0, emptyLabel: 'Nothing being auto-handled.' },
-      { key: 's3', isSection: true, isFrame: false, num: '03', title: 'Waiting on reviewer', caption: 'No action needed from you.', count: waiting.length, prs: waiting.map(p => enrichPR(p, false)), isEmpty: waiting.length === 0, emptyLabel: 'Nothing waiting.' },
+    const sectionDefs = [
+      { key: 's1', title: 'Needs you',           caption: 'Resolve these before the agent continues.', emptyLabel: 'Nothing needs you right now.' },
+      { key: 's2', title: 'In progress',         caption: 'The agent is working on these — just glance.', emptyLabel: 'Nothing in progress.' },
+      { key: 's3', title: 'Waiting on reviewer', caption: 'Addressed — waiting on the reviewer.', emptyLabel: 'Nothing waiting on a reviewer.' },
     ];
+    const sections = sectionDefs.map(d => {
+      const prs = allPRs.filter(p => prInTab(p, d.key));
+      return { ...d, count: prs.length, prs: prs.map(p => enrichPR(p, d.key)), isEmpty: prs.length === 0 };
+    });
 
-    // gallery example data
-    const gAll = { id: 'gAll', repo: 'acme/web-app', number: 9001, title: 'One PR showing every thread disposition', review: 'REVIEW_REQUIRED', jira: false, pills: [{ label: '2 auto-fixable', kind: 'auto' }],
-      threads: [
-        { id: 'ga1', tag: 'hashout', loc: 'src/x.ts:10', author: '@dana-k', body: 'I disagree with this change — please keep the old behavior.', reason: 'Conflicting intent — your call.' },
-        { id: 'ga2', tag: 'agree', loc: 'src/x.ts:20', author: '@marco', body: 'Nit: rename to camelCase.', reason: 'Mechanical — safe to auto-apply.' },
-        { id: 'ga3', tag: 'waiting', loc: 'src/x.ts:30', author: '@sam', body: 'Looks good, will approve shortly.', reason: 'Waiting on the reviewer.' },
-        { id: 'ga4', tag: 'praise', loc: 'src/x.ts:40', author: '@lee', body: 'Nice cleanup here!', reason: 'Positive feedback.' },
-        { id: 'ga5', tag: 'error', loc: 'ci.yml:5', author: '@ci-bot', body: 'Step failed to parse.', reason: 'Agent couldn’t classify.' },
-      ] };
-    const gTaken = { id: 'gTaken', repo: 'acme/web-app', number: 9002, title: 'After you act — confirmation states', review: 'APPROVED', jira: false, pills: [],
-      threads: [
-        { id: 'gt1', tag: 'agree', loc: 'src/a.ts:1', author: '@marco', body: 'Use const here.', reason: 'Mechanical fix.' },
-        { id: 'gt3', tag: 'agree', loc: 'src/b.ts:2', author: '@marco', body: 'Remove the unused import.', reason: 'Lint fix.' },
-        { id: 'gt2', tag: 'hashout', loc: 'jobs/x.py:9', author: '@priya', body: 'This will lock the table in prod.', reason: 'Architectural — your call.' },
-      ] };
+    // ---------- gallery frames ----------
+    const gConflict = { id: 'gConflict', repo: 'acme/web-app', number: 9101, title: 'Merge conflict resolving automatically', review: 'REVIEW_REQUIRED', pills: [], branch: { kind: 'conflict' }, threads: [] };
+    const gSurfaced = { id: 'gSurfaced', repo: 'acme/web-app', number: 9102, title: 'Rebase surfaced for a human', review: 'REVIEW_REQUIRED', pills: [], branch: { kind: 'surfaced', details: 'Both branches renamed the same export — the agent stopped rather than pick a side.' }, threads: [] };
+    const gSync = { id: 'gSync', repo: 'acme/web-app', number: 9103, title: 'Branch out of sync with remote', review: 'DRAFT', pills: [], branch: { kind: 'outofsync' }, threads: [] };
     const gJira = { id: 'gJira', repo: 'acme/web-app', number: 9003, title: 'Add an export button to reports', review: 'REVIEW_REQUIRED', jira: true, pills: [], threads: [] };
     const gJiraSet = { id: 'gjset', repo: 'acme/web-app', number: 9004, title: 'Add an import button [ACME-204]', review: 'REVIEW_REQUIRED', jira: true, pills: [], threads: [] };
 
     const galleryPanels = [
-      { key: 'g1', isFrame: true, isSection: false, title: 'PR card · needs you (emphasis)', caption: 'Accent rule + seal mark set urgent cards apart.', prs: [enrichPR(needs[0], true)], isEmpty: false },
-      { key: 'g2', isFrame: true, isSection: false, title: 'PR card · calm', caption: 'Auto-handled and informational cards stay quiet.', prs: [enrichPR(auto[0], false)], isEmpty: false },
-      { key: 'g3', isFrame: true, isSection: false, title: 'PR card · dense (many threads)', caption: 'Long comment bodies scroll within each thread.', prs: [enrichPR(auto[1], false)], isEmpty: false },
-      { key: 'g4', isFrame: true, isSection: false, title: 'PR card · no threads', caption: '', prs: [enrichPR(waiting[1], false)], isEmpty: false },
-      { key: 'g5', isFrame: true, isSection: false, title: 'Thread rows · all dispositions', caption: 'Each tag with its own action controls.', prs: [enrichPR(gAll, false)], isEmpty: false },
-      { key: 'g6', isFrame: true, isSection: false, title: 'After you act · confirmations', caption: 'Approved, skipped and rebutted threads.', prs: [enrichPR(gTaken, false)], isEmpty: false },
-      { key: 'g7', isFrame: true, isSection: false, title: 'JIRA-needed banner', caption: 'Pending (top) and linked (bottom).', prs: [enrichPR(gJira, false), enrichPR(gJiraSet, false)], isEmpty: false },
-      { key: 'g8', isFrame: true, isSection: false, title: 'Empty section', caption: '', prs: [], isEmpty: true, emptyLabel: 'Nothing flagged.' },
+      { key: 'g1', isFrame: true, title: 'PR card · needs you (emphasis)', caption: 'Accent rule + seal mark set urgent cards apart; suggested reply pre-fills the textarea.', prs: [enrichPR(pr2412, 's1')], isEmpty: false },
+      { key: 'g2', isFrame: true, title: 'PR card · in progress', caption: 'Quiet pulsing “agent working” cue; merge conflict resolving; “no feedback yet” threads.', prs: [enrichPR(pr2412, 's2')], isEmpty: false },
+      { key: 'g3', isFrame: true, title: 'PR card · waiting on reviewer (calm)', caption: 'Addressed items, no actions — informational only.', prs: [enrichPR(pr2399, 's3')], isEmpty: false },
+      { key: 'g4', isFrame: true, title: 'Suggested approach · stage → Run agent', caption: 'Approve stages into a per-PR cart; Run agent fires one worker for everything staged.', prs: [enrichPR(pr874, 's1')], isEmpty: false },
+      { key: 'g5', isFrame: true, title: 'Branch health · resolving (in progress)', caption: '', prs: [enrichPR(gConflict, 's2')], isEmpty: false },
+      { key: 'g6', isFrame: true, title: 'Branch health · surfaced + out of sync (needs you)', caption: 'Show-details expander and a terminal escape hatch.', prs: [enrichPR(gSurfaced, 's1'), enrichPR(gSync, 's1')], isEmpty: false },
+      { key: 'g7', isFrame: true, title: 'JIRA-needed banner', caption: 'Pending (top) and linked (bottom).', prs: [enrichPR(gJira, 's1'), enrichPR(gJiraSet, 's1')], isEmpty: false },
+      { key: 'g8', isFrame: true, title: 'Empty section · the calm ensō', caption: '', prs: [], isEmpty: true, emptyLabel: 'Nothing needs you right now.' },
     ];
 
     const isDashboard = S.view === 'dashboard';
@@ -590,8 +737,7 @@ class Component extends DCLogic {
       const active = s.key === activeKey;
       const isNeeds = s.key === 's1';
       return {
-        key: s.key, label: s.title, count: s.count,
-        onClick: () => this.setTab(s.key),
+        key: s.key, label: s.title, count: s.count, onClick: () => this.setTab(s.key),
         fg: active ? 'var(--ink)' : 'var(--ink-2)',
         bd: active ? 'var(--accent)' : 'transparent',
         chipBg: (isNeeds && s.count > 0) ? 'var(--accent-bg)' : 'var(--surface-2)',
@@ -600,17 +746,18 @@ class Component extends DCLogic {
     });
 
     return {
-      palette, appearance, grain,
+      grain,
       isDashboard, isComponents, showSkeleton, showPanels, showTabs, tabs,
+      activeCaption: activeSection.caption,
       panels: isDashboard ? [activeSection] : galleryPanels,
-      modeIsLive: S.mode === 'live', modeIsSafe: S.mode !== 'live',
+      scopeAll: S.scope === 'all', scopeScoped: S.scope === 'scoped', scopeN: S.scopeN,
       refreshing: S.refreshing, notRefreshing: !S.refreshing,
-      openCount: needs.length + auto.length + waiting.length,
-      needCount: needs.length, updated: S.updated,
+      openCount: allPRs.length,
+      needCount: sections[0].count, updated: S.updated,
       toast: S.toast,
       onSetDashboard: () => this.setView('dashboard'),
       onSetComponents: () => this.setView('components'),
-      onToggleMode: () => this.toggleMode(),
+      onToggleScope: () => this.toggleScope(),
       onRefresh: () => this.refresh(),
     };
   }

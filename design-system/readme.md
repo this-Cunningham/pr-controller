@@ -41,15 +41,16 @@ How copy is written in this product:
   fix.", "applied by the agent").
 - **Casing:** sentence case everywhere in prose and buttons ("Approve fix", "Set ticket").
   Tags and pills are the deliberate exception — lowercase, uppercased *visually* via CSS with
-  letter-spacing ("disagree · hash out", "agree · auto-fix").
+  letter-spacing ("needs your input", "agent fixed · waiting on reviewer").
 - **Status, not alarm:** failures are stated flatly, never shouted. "CI failing: unit-api",
   "The agent couldn't classify this automatically." No exclamation, no red sirens.
 - **Confirmations** lead with a `✓` and name the actor: "✓ Fix approved — applied by the
   agent." Reversible actions always offer **Undo**.
 - **Reasons:** every agent classification carries a one-line rationale, prefixed `↳`, e.g.
-  "↳ Mechanical refactor, no behavior change — safe to auto-apply."
+  "↳ Mechanical refactor, no behavior change — fixed and replied to the reviewer." The full
+  rationale is revealed on demand ("Show agent's reasoning").
 - **Numerals:** spare. Counts and code identifiers only; no decorative stats.
-- **Punctuation:** middot `·` separates peers ("agree · auto-fix", "6 open · 2 need you");
+- **Punctuation:** middot `·` separates peers ("agent fixed · waiting on reviewer", "7 open · 5 need you");
   arrow `↳` introduces a reason; `›_` marks a terminal hand-off.
 - **No emoji.** The only glyphs are functional: `⟳` refresh, `↳` reason, `◆` compliance,
   `›_` terminal, `✓` done, and hollow/filled circles for status.
@@ -62,9 +63,9 @@ How copy is written in this product:
 (charcoal grey-green ground, soft off-white ink). Surfaces step `--bg #1E211F` → `--surface
 #262A27` → `--surface-2 #2F3431`; ink steps `--ink #E4E7E1` → `--ink-2 #A2A89E` → `--ink-3
 #6E746C`. The one accent is a warm persimmon **seal** `--accent #C97A5F`, used only for
-urgency (the "needs you" rule + dot, CI-failure pill, hash-out tag, compliance banner, toast
-dot, the live-mode dot). Muted semantic tints: **sage** (auto/approved/positive), **praise**,
-**ochre** (agent error — calm, not alarming).
+urgency (the "needs you" rule + dot, CI-failure pill, needs-your-input tag, compliance banner,
+toast dot, the scoped-badge ring). Muted semantic tints: **sage** (agent-fixed/working/positive),
+**praise**, **ochre** (agent error — calm, not alarming).
 
 The system is built across **six themes** — `warm`, `stone`, `tea` × `light`, `dark`. Swap
 the `:root` block in `tokens/colors.css` to retheme. Full values:
@@ -110,16 +111,17 @@ top hairline, not spacing alone.
 the active segmented item (`0 1px 2px rgba(0,0,0,.05)`) carry shadow.
 
 **Corner radii.** Small and consistent: chips/tags 4px, cards/inputs/buttons 5px, segmented
-control 6px, toast 8px, mode badge & count pills fully rounded (20px).
+control 6px, toast 8px, scope badge & count pills fully rounded (20px).
 
 **Hover / press.** Quiet. Buttons: primary dims to `opacity:.86`; outline fills to
 `--surface-2`; ghost lightens text to `--ink`. Links/tabs move toward `--ink`; the PR link
 shifts to `--accent`. No scale/bounce on press.
 
 **Motion.** Minimal and soft. `ws-appear` (3px rise, .3s) for cards and confirmations;
-`ws-fadeup` (.28s) for the toast; `ws-shimmer` for skeletons; `ws-pulse` (1.6s) for the
-live-mode dot — the single piece of ambient motion, and only when the agent is acting.
-`ws-spin` only while refreshing. Easing is plain `ease`; nothing springs.
+`ws-fadeup` (.28s) for the toast; `ws-shimmer` for skeletons; `ws-pulse` (~1.6–1.8s) for the
+quiet "agent working" / merge-conflict-resolving cue — the single piece of ambient motion,
+and only while the agent is actively on a PR. `ws-spin` only while refreshing. Easing is plain
+`ease`; nothing springs.
 
 **Transparency / blur.** None. Surfaces are opaque; the only translucency is the faint grain
 overlay.
@@ -132,9 +134,9 @@ There is no icon font and no SVG icon set — deliberately. The interface uses a
 functional vocabulary of **Unicode glyphs** rendered in the type itself:
 
 - `⟳` refresh · `↳` reason · `◆` compliance/JIRA · `›_` terminal hand-off · `✓` completed.
-- Status is shown with **CSS shapes**, not icons: a hollow ring (`1.5px` border) = safe /
-  idle; a filled `--accent` dot = live / urgent; an open **ensō** (a ring with one quadrant
-  transparent, rotated −20°) = empty state.
+- Status is shown with **CSS shapes**, not icons: a hollow ring (`1.5px` border) = scoped /
+  surfaced; a filled `--accent` dot = urgent; a filled sage dot = watching-all / agent working;
+  an open **ensō** (a ring with one quadrant transparent, rotated −20°) = empty state.
 
 No emoji. If you need a richer icon set later, add a thin-stroke line set (e.g. Lucide) and
 keep it `--ink-2`, 1.5px stroke, to match the hairline language — and flag the addition.
@@ -150,7 +152,7 @@ keep it `--ink-2`, 1.5px stroke, to match the hairline language — and flag the
 - `components/`
   - `core/` — **Button**, **TextButton**, **Badge**, **DispositionTag**, **Callout**, **ThemeSwitcher**
   - `feedback/` — **Toast**, **Confirmation**, **TerminalNote**, **EmptyState**, **Skeleton**
-  - `navigation/` — **Tabs**, **ModeBadge**
+  - `navigation/` — **Tabs**, **ScopeBadge**
   - `pr/` — **PRCard**, **ThreadRow**, **JiraBanner**, **BranchStatus**, **StagedApprovalsBar** (product compositions, built on the above)
   - each: `<Name>.jsx` + `<Name>.d.ts` + `<Name>.prompt.md`, plus one `*.card.html` per group.
 - `ui_kits/pr-controller/` — assembled interactive dashboard (`index.html`).
@@ -161,10 +163,12 @@ keep it `--ink-2`, 1.5px stroke, to match the hairline language — and flag the
 ## Product-specific compositions
 
 `PRCard`, `ThreadRow` and `JiraBanner` are product compositions assembled from the
-core/feedback/navigation primitives. They are controlled — pass a single `controller`
-object (see `components/pr/ThreadRow.d.ts` → `PRController`) that owns thread/JIRA state
-and exposes `threadStatus`, `approve`, `skip`, `discuss`, `undo`, `sendRebuttal`,
-`jiraValue`, `setTicket`. The reference React app's `useDashboard` hook is one such controller.
+core/feedback/navigation primitives. The unit is the **ITEM**: `PRCard` takes a `tab` and
+renders only the threads/branch/banner that route there, so one PR can appear in several tabs.
+They are controlled — pass a single `controller` object (see `components/pr/ThreadRow.d.ts` →
+`PRController`) that owns thread / branch / cart / JIRA state and exposes `approveApproach`,
+`unstageApproach`, `sendReply`, `discuss`, `stagedCount`, `runAgent`, `branchTerminal`,
+`setTicket`, and friends. The reference React app's `useDashboard` hook is one such controller.
 
 ## Theming at runtime
 
@@ -184,13 +188,16 @@ couldn't fetch them in this environment.)
 Per-thread actions (Approve / Skip / rebuttal) are review-comment scoped. **Branch-level**
 state is separate and lives in `components/pr/`:
 
-- **BranchStatus** — three states via `Callout`: `out-of-sync` (urgency; the branch diverged
-  and the agent couldn't fast-forward → **Rebase branch** / **Resolve in terminal**),
-  `working` (agent applying approved changes; the pulsing dot), `suggested` (the agent
-  proposes an approach → **Approve approach**).
-- **StagedApprovalsBar** — the batch CTA: **Run agent** against everything you've approved.
+- **BranchStatus** — three states, mirroring the agent's auto-rebase flow: `conflict`
+  (informational + pulsing; the agent is rebasing as part of its single run — no manual
+  button), `surfaced` (the agent bailed on a risky rebase → **Show details** + **Open in
+  terminal**), `outofsync` (the branch diverged and the agent never ran → **Resolve in
+  terminal**). `conflict` routes to In progress; the other two to Needs you.
+- **StagedApprovalsBar** — the per-PR cart CTA: **Run agent (N)** fires one worker for every
+  approach you've staged via a thread's **Approve approach**.
 
 These build on the **Callout** primitive (left-ruled status box, tones urgency / agent /
 quiet), **Button**, **TextButton** (quiet inline Undo / Show more), and **TerminalNote** (the
-`›_` terminal hand-off marker). The **DispositionTag** gains a `pending` tone — a dashed,
-unfilled chip for a thread the agent hasn't classified yet, fainter than `neutral` (waiting).
+`›_` terminal hand-off marker). The **DispositionTag** carries a `pending` tone — a dashed,
+unfilled chip ("no feedback yet") for a thread the agent hasn't classified yet, fainter than
+`neutral` ("waiting on reviewer").
