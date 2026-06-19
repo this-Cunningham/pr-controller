@@ -130,6 +130,13 @@
   --err-fg: #cfa94e;
 }
 
+/* Pending disposition — fainter than "waiting"; a dashed, unfilled chip.
+   Declared once; uses the active theme's faint ink + border. */
+:root {
+  --pending-fg: var(--ink-3);
+  --pending-border: var(--line-2);
+}
+
 /* Semantic aliases — declared once; resolve against the active theme. */
 :root {
   --surface-page: var(--bg);

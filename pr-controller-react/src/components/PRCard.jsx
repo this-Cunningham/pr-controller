@@ -3,8 +3,8 @@ import StatusPill from './StatusPill.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
 import Button from './Button.jsx';
-import TerminalNote from './TerminalNote.jsx';
-import { Callout } from '../design-system/components/feedback/Callout.jsx';
+import BranchStatus from './BranchStatus.jsx';
+import { Callout } from '../design-system/components/core/Callout.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -84,17 +84,25 @@ export default function PRCard({ pr, needsYou, dash }) {
       </div>
 
       {pr.surfaced && (
-        <Callout tone="accent" label="Agent surfaced">{pr.surfaced}</Callout>
+        <div style={{ marginTop: 12 }}>
+          <Callout tone="urgency" eyebrow="Agent surfaced">{pr.surfaced}</Callout>
+        </div>
       )}
 
       {pr.outOfSync && (
-        <Callout tone="accent" label="Branch out of sync">
-          The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
-          fast-forward and didn’t run. Reconcile it in a terminal.
-        </Callout>
+        <div style={{ marginTop: 12 }}>
+          <Callout tone="urgency" eyebrow="Branch out of sync">
+            The branch diverged from the remote (a force-push or rebase), so the agent couldn’t
+            fast-forward and didn’t run. Reconcile it in a terminal.
+          </Callout>
+        </div>
       )}
 
-      {working && <Callout tone="sage" dot pulse label="Agent working" />}
+      {working && (
+        <div style={{ marginTop: 12 }}>
+          <Callout tone="agent" dot pulse eyebrow="Agent working" />
+        </div>
+      )}
 
       {pr.pills.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
@@ -113,35 +121,23 @@ export default function PRCard({ pr, needsYou, dash }) {
       )}
 
       {pr.needsRebase && stagedCount === 0 && (
-        rebaseDiscussing ? (
-          <TerminalNote>Terminal session opened — resolve the rebase there.</TerminalNote>
-        ) : (
-          <div style={{ marginTop: 12 }}>
-            {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
-                auto-retrying would just bail again — offer an interactive terminal to
-                resolve it by hand (›_ = terminal hand-off). Otherwise offer the
-                one-click agent rebase. */}
-            <Button
-              variant="outline"
-              disabled={working}
-              onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
-            >
-              {working ? 'Rebasing…' : pr.surfaced ? '›_ Resolve in terminal' : 'Rebase (merge conflict)'}
-            </Button>
-          </div>
-        )
+        <BranchStatus
+          kind="conflict"
+          surfaced={!!pr.surfaced}
+          working={working}
+          discussing={rebaseDiscussing}
+          onRebase={() => dash.rebasePR(pr.id)}
+          onResolveTerminal={() => dash.discussRebase(pr.id)}
+        />
       )}
 
       {pr.outOfSync && !pr.needsRebase && (
-        rebaseDiscussing ? (
-          <TerminalNote>Terminal session opened — reconcile the branch there.</TerminalNote>
-        ) : (
-          <div style={{ marginTop: 12 }}>
-            <Button variant="outline" onClick={() => dash.discussRebase(pr.id)}>
-              ›_ Resolve in terminal
-            </Button>
-          </div>
-        )
+        <BranchStatus
+          kind="outOfSync"
+          working={working}
+          discussing={rebaseDiscussing}
+          onResolveTerminal={() => dash.discussRebase(pr.id)}
+        />
       )}
 
       {hasThreads && (

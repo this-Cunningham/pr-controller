@@ -2,7 +2,6 @@ import React from "react";
 import { DispositionTag } from "../core/DispositionTag.jsx";
 import { Button } from "../core/Button.jsx";
 import { Confirmation } from "../feedback/Confirmation.jsx";
-import { Callout } from "../feedback/Callout.jsx";
 
 const mono = "var(--font-mono)";
 
@@ -38,7 +37,9 @@ export function ThreadRow({ thread, controller }) {
     if (status === "rebutted") {
       controls = (
         <>
-          <Callout tone="neutral">You: {controller.threadRebuttal(id)}</Callout>
+          <div style={{ marginTop: 11, background: "var(--surface-2)", borderLeft: "2px solid var(--line-2)", padding: "9px 12px", borderRadius: "0 5px 5px 0", fontSize: 13, lineHeight: 1.5, color: "var(--ink-2)" }}>
+            You: {controller.threadRebuttal(id)}
+          </div>
           <Confirmation text="✓ Rebuttal sent to the reviewer." fg="var(--auto-fg)" onUndo={() => controller.undo(id)} />
         </>
       );

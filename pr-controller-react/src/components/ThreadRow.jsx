@@ -3,10 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
 import { DispositionTag } from '../design-system/components/core/DispositionTag.jsx';
-import TerminalNote from './TerminalNote.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
-import { Callout } from '../design-system/components/feedback/Callout.jsx';
+import { Callout } from '../design-system/components/core/Callout.jsx';
+import { TextButton } from '../design-system/components/core/TextButton.jsx';
+import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
 
 const mono = 'var(--font-mono)';
 
@@ -35,7 +36,9 @@ function HashOutControls({ thread, prId, dash }) {
   if (status === 'rebutted') {
     return (
       <>
-        <Callout tone="neutral">You: {dash.threadRebuttal(thread.id)}</Callout>
+        <div style={{ marginTop: 11 }}>
+          <Callout tone="quiet">You: {dash.threadRebuttal(thread.id)}</Callout>
+        </div>
         <Confirmation text="✓ Reply posted to the reviewer." fg="var(--auto-fg)" />
       </>
     );
@@ -48,7 +51,8 @@ function HashOutControls({ thread, prId, dash }) {
       )}
 
       {thread.suggestedApproach && (
-        <Callout tone="sage" label="Suggested approach">
+        <div style={{ marginTop: 11 }}>
+        <Callout tone="agent" eyebrow="Suggested approach">
           {thread.suggestedApproach}
           <div style={{ marginTop: 9 }}>
             {dispatched ? (
@@ -62,6 +66,7 @@ function HashOutControls({ thread, prId, dash }) {
             )}
           </div>
         </Callout>
+        </div>
       )}
 
       {thread.suggestedReply && (
@@ -174,21 +179,11 @@ export default function ThreadRow({ thread, prId, dash }) {
         </ReactMarkdown>
       </div>
       {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          style={{
-            marginTop: 4,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            font: '500 12px var(--font-sans)',
-            color: 'var(--ink-2)',
-          }}
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
+        <div style={{ marginTop: 4 }}>
+          <TextButton tone="muted" underline={false} onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Show less' : 'Show more'}
+          </TextButton>
+        </div>
       )}
 
       <div

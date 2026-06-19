@@ -148,10 +148,10 @@ keep it `--ink-2`, 1.5px stroke, to match the hairline language — and flag the
   `base.css` (resets + keyframes).
 - `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Brand).
 - `components/`
-  - `core/` — **Button**, **Badge**, **DispositionTag**, **ThemeSwitcher**
-  - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**, **Callout**
+  - `core/` — **Button**, **TextButton**, **Badge**, **DispositionTag**, **Callout**, **ThemeSwitcher**
+  - `feedback/` — **Toast**, **Confirmation**, **TerminalNote**, **EmptyState**, **Skeleton**
   - `navigation/` — **Tabs**, **ModeBadge**
-  - `pr/` — **PRCard**, **ThreadRow**, **JiraBanner** (product compositions, built on the above)
+  - `pr/` — **PRCard**, **ThreadRow**, **JiraBanner**, **BranchStatus**, **StagedApprovalsBar** (product compositions, built on the above)
   - each: `<Name>.jsx` + `<Name>.d.ts` + `<Name>.prompt.md`, plus one `*.card.html` per group.
 - `ui_kits/pr-controller/` — assembled interactive dashboard (`index.html`).
 - `pr-controller-react/` — full reference React app (Vite) the system was extracted from.
@@ -178,3 +178,19 @@ Default is Google Fonts (`tokens/fonts.css`). To go fully offline, follow
 `assets/fonts/README.md`: drop the listed `.woff2` files into `assets/fonts/` and import
 `assets/fonts/fonts-local.css` from `styles.css` instead. (Binaries aren't bundled — I
 couldn't fetch them in this environment.)
+
+## Branch health & PR-level actions
+
+Per-thread actions (Approve / Skip / rebuttal) are review-comment scoped. **Branch-level**
+state is separate and lives in `components/pr/`:
+
+- **BranchStatus** — three states via `Callout`: `out-of-sync` (urgency; the branch diverged
+  and the agent couldn't fast-forward → **Rebase branch** / **Resolve in terminal**),
+  `working` (agent applying approved changes; the pulsing dot), `suggested` (the agent
+  proposes an approach → **Approve approach**).
+- **StagedApprovalsBar** — the batch CTA: **Run agent** against everything you've approved.
+
+These build on the **Callout** primitive (left-ruled status box, tones urgency / agent /
+quiet), **Button**, **TextButton** (quiet inline Undo / Show more), and **TerminalNote** (the
+`›_` terminal hand-off marker). The **DispositionTag** gains a `pending` tone — a dashed,
+unfilled chip for a thread the agent hasn't classified yet, fainter than `neutral` (waiting).

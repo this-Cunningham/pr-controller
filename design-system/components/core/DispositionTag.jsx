@@ -1,16 +1,18 @@
 import React from "react";
 
 const tones = {
-  accent: { background: "var(--accent-bg)", color: "var(--accent)" }, // disagree / hash-out
-  sage: { background: "var(--auto-bg)", color: "var(--auto-fg)" }, // agree / auto-fix
-  neutral: { background: "var(--surface-2)", color: "var(--ink-2)" }, // waiting
-  praise: { background: "var(--praise-bg)", color: "var(--praise-fg)" }, // praise
-  ochre: { background: "var(--err-bg)", color: "var(--err-fg)" }, // agent error
+  accent: { background: "var(--accent-bg)", color: "var(--accent)", border: "none" }, // disagree / hash-out
+  sage: { background: "var(--auto-bg)", color: "var(--auto-fg)", border: "none" }, // agree / auto-fix
+  neutral: { background: "var(--surface-2)", color: "var(--ink-2)", border: "none" }, // waiting
+  praise: { background: "var(--praise-bg)", color: "var(--praise-fg)", border: "none" }, // praise
+  ochre: { background: "var(--err-bg)", color: "var(--err-fg)", border: "none" }, // agent error
+  pending: { background: "transparent", color: "var(--pending-fg)", border: "1px dashed var(--pending-border)" }, // not yet judged
 };
 
 /**
- * Uppercase mono disposition tag for a reviewer thread. Five tones map
- * to the agent's classification of a comment thread.
+ * Uppercase mono disposition tag for a reviewer thread. Six tones map
+ * to the agent's classification. `pending` (dashed, unfilled) is the
+ * agent-hasn't-judged-yet state — quieter than `neutral` (waiting).
  */
 export function DispositionTag({ tone = "neutral", children }) {
   const t = tones[tone] || tones.neutral;
@@ -21,10 +23,11 @@ export function DispositionTag({ tone = "neutral", children }) {
         fontSize: 10.5,
         letterSpacing: "var(--tracking-tag)",
         textTransform: "uppercase",
-        padding: "3px 8px",
+        padding: t.border === "none" ? "3px 8px" : "2px 7px",
         borderRadius: "var(--radius-chip)",
         background: t.background,
         color: t.color,
+        border: t.border,
       }}
     >
       {children}

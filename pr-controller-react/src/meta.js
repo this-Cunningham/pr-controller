@@ -16,9 +16,9 @@ export const tagMeta = {
   hashout: { tone: 'accent', label: 'surfaced · your call' },
   agree: { tone: 'sage', label: 'agree · auto-fix' },
   waiting: { tone: 'neutral', label: 'waiting on reviewer' },
-  // No exact design-system DispositionTag tone for "pending" (the original used a
-  // fainter ink-3); 'neutral' is the closest covered tone. Flagged in the PR.
-  pending: { tone: 'neutral', label: 'no feedback yet' },
+  // The design system now ships a dedicated faint, dashed `pending` tone for the
+  // agent-hasn't-judged-yet state — quieter than `neutral` (waiting).
+  pending: { tone: 'pending', label: 'no feedback yet' },
   working: { tone: 'sage', label: 'agent working…' },
   praise: { tone: 'praise', label: 'praise' },
   error: { tone: 'ochre', label: 'agent error' },
