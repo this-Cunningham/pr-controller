@@ -5,7 +5,7 @@
 // component resolves it to the right token-backed background/foreground. This
 // keeps the design system the single source of truth for look & feel.
 //
-// Tone vocabulary (see @ds Badge.jsx / DispositionTag.jsx):
+// Tone vocabulary (see ./design-system Badge.jsx / DispositionTag.jsx):
 //   accent (urgency) · sage (auto/approved) · neutral (waiting) ·
 //   praise · ochre (agent error) · outline (draft).
 

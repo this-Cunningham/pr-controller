@@ -1,0 +1,11 @@
+/* ============================================================
+   Wabi-Sabi Design System — global CSS entry point.
+   Consumers link THIS file. It only @imports; every file it
+   reaches is shipped (tokens + webfonts + base resets/keyframes).
+   ============================================================ */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/effects.css";
+@import "./tokens/base.css";

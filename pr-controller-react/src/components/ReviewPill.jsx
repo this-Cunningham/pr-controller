@@ -1,4 +1,4 @@
-import { Badge } from '@ds/components/core/Badge.jsx';
+import { Badge } from '../design-system/components/core/Badge.jsx';
 import { reviewMeta } from '../meta.js';
 
 // Review-status pill, rendered with the design-system Badge (mono variant).

@@ -1,4 +1,4 @@
-import { Tabs } from '@ds/components/navigation/Tabs.jsx';
+import { Tabs } from '../design-system/components/navigation/Tabs.jsx';
 
 // Thin adapter onto the design-system Tabs. Keeps the app's existing call shape
 // ({ tabs:[{key,label,count,needs}], active, onSelect }) and maps it to the DS

@@ -1,4 +1,4 @@
-import { Badge } from '@ds/components/core/Badge.jsx';
+import { Badge } from '../design-system/components/core/Badge.jsx';
 import { pillMeta } from '../meta.js';
 
 // PR signal pill ("N auto-fixable", "behind base", "CI failing: …"), rendered

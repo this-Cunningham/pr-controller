@@ -11,7 +11,7 @@ import {
   GALLERY_JIRA_SET,
 } from '../data.js';
 import { tagMeta } from '../meta.js';
-import { DispositionTag } from '@ds/components/core/DispositionTag.jsx';
+import { DispositionTag } from '../design-system/components/core/DispositionTag.jsx';
 import PRCard from './PRCard.jsx';
 import ReviewPill from './ReviewPill.jsx';
 import StatusPill from './StatusPill.jsx';

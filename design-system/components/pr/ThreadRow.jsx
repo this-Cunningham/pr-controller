@@ -2,6 +2,7 @@ import React from "react";
 import { DispositionTag } from "../core/DispositionTag.jsx";
 import { Button } from "../core/Button.jsx";
 import { Confirmation } from "../feedback/Confirmation.jsx";
+import { TerminalNote } from "../feedback/TerminalNote.jsx";
 
 const mono = "var(--font-mono)";
 
@@ -12,15 +13,6 @@ const TAGS = {
   praise: { tone: "praise", label: "praise" },
   error: { tone: "ochre", label: "agent error" },
 };
-
-function TerminalNote({ children }) {
-  return (
-    <div style={{ marginTop: 11, fontSize: 12.5, color: "var(--ink-2)", display: "flex", gap: 7, alignItems: "center", animation: "ws-appear .3s ease" }}>
-      <span style={{ fontFamily: mono, color: "var(--accent)" }}>›_</span>
-      {children}
-    </div>
-  );
-}
 
 /**
  * One reviewer comment thread inside a PR card. Controls vary by the

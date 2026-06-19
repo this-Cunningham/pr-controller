@@ -2,7 +2,8 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
-import { DispositionTag } from '@ds/components/core/DispositionTag.jsx';
+import { DispositionTag } from '../design-system/components/core/DispositionTag.jsx';
+import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
 
@@ -20,25 +21,6 @@ const mdComponents = {
   ),
   p: (p) => <p {...p} style={{ margin: '0 0 6px' }} />,
 };
-
-function TerminalNote({ children }) {
-  return (
-    <div
-      style={{
-        marginTop: 11,
-        fontSize: 12.5,
-        color: 'var(--ink-2)',
-        display: 'flex',
-        gap: 7,
-        alignItems: 'center',
-        animation: 'ws-appear .3s ease',
-      }}
-    >
-      <span style={{ fontFamily: mono, color: 'var(--accent)' }}>›_</span>
-      {children}
-    </div>
-  );
-}
 
 // hash-out: rebuttal textarea + Discuss / Send; resolves to a sent-rebuttal block.
 // The textarea is pre-filled with the worker's suggested reply (Phase 1) when it

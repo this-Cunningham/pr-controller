@@ -1,0 +1,144 @@
+/* ============================================================
+   COLOR — Wabi-Sabi, muted & low-chroma.
+   Six themes: warm / stone / tea  ×  light / dark.
+   Default (:root) = stone · dark. Switch at runtime by setting
+   data-theme on <html>, e.g. document.documentElement.dataset.theme
+   = "tea-light"  (see the ThemeSwitcher component).
+   Base ramp tokens are redeclared per theme; semantic aliases are
+   declared once below (they resolve var() against the active theme).
+   ============================================================ */
+
+/* default = stone · dark */
+:root,
+[data-theme="stone-dark"] {
+  --bg: #1e211f;
+  --surface: #262a27;
+  --surface-2: #2f3431;
+  --ink: #e4e7e1;
+  --ink-2: #a2a89e;
+  --ink-3: #6e746c;
+  --line: #343a36;
+  --line-2: #424a44;
+  --accent: #c97a5f;
+  --accent-bg: #38302b;
+  --accent-soft: #2a2622;
+  --auto-bg: #2b332b;
+  --auto-fg: #9db18c;
+  --praise-bg: #2e322b;
+  --praise-fg: #b0a98e;
+  --err-bg: #322e22;
+  --err-fg: #c6a86a;
+}
+
+[data-theme="warm-light"] {
+  --bg: #f2ede3;
+  --surface: #fbf8f1;
+  --surface-2: #f0e9dc;
+  --ink: #2c2823;
+  --ink-2: #6c6457;
+  --ink-3: #9a9082;
+  --line: #e6decE;
+  --line-2: #d9cfbc;
+  --accent: #a85539;
+  --accent-bg: #f0e0d6;
+  --accent-soft: #faefe7;
+  --auto-bg: #e8eadc;
+  --auto-fg: #5e6b49;
+  --praise-bg: #ede7da;
+  --praise-fg: #7b7058;
+  --err-bg: #eee3cd;
+  --err-fg: #8a6b3a;
+}
+
+[data-theme="warm-dark"] {
+  --bg: #211d17;
+  --surface: #2a2620;
+  --surface-2: #332e26;
+  --ink: #ece5d8;
+  --ink-2: #aba290;
+  --ink-3: #74695a;
+  --line: #38322a;
+  --line-2: #463f34;
+  --accent: #cd7e5e;
+  --accent-bg: #3a2e26;
+  --accent-soft: #2e251f;
+  --auto-bg: #2f3325;
+  --auto-fg: #a6b585;
+  --praise-bg: #322d24;
+  --praise-fg: #b4a88c;
+  --err-bg: #352d1f;
+  --err-fg: #cba862;
+}
+
+[data-theme="stone-light"] {
+  --bg: #eaede9;
+  --surface: #f5f7f3;
+  --surface-2: #e7ece6;
+  --ink: #272a27;
+  --ink-2: #5d635b;
+  --ink-3: #8c928a;
+  --line: #dce0d9;
+  --line-2: #cbd1c7;
+  --accent: #9e5642;
+  --accent-bg: #ebdfd8;
+  --accent-soft: #f4ece7;
+  --auto-bg: #e2e8e0;
+  --auto-fg: #586b58;
+  --praise-bg: #e6e9e2;
+  --praise-fg: #67705f;
+  --err-bg: #eae6d6;
+  --err-fg: #7e6e47;
+}
+
+[data-theme="tea-light"] {
+  --bg: #eee8da;
+  --surface: #f8f3e8;
+  --surface-2: #ece4d3;
+  --ink: #2a241c;
+  --ink-2: #6e6151;
+  --ink-3: #9c8e78;
+  --line: #e2d8c4;
+  --line-2: #d3c6ad;
+  --accent: #a5532f;
+  --accent-bg: #efdfce;
+  --accent-soft: #f8efe2;
+  --auto-bg: #e5e6d0;
+  --auto-fg: #65703f;
+  --praise-bg: #ece4d1;
+  --praise-fg: #7e6f4f;
+  --err-bg: #ebddbe;
+  --err-fg: #8a6a33;
+}
+
+[data-theme="tea-dark"] {
+  --bg: #20190f;
+  --surface: #292318;
+  --surface-2: #322b1e;
+  --ink: #ece3d2;
+  --ink-2: #ada088;
+  --ink-3: #786a53;
+  --line: #38301f;
+  --line-2: #483e29;
+  --accent: #cc7d52;
+  --accent-bg: #3a2c1e;
+  --accent-soft: #2b2217;
+  --auto-bg: #2e311c;
+  --auto-fg: #a8b57a;
+  --praise-bg: #322b1c;
+  --praise-fg: #b6a77f;
+  --err-bg: #362b16;
+  --err-fg: #cfa94e;
+}
+
+/* Semantic aliases — declared once; resolve against the active theme. */
+:root {
+  --surface-page: var(--bg);
+  --surface-card: var(--surface);
+  --surface-inset: var(--surface-2);
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-2);
+  --text-faint: var(--ink-3);
+  --border-hairline: var(--line);
+  --border-strong: var(--line-2);
+  --seal: var(--accent);
+}
