@@ -206,19 +206,23 @@ export function useDashboard(seed = null) {
 
   const discuss = useCallback(
     async (id) => {
+      // Show the "›_ Terminal session opened…" note immediately on click (instant
+      // feedback, matching the design system) rather than waiting for the backend
+      // round-trip. Revert only if a real dispatch actually fails.
+      setThread(id, { status: 'discussing' });
       showToast('Opening a terminal session…');
+      if (seeded) return;
       const res = await postDecision({
         action: 'discuss',
         prKey: threadToPr.current.get(id),
         threadId: id,
       });
-      if (res?.spawn?.spawned) {
-        setThread(id, { status: 'discussing' });
-      } else {
+      if (!res?.spawn?.spawned) {
+        setThread(id, { status: 'pending' });
         showToast(res?.spawn?.reason || 'Could not open a terminal session');
       }
     },
-    [setThread, showToast]
+    [seeded, setThread, showToast]
   );
 
   const sendRebuttal = useCallback(
