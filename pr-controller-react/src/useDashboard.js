@@ -54,6 +54,9 @@ export function useDashboard(seed = null) {
   const [jira, setJira] = useState(seed?.jira || {});
   // prKeys with a worker running right now (from the SSE in-flight set).
   const [workingPRs, setWorkingPRs] = useState(() => new Set(seed?.workingPRs || []));
+  // Subset of workingPRs whose in-flight run is actually a REBASE — so the card can
+  // say "Rebasing…" only then, not for any worker on a PR that also has a conflict.
+  const [rebasingPRs, setRebasingPRs] = useState(() => new Set(seed?.rebasingPRs || []));
   // prId -> Set<threadId> the user has approved but not yet dispatched ("cart").
   const [staged, setStaged] = useState({});
   // prId -> threadId[] that were sent to the agent and are being applied right
@@ -132,7 +135,11 @@ export function useDashboard(seed = null) {
     try {
       es = new EventSource('/events');
       const onInflight = (e) => {
-        try { setWorkingPRs(new Set(JSON.parse(e.data).inflight || [])); } catch {}
+        try {
+          const d = JSON.parse(e.data);
+          setWorkingPRs(new Set(d.inflight || []));
+          setRebasingPRs(new Set(d.rebasing || []));
+        } catch {}
       };
       es.addEventListener('hello', onInflight);
       es.addEventListener('worker-started', onInflight);
@@ -172,6 +179,7 @@ export function useDashboard(seed = null) {
   const threadRebuttal = useCallback((id) => threads[id]?.rebuttal || '', [threads]);
   const jiraState = useCallback((id) => jira[id] || null, [jira]);
   const prWorking = useCallback((prId) => workingPRs.has(prId), [workingPRs]);
+  const prRebasing = useCallback((prId) => rebasingPRs.has(prId), [rebasingPRs]);
   const stagedFor = useCallback((prId) => staged[prId] || [], [staged]);
   const isStaged = useCallback((prId, threadId) => (staged[prId] || []).includes(threadId), [staged]);
   // A thread is "dispatched" once Run agent sends it and until the worker finishes.
@@ -228,15 +236,16 @@ export function useDashboard(seed = null) {
   // too risky to do mechanically, so re-dispatching would just bail again. Open an
   // interactive terminal in the worktree to resolve it by hand instead. No threadId.
   const discussRebase = useCallback(
-    async (prId) => {
+    async (prId, kind = 'rebase') => {
       // Show the "›_ Terminal session opened…" note in the card immediately on
       // click (same instant feedback as the thread-level Discuss). Branch-health
       // has no threadId, so we key its OWN overlay store by the PR id. Revert only
-      // if a real dispatch fails.
+      // if a real dispatch fails. `kind` (rebase/conflict/outOfSync/surfaced) lets
+      // the backend open the terminal with a short generic opener about that thing.
       setBranchHealthState(prId, { status: 'discussing' });
       showToast('Opening a terminal session…');
       if (seeded) return;
-      const res = await postDecision({ action: 'discuss', prKey: prId });
+      const res = await postDecision({ action: 'discuss', prKey: prId, kind });
       if (!res?.spawn?.spawned) {
         setBranchHealthState(prId, { status: 'idle' });
         showToast(res?.spawn?.reason || 'Could not open a terminal session');
@@ -357,6 +366,7 @@ export function useDashboard(seed = null) {
     threadRebuttal,
     jiraState,
     prWorking,
+    prRebasing,
     stagedFor,
     isStaged,
     isDispatched,

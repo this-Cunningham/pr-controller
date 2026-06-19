@@ -13,7 +13,7 @@
 // disposition vocabulary (rules.deriveTier). Labels are the app's (richer than the
 // design-system's reference tone set — e.g. notYetReviewed / agentAcknowledged).
 export const tagMeta = {
-  needsYourApproval: { tone: 'accent', label: 'surfaced · your call' },
+  needsYourApproval: { tone: 'accent', label: 'needs your input' },
   agentAutoFixed: { tone: 'sage', label: 'agent fixed · waiting on reviewer' },
   awaitingReviewer: { tone: 'neutral', label: 'waiting on reviewer' },
   // The design system ships a dedicated faint, dashed `pending` tone for the

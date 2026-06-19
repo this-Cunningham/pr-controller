@@ -254,7 +254,10 @@ const server = createServer(async (req, res) => {
         if (!pr || (payload.threadId && !thread)) spawn = { spawned: false, reason: 'PR or thread not found' };
         else {
           const wt = await ensureWorktree(pr);
-          spawn = await spawnDiscussTerminal(pr, thread, wt.path);
+          // For a branch-health (no-thread) discuss, payload.kind names what was
+          // clicked (rebase/conflict/outOfSync/surfaced) so the terminal opens with
+          // a short generic opener about that thing.
+          spawn = await spawnDiscussTerminal(pr, thread, wt.path, thread ? null : payload.kind);
         }
       }
       if (payload.action === 'note') {

@@ -130,7 +130,22 @@ test('workerSurfaced branch-health -> Needs you (suppresses auto signals)', () =
   assert.deepEqual(ids(s.auto), []);  // surfaced suppresses CI auto-signal
 });
 
-test('an auto-rebasing merge conflict routes the PR into In progress', () => {
+test('an auto-rebasing merge conflict routes the PR into In progress, keeping needsRebase', () => {
   const s = sectionsOf([pr({ needsRebase: true, branchHealth: { failingChecks: [], complianceChecks: [] } })]);
   assert.deepEqual(ids(s.auto), ['site-vdp-remix#1']);
+  // the In-progress slice keeps needsRebase so the card shows "Resolving merge conflict…"
+  assert.equal(s.auto.prs[0].needsRebase, true);
+  // ...and is NOT duplicated into Needs you (the agent handles it; only a bail surfaces)
+  assert.deepEqual(ids(s.needs), []);
+});
+
+test('a surfaced conflict -> Needs you only; In-progress slice drops needsRebase (banner owns it)', () => {
+  const s = sectionsOf([pr({ needsRebase: true, workerSurfaced: 'rebase too risky',
+    branchHealth: { failingChecks: [], complianceChecks: [] } })]);
+  assert.deepEqual(ids(s.needs), ['site-vdp-remix#1']);
+  // surfaced suppresses the needsRebase auto-signal, so it does NOT also show In progress
+  assert.deepEqual(ids(s.auto), []);
+  // and the Needs-you slice carries surfaced (the banner), not a redundant conflict status
+  assert.equal(s.needs.prs[0].needsRebase, false);
+  assert.ok(s.needs.prs[0].surfaced);
 });
