@@ -5,7 +5,7 @@
 // membership via the exported TAG_TAB/BRANCH_TAB + prInTab.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { adaptSections, adaptPR, prInTab, TAG_TAB, BRANCH_TAB } from '../pr-controller-react/src/adapt.js';
+import { adaptSections, adaptPR, prInTab, progressStatus, TAG_TAB, BRANCH_TAB } from '../pr-controller-react/src/adapt.js';
 
 // Build a backend-shape PR. `threads` take { id, tier } (+ optional lastAuthor).
 function pr(over = {}) {
@@ -165,4 +165,36 @@ test('prInTab matches section membership', () => {
   const p = adaptPR(pr({ threads: [{ id: 'a', tier: 'needsYourApproval' }] }));
   assert.equal(prInTab(p, 'needs'), true);
   assert.equal(prInTab(p, 'waiting'), false);
+});
+
+// progressStatus — the In-progress status line copy/tone, by branch state. Locks the
+// rebase-aware messaging so a deferred-during-conflict thread never shows a misleading
+// "agent working" line.
+test('progressStatus: conflict (actively rebasing) -> rebasing copy, sage, pulsing', () => {
+  const s = progressStatus('conflict');
+  assert.match(s.text, /Rebasing onto the latest base/);
+  assert.equal(s.tone, 'agent');
+  assert.equal(s.pulse, true);
+});
+
+test('progressStatus: surfaced (rebase bailed) -> paused copy, ochre, NOT pulsing', () => {
+  const s = progressStatus('surfaced');
+  assert.match(s.text, /Paused on a merge conflict/);
+  assert.equal(s.tone, 'ochre');
+  assert.equal(s.pulse, false);
+});
+
+test('progressStatus: healthy branch -> generic agent-working, sage, pulsing', () => {
+  for (const k of [undefined, null, 'outofsync']) {
+    const s = progressStatus(k);
+    assert.match(s.text, /Agent working/);
+    assert.equal(s.tone, 'agent');
+    assert.equal(s.pulse, true);
+  }
+});
+
+test('adaptPR attaches a progress status matching the branch state', () => {
+  assert.match(adaptPR(pr({ needsRebase: true })).progress.text, /Rebasing/);  // conflict -> rebasing line
+  assert.equal(adaptPR(pr({ workerSurfaced: 'too risky', needsRebase: true })).progress.tone, 'ochre');
+  assert.match(adaptPR(pr({})).progress.text, /Agent working/);
 });

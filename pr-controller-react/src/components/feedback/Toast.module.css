@@ -1,0 +1,24 @@
+/* Transient bottom-center acknowledgment shown after an action. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-8);
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13px; /* off-scale */
+  padding: 11px 17px; /* off-scale */
+  border-radius: var(--radius-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-toast);
+  z-index: 50;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}

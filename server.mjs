@@ -9,7 +9,7 @@ import { config, ghEnv } from './config.mjs';
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
-import { dispatchable, needsJira, rebaseAllowed, needsRebase, deriveTier, dispatchDecision } from './rules.mjs';
+import { dispatchable, needsJira, isBehindBase, needsRebase, deriveTier, dispatchDecision, nextSeenThreads } from './rules.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
 
@@ -70,7 +70,7 @@ const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
 // suggestedReply/suggestedApproach onto each thread for the UI.
 async function deriveAndSetPrFields(pr) {
   const h = pr.branchHealth || {};
-  pr.behindBase = rebaseAllowed(pr.reviewDecision, h.mergeState, h.mergeable);
+  pr.behindBase = isBehindBase(h.mergeState, h.mergeable);
   pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
   pr.needsRebase = needsRebase(h.mergeState, h.mergeable);  // genuine merge conflict
   // Compliance failing + no JIRA key in title => surface an input box for the ticket.
@@ -157,21 +157,22 @@ async function poll() {
       const newThreads = pr.threads.filter((t) => !t.error && !prev.threads.has(fp(t)) && dispatchable(t));
       const healthSig = `${h.mergeable}|${h.mergeState}|${h.checkState}|${(h.failingChecks||[]).map(c=>c.name+c.state).join(',')}`;
       const healthChanged = healthSig !== prev.health;
-      seen.set(prKey, { threads: new Set(pr.threads.filter((t) => !t.error).map(fp)), health: healthSig });
 
-      // What to dispatch is a pure decision (rules.dispatchDecision, tested):
-      //  - 'feedback' — new threads or failing code CI changed this poll; a merge
-      //    conflict folds in (rebaseOnConflict), since the branch is changing anyway.
-      //  - 'rebase'   — Phase E: an idle merge conflict (nothing else to do) now
-      //    AUTO-rebases (reversing the old manual-CTA-only rule; SPEC §CI & rebase),
-      //    gated on healthChanged so a standing conflict isn't re-spun every poll.
-      //    CONSCIOUS TRADEOFF: dismisses the approval on an already-approved idle PR.
+      // What to dispatch is a pure decision (rules.dispatchDecision, tested): a real
+      // merge conflict short-circuits to a rebase-ONLY run; otherwise threads/CI.
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
         needsRebase: pr.needsRebase, healthChanged,
       });
+
+      // Mark threads seen — but DEFER while a real conflict blocks the PR (a conflict
+      // run is rebase-only, so consuming threads now would strand them un-judged).
+      // nextSeenThreads (pure, tested) encodes the rule. Always advance the health sig.
+      const liveFps = pr.threads.filter((t) => !t.error).map(fp);
+      seen.set(prKey, { threads: nextSeenThreads(prev.threads, liveFps, pr.needsRebase), health: healthSig });
+
       if (decision.kind === 'feedback')
-        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth, rebaseOnConflict: decision.rebaseOnConflict });
+        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth });
       else if (decision.kind === 'rebase')
         dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
     }

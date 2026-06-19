@@ -1,0 +1,91 @@
+/* The repeating PR unit, rendered for ONE tab. The Needs-you treatment
+   (accent rule + seal) is applied via data-needs. */
+.card {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--pad-card);
+}
+
+.rule {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--seal-rule);
+  background: var(--accent);
+}
+.seal {
+  position: absolute;
+  top: 15px; /* off-scale */
+  right: 15px; /* off-scale */
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px; /* off-scale */
+}
+.headMain {
+  min-width: 0;
+}
+
+.link {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-2);
+  padding-bottom: 1px;
+}
+.link:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-title);
+  margin-top: var(--space-2);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.section {
+  margin-top: 13px; /* off-scale */
+}
+
+.threads {
+  margin-top: var(--space-5);
+}
+
+.noThreads {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--line);
+  padding-top: 13px; /* off-scale */
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.staged {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--line);
+  padding-top: 13px; /* off-scale */
+}

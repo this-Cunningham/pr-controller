@@ -18,7 +18,7 @@ node server.mjs (one persistent process on your awake laptop)
 │    claude -p  (--session-id first time, --resume after) in a per-PR worktree
 │      • first run: familiarizes itself with the PR diff (remembered on resume)
 │      • addresses new review threads (lean toward fix; surface disagreements)
-│      • fixes CI caused by this PR; rebases if approved; surfaces if hairy
+│      • fixes CI caused by this PR; rebases on any merge conflict; surfaces if hairy
 │
 └─ serves a dashboard (http://localhost:4317)
      PRs needing YOUR input float to the top:
@@ -39,7 +39,9 @@ node server.mjs (one persistent process on your awake laptop)
 - **Lean toward auto-fix**, but surface (never act on) anything that would be a
   bug, contradicts a deliberate design choice, is out of scope, or needs a
   product decision. Never edits a test to make it pass.
-- **Rebase only when approved.** CI fixes anytime; rebase waits for approval.
+- **Rebase on any merge conflict, regardless of approval.** A conflict blocks merge
+  no matter the review state, so the agent auto-rebases when one appears (clean →
+  `--force-with-lease`; hairy → surface). CI fixes anytime.
 
 ## Scope (`config.onlyPRs`)
 

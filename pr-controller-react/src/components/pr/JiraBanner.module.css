@@ -1,0 +1,56 @@
+/* Compliance banner — missing ticket key. Pending → input; linked → note. */
+.wrap {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-5);
+}
+
+.linked {
+  font-size: var(--text-caption);
+  color: var(--auto-fg);
+}
+
+.box {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-bg);
+  border-radius: var(--radius-card);
+  padding: 13px var(--space-5); /* 13px off-scale */
+}
+
+.head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.mark {
+  color: var(--accent);
+  font-size: var(--text-meta);
+  line-height: var(--leading-body);
+}
+.line {
+  font-size: 13px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
+
+.inputRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px; /* off-scale */
+  margin-top: 11px; /* off-scale */
+}
+
+.input {
+  font: 13px var(--font-mono); /* 13px off-scale */
+  text-transform: uppercase;
+  padding: 8px 11px; /* off-scale */
+  width: 140px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink);
+}
+.input:focus {
+  border-color: var(--accent);
+  outline: none;
+}

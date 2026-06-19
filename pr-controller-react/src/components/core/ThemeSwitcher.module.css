@@ -1,0 +1,10 @@
+/* Runtime theme picker — a styled native select. */
+.select {
+  font: var(--weight-medium) var(--text-caption) var(--font-sans);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) 11px; /* 11px off-scale */
+  cursor: pointer;
+}

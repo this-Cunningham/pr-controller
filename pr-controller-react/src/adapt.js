@@ -55,6 +55,14 @@ function deriveBranch(raw) {
   return null;
 }
 
+export function progressStatus(branchKind) {
+  if (branchKind === 'conflict')
+    return { text: 'Rebasing onto the latest base — review threads resume once it lands.', tone: 'agent', pulse: true };
+  if (branchKind === 'surfaced')
+    return { text: 'Paused on a merge conflict — resolve it (see Needs you) before the agent handles these threads.', tone: 'ochre', pulse: false };
+  return { text: 'Agent working — addressing this PR now.', tone: 'agent', pulse: true };
+}
+
 // Signal pills the DS renders (behind base, CI failing). The "N auto-fixable" count
 // pill is intentionally dropped — those threads now appear as real rows in Waiting.
 function derivePills(raw) {
@@ -104,6 +112,7 @@ export function adaptPR(pr, overlays = {}) {
     jira: !!pr.needsJira,
     pills: derivePills(pr),
     branch: deriveBranch(pr),
+    progress: progressStatus(deriveBranch(pr)?.kind),
     threads: (pr.threads || []).map((t, i) => adaptThread(t, i, id, isDispatched)),
   };
 }

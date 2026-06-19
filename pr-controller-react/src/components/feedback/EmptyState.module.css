@@ -1,0 +1,23 @@
+/* Calm empty state — an open ensō circle and an italic line. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 13px; /* off-scale */
+  padding: 24px var(--space-1); /* 24px off-scale */
+  color: var(--ink-3);
+}
+
+.enso {
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid var(--line-2);
+  border-top-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  transform: rotate(-20deg);
+}
+
+.label {
+  font-size: 13.5px; /* off-scale */
+  font-style: italic;
+}

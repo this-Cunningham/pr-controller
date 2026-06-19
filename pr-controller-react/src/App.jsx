@@ -3,11 +3,12 @@ import { useDashboard } from './useDashboard.js';
 import { makeController } from './controller.js';
 import GrainOverlay from './components/GrainOverlay.jsx';
 import Header from './components/Header.jsx';
-import { Tabs } from './design-system/components/navigation/Tabs.jsx';
-import { PRCard } from './design-system/components/pr/PRCard.jsx';
-import { Skeleton } from './design-system/components/feedback/Skeleton.jsx';
-import { EmptyState } from './design-system/components/feedback/EmptyState.jsx';
-import { Toast } from './design-system/components/feedback/Toast.jsx';
+import { Tabs } from './components/navigation/Tabs.jsx';
+import { PRCard } from './components/pr/PRCard.jsx';
+import { Skeleton } from './components/feedback/Skeleton.jsx';
+import { EmptyState } from './components/feedback/EmptyState.jsx';
+import { Toast } from './components/feedback/Toast.jsx';
+import styles from './App.module.css';
 
 const CAPTION = {
   needs: 'Resolve these before the agent continues.',
@@ -38,10 +39,10 @@ function Dashboard({ dash, controller }) {
       ) : (
         <>
           <Tabs tabs={tabs} active={active.key} onChange={dash.setTab} />
-          <div style={{ marginTop: 16, fontSize: 13, color: 'var(--ink-2)', fontStyle: 'italic' }}>
+          <div className={styles.caption}>
             {CAPTION[active.key]}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+          <div className={styles.cards}>
             {active.prs.length > 0 ? (
               active.prs.map((pr) => (
                 // Per-item routing: the same PR id can render in multiple tabs, each
@@ -64,17 +65,9 @@ export default function App() {
   const controller = useMemo(() => makeController(dash), [dash]);
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: 'var(--bg)' }}>
+    <div className={styles.app}>
       <GrainOverlay />
-      <div
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          maxWidth: 'var(--col-max)',
-          margin: '0 auto',
-          padding: '34px 28px 120px',
-        }}
-      >
+      <div className={styles.column}>
         <Dashboard dash={dash} controller={controller} />
       </div>
       <Toast message={dash.toastMsg} />

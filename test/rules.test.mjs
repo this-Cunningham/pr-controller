@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dispatchable, categorizeChecks, needsJira, rebaseAllowed, needsRebase, repoSlug, inScope, deriveTier,
-  validateWorkerResult, mergePending, dispatchDecision, applyDebugReviewer, DEBUG_REVIEWER,
+  dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveTier,
+  validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -163,11 +163,12 @@ test('needsJira: no compliance failure -> false even without ticket', () => {
   assert.equal(needsJira('no ticket here', [], cfg.jiraPattern), false);
 });
 
-test('rebaseAllowed: only when APPROVED and behind/conflicted', () => {
-  assert.equal(rebaseAllowed('APPROVED', 'BEHIND', 'MERGEABLE'), true);
-  assert.equal(rebaseAllowed('APPROVED', 'CLEAN', 'MERGEABLE'), false);
-  assert.equal(rebaseAllowed('REVIEW_REQUIRED', 'BEHIND', 'MERGEABLE'), false);
-  assert.equal(rebaseAllowed('APPROVED', 'DIRTY', 'CONFLICTING'), true);
+test('isBehindBase: behind OR conflicting/dirty, NOT approval-gated (the stale gate is gone)', () => {
+  assert.equal(isBehindBase('BEHIND', 'MERGEABLE'), true);            // merely stale
+  assert.equal(isBehindBase('DIRTY', 'CONFLICTING'), true);           // real conflict — shows regardless of approval
+  assert.equal(isBehindBase('CLEAN', 'CONFLICTING'), true);           // conflict via mergeable
+  assert.equal(isBehindBase('CLEAN', 'MERGEABLE'), false);            // healthy -> no pill
+  assert.equal(isBehindBase('BLOCKED', 'MERGEABLE'), false);          // blocked on review, not behind
 });
 
 test('needsRebase: true only on a genuine conflict, not merely behind base', () => {
@@ -216,16 +217,23 @@ test('applyDebugReviewer: errored thread -> untouched', () => {
   assert.deepEqual(t, { error: 'scan failed' });
 });
 
-test('dispatchDecision: new threads -> feedback run (no conflict to fold)', () => {
+test('dispatchDecision: new threads, no conflict -> feedback run', () => {
   const d = dispatchDecision({ newThreadCount: 2, healthChanged: false });
   assert.equal(d.kind, 'feedback');
-  assert.equal(d.rebaseOnConflict, false);
 });
 
-test('dispatchDecision: new threads + conflict -> feedback run folds the rebase', () => {
-  const d = dispatchDecision({ newThreadCount: 1, needsRebase: true, healthChanged: true });
-  assert.equal(d.kind, 'feedback');
-  assert.equal(d.rebaseOnConflict, true);
+test('dispatchDecision: conflict short-circuits to rebase-ONLY, never feedback (even with new threads)', () => {
+  // The whole point of the separation: a real conflict is handled by a rebase-only
+  // run; threads are deferred (poll() keeps them un-seen). A bailed rebase can no
+  // longer strand threads, because they were never in the run.
+  const d = dispatchDecision({ newThreadCount: 3, ciFailing: true, needsRebase: true, healthChanged: true });
+  assert.equal(d.kind, 'rebase');
+});
+
+test('dispatchDecision: standing conflict (health unchanged) -> none, even with new threads', () => {
+  // A conflict that can't auto-resolve must not re-spin a rebase every poll, and must
+  // NOT fall through to a feedback run — threads stay deferred until the branch is clean.
+  assert.equal(dispatchDecision({ newThreadCount: 2, needsRebase: true, healthChanged: false }).kind, 'none');
 });
 
 test('dispatchDecision: failing CI that already existed (no change) -> none', () => {
@@ -233,21 +241,59 @@ test('dispatchDecision: failing CI that already existed (no change) -> none', ()
   assert.equal(dispatchDecision({ ciFailing: true, healthChanged: false }).kind, 'none');
 });
 
-test('dispatchDecision: failing CI newly appeared (health changed) -> feedback', () => {
+test('dispatchDecision: failing CI newly appeared (health changed), no conflict -> feedback', () => {
   assert.equal(dispatchDecision({ ciFailing: true, healthChanged: true }).kind, 'feedback');
 });
 
-test('dispatchDecision: Phase E — idle conflict + health changed -> rebase', () => {
+test('dispatchDecision: idle conflict + health changed -> rebase', () => {
   const d = dispatchDecision({ newThreadCount: 0, ciFailing: false, needsRebase: true, healthChanged: true });
   assert.equal(d.kind, 'rebase');
 });
 
-test('dispatchDecision: Phase E — standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {
+test('dispatchDecision: standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {
   assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false }).kind, 'none');
 });
 
 test('dispatchDecision: nothing actionable -> none', () => {
   assert.equal(dispatchDecision({}).kind, 'none');
+});
+
+// nextSeenThreads — the thread-deferral half of the conflict fix. Locks that a
+// conflict keeps threads "un-seen" so they dispatch once the branch is clean.
+test('nextSeenThreads: no conflict -> all live threads marked seen', () => {
+  const seen = nextSeenThreads(new Set(['a:1']), ['a:1', 'b:2'], false);
+  assert.deepEqual([...seen].sort(), ['a:1', 'b:2']);
+});
+
+test('nextSeenThreads: conflict -> new thread is NOT marked seen (deferred)', () => {
+  // prev poll had nothing seen; a new thread b:2 arrives alongside a conflict.
+  // It must stay un-seen so it dispatches as feedback once the conflict clears.
+  const seen = nextSeenThreads(new Set(), ['b:2'], true);
+  assert.equal(seen.has('b:2'), false);
+  assert.equal(seen.size, 0);
+});
+
+test('nextSeenThreads: conflict -> previously-seen threads stay seen (no re-dispatch churn)', () => {
+  // a:1 was already handled before the conflict; it should remain seen so it isn't
+  // re-judged, while a genuinely new b:2 stays deferred.
+  const seen = nextSeenThreads(new Set(['a:1']), ['a:1', 'b:2'], true);
+  assert.equal(seen.has('a:1'), true);
+  assert.equal(seen.has('b:2'), false);
+});
+
+test('nextSeenThreads: conflict -> a seen thread that disappeared is dropped', () => {
+  // a:1 was seen but is gone from the live set now; don't keep stale fingerprints.
+  const seen = nextSeenThreads(new Set(['a:1']), ['b:2'], true);
+  assert.equal(seen.has('a:1'), false);
+  assert.equal(seen.size, 0);
+});
+
+test('nextSeenThreads: deferred thread becomes seen the poll after the conflict clears', () => {
+  // Poll 1 (conflict): b:2 deferred. Poll 2 (clean): b:2 now marked seen.
+  const duringConflict = nextSeenThreads(new Set(), ['b:2'], true);
+  assert.equal(duringConflict.has('b:2'), false);
+  const afterClear = nextSeenThreads(duringConflict, ['b:2'], false);
+  assert.equal(afterClear.has('b:2'), true);
 });
 
 test('inScope: empty/null allowlist -> all PRs in scope', () => {

@@ -1,0 +1,28 @@
+/* App shell + dashboard layout. */
+.app {
+  position: relative;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.column {
+  position: relative;
+  z-index: 1;
+  max-width: var(--col-max);
+  margin: 0 auto;
+  padding: var(--space-9) var(--space-8) 120px; /* 120px off-scale (page bottom gutter) */
+}
+
+.caption {
+  margin-top: var(--space-6);
+  font-size: 13px; /* off-scale */
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-cards);
+  margin-top: var(--space-5);
+}
