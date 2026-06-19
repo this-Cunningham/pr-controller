@@ -2,10 +2,14 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { tagMeta, noActionLabel } from '../meta.js';
+import { DispositionTag } from '../design-system/components/core/DispositionTag.jsx';
 import Button from './Button.jsx';
 import Confirmation from './Confirmation.jsx';
+import { Callout } from '../design-system/components/core/Callout.jsx';
+import { TextButton } from '../design-system/components/core/TextButton.jsx';
+import { TerminalNote } from '../design-system/components/feedback/TerminalNote.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 // react-markdown escapes raw HTML by default (no dangerouslySetInnerHTML), so
 // untrusted reviewer/bot comment bodies can't execute script — safe to render.
@@ -14,30 +18,11 @@ const mdComponents = {
   code: (p) => (
     <code
       {...p}
-      style={{ fontFamily: mono, fontSize: '0.9em', background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 3 }}
+      style={{ fontFamily: mono, fontSize: '0.9em', background: 'var(--surface-2)', padding: '1px 4px', borderRadius: 'var(--radius-chip)' }}
     />
   ),
   p: (p) => <p {...p} style={{ margin: '0 0 6px' }} />,
 };
-
-function TerminalNote({ children }) {
-  return (
-    <div
-      style={{
-        marginTop: 11,
-        fontSize: 12.5,
-        color: 'var(--ink-2)',
-        display: 'flex',
-        gap: 7,
-        alignItems: 'center',
-        animation: 'appear .3s ease',
-      }}
-    >
-      <span style={{ fontFamily: mono, color: 'var(--accent)' }}>›_</span>
-      {children}
-    </div>
-  );
-}
 
 // hash-out: rebuttal textarea + Discuss / Send; resolves to a sent-rebuttal block.
 // The textarea is pre-filled with the worker's suggested reply (Phase 1) when it
@@ -51,19 +36,8 @@ function HashOutControls({ thread, prId, dash }) {
   if (status === 'rebutted') {
     return (
       <>
-        <div
-          style={{
-            marginTop: 11,
-            background: 'var(--surface-2)',
-            borderLeft: '2px solid var(--line-2)',
-            padding: '9px 12px',
-            borderRadius: '0 5px 5px 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink-2)',
-          }}
-        >
-          You: {dash.threadRebuttal(thread.id)}
+        <div style={{ marginTop: 11 }}>
+          <Callout tone="quiet">You: {dash.threadRebuttal(thread.id)}</Callout>
         </div>
         <Confirmation text="✓ Reply posted to the reviewer." fg="var(--auto-fg)" />
       </>
@@ -77,22 +51,9 @@ function HashOutControls({ thread, prId, dash }) {
       )}
 
       {thread.suggestedApproach && (
-        <div
-          style={{
-            marginTop: 11,
-            background: 'var(--auto-bg)',
-            borderLeft: '2px solid var(--auto-fg)',
-            padding: '9px 12px',
-            borderRadius: '0 5px 5px 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink-2)',
-          }}
-        >
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Suggested approach
-          </span>
-          <div style={{ marginTop: 5 }}>{thread.suggestedApproach}</div>
+        <div style={{ marginTop: 11 }}>
+        <Callout tone="agent" eyebrow="Suggested approach">
+          {thread.suggestedApproach}
           <div style={{ marginTop: 9 }}>
             {dispatched ? (
               <span style={{ fontSize: 12.5, color: 'var(--auto-fg)' }}>⟳ The agent is applying this approach…</span>
@@ -104,6 +65,7 @@ function HashOutControls({ thread, prId, dash }) {
               </Button>
             )}
           </div>
+        </Callout>
         </div>
       )}
 
@@ -122,10 +84,10 @@ function HashOutControls({ thread, prId, dash }) {
           marginTop: 11,
           width: '100%',
           resize: 'vertical',
-          font: "13.5px/1.5 'Hanken Grotesk', sans-serif",
+          font: '13.5px/1.5 var(--font-sans)',
           padding: '10px 12px',
           border: '1px solid var(--line-2)',
-          borderRadius: 5,
+          borderRadius: 'var(--radius-card)',
           background: 'var(--surface)',
           color: 'var(--ink)',
         }}
@@ -194,20 +156,7 @@ export default function ThreadRow({ thread, prId, dash }) {
   return (
     <div style={{ padding: '14px 0', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9 }}>
-        <span
-          style={{
-            fontFamily: mono,
-            fontSize: 10.5,
-            letterSpacing: '.07em',
-            textTransform: 'uppercase',
-            padding: '3px 8px',
-            borderRadius: 4,
-            background: meta.bg,
-            color: meta.fg,
-          }}
-        >
-          {meta.label}
-        </span>
+        <DispositionTag tone={meta.tone}>{meta.label}</DispositionTag>
         <span style={{ fontFamily: mono, fontSize: 12, color: 'var(--ink-3)' }}>{thread.loc}</span>
         <span style={{ fontFamily: mono, fontSize: 12, color: 'var(--ink-2)' }}>{thread.author}</span>
       </div>
@@ -230,21 +179,11 @@ export default function ThreadRow({ thread, prId, dash }) {
         </ReactMarkdown>
       </div>
       {isLong && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          style={{
-            marginTop: 4,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            font: "500 12px 'Hanken Grotesk', sans-serif",
-            color: 'var(--ink-2)',
-          }}
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
+        <div style={{ marginTop: 4 }}>
+          <TextButton tone="muted" underline={false} onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Show less' : 'Show more'}
+          </TextButton>
+        </div>
       )}
 
       <div

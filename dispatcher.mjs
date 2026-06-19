@@ -101,8 +101,10 @@ async function maybeDrain(prKey) {
     const wt = await deps.ensureWorktree(pr);
     if (wt.outOfSync) {
       pr.outOfSync = true;
+      deps.markOutOfSync?.(prKey, true);
       console.log(`[dispatch] ${prKey}: branch out of sync, surfacing instead of launching`);
     } else {
+      deps.markOutOfSync?.(prKey, false);  // synced cleanly — clear any prior flag
       const r = await deps.runWorker(pr, drainedThreads, wt.path, outPath, {
         detached: wt.detached, pushRefspec: wt.pushRefspec,
         branchHealth: opts.branchHealth, rebase,

@@ -1,32 +1,9 @@
+import { Badge } from '../design-system/components/core/Badge.jsx';
 import { pillMeta } from '../meta.js';
 
+// PR signal pill ("N auto-fixable", "behind base", "CI failing: …"), rendered
+// with the design-system Badge.
 export default function StatusPill({ pill }) {
   const m = pillMeta[pill.kind] || pillMeta.behind;
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        fontSize: 11.5,
-        padding: '3px 9px',
-        borderRadius: 4,
-        background: m.bg,
-        color: m.fg,
-      }}
-    >
-      {m.dot && (
-        <span
-          style={{
-            width: 5,
-            height: 5,
-            borderRadius: '50%',
-            background: 'currentColor',
-            display: 'inline-block',
-          }}
-        />
-      )}
-      {pill.label}
-    </span>
-  );
+  return <Badge tone={m.tone} dot={m.dot}>{pill.label}</Badge>;
 }

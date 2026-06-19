@@ -2,13 +2,19 @@ import ReviewPill from './ReviewPill.jsx';
 import StatusPill from './StatusPill.jsx';
 import ThreadRow from './ThreadRow.jsx';
 import JiraBanner from './JiraBanner.jsx';
+import Button from './Button.jsx';
+import BranchStatus from './BranchStatus.jsx';
+import { Callout } from '../design-system/components/core/Callout.jsx';
 
-const mono = "'IBM Plex Mono', monospace";
+const mono = 'var(--font-mono)';
 
 export default function PRCard({ pr, needsYou, dash }) {
   const hasThreads = pr.threads.length > 0;
   const showNoThreads = !hasThreads && !pr.jira;
   const working = dash.prWorking ? dash.prWorking(pr.id) : false;
+  // Branch-health "Resolve in terminal" opens a session keyed by the PR id (no
+  // thread). Once opened, swap the CTA for the same ›_ note the thread rows use.
+  const rebaseDiscussing = dash.threadStatus ? dash.threadStatus(pr.id) === 'discussing' : false;
   const stagedCount = dash.stagedFor ? dash.stagedFor(pr.id).length : 0;
 
   return (
@@ -18,9 +24,9 @@ export default function PRCard({ pr, needsYou, dash }) {
         overflow: 'hidden',
         background: 'var(--surface)',
         border: '1px solid var(--line)',
-        borderRadius: 5,
+        borderRadius: 'var(--radius-card)',
         padding: '18px 20px 18px 22px',
-        animation: 'appear .3s ease',
+        animation: 'ws-appear .3s ease',
       }}
     >
       {needsYou && (
@@ -78,53 +84,14 @@ export default function PRCard({ pr, needsYou, dash }) {
       </div>
 
       {pr.surfaced && (
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--accent-bg)',
-            borderLeft: '2px solid var(--accent)',
-            padding: '10px 13px',
-            borderRadius: '0 5px 5px 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink)',
-          }}
-        >
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Agent surfaced
-          </span>
-          <div style={{ marginTop: 5, color: 'var(--ink-2)' }}>{pr.surfaced}</div>
+        <div style={{ marginTop: 12 }}>
+          <Callout tone="urgency" eyebrow="Agent surfaced">{pr.surfaced}</Callout>
         </div>
       )}
 
       {working && (
-        <div
-          style={{
-            marginTop: 12,
-            background: 'var(--auto-bg)',
-            borderLeft: '2px solid var(--auto-fg)',
-            padding: '10px 13px',
-            borderRadius: '0 5px 5px 0',
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: 'var(--ink)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: 'var(--auto-fg)',
-              animation: 'pulse 1.6s ease-in-out infinite',
-            }}
-          />
-          <span style={{ fontFamily: mono, fontSize: 11, color: 'var(--auto-fg)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            Agent working
-          </span>
+        <div style={{ marginTop: 12 }}>
+          <Callout tone="agent" dot pulse eyebrow="Agent working" />
         </div>
       )}
 
@@ -138,52 +105,30 @@ export default function PRCard({ pr, needsYou, dash }) {
 
       {stagedCount > 0 && (
         <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={() => dash.runAgent(pr.id)}
-            style={{
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              font: "600 13px 'Hanken Grotesk', sans-serif",
-              padding: '9px 15px',
-              border: 'none',
-              borderRadius: 7,
-              background: 'var(--accent)',
-              color: '#fff',
-            }}
-          >
-            {working ? `Agent working… (${stagedCount} queued)` : `Run agent (${stagedCount}) →`}
-          </button>
+          <Button variant="primary" disabled={working} onClick={() => dash.runAgent(pr.id)}>
+            {working ? `Agent working… (${stagedCount} queued)` : `Run agent (${stagedCount})`}
+          </Button>
         </div>
       )}
 
       {pr.needsRebase && stagedCount === 0 && (
-        <div style={{ marginTop: 12 }}>
-          {/* If the agent already TRIED the rebase and surfaced it (pr.surfaced),
-              auto-retrying would just bail again — offer an interactive terminal to
-              resolve it by hand. Otherwise offer the one-click agent rebase. */}
-          <button
-            type="button"
-            disabled={working}
-            onClick={() => (pr.surfaced ? dash.discussRebase(pr.id) : dash.rebasePR(pr.id))}
-            style={{
-              cursor: working ? 'default' : 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              font: "600 13px 'Hanken Grotesk', sans-serif",
-              padding: '9px 15px',
-              border: '1px solid var(--accent)',
-              borderRadius: 7,
-              background: 'var(--accent-bg)',
-              color: 'var(--accent)',
-            }}
-          >
-            {working ? '⟳ Rebasing…' : pr.surfaced ? '⌗ Resolve in terminal' : '⤵ Rebase (merge conflict)'}
-          </button>
-        </div>
+        <BranchStatus
+          kind="conflict"
+          surfaced={!!pr.surfaced}
+          working={working}
+          discussing={rebaseDiscussing}
+          onRebase={() => dash.rebasePR(pr.id)}
+          onResolveTerminal={() => dash.discussRebase(pr.id)}
+        />
+      )}
+
+      {pr.outOfSync && !pr.needsRebase && (
+        <BranchStatus
+          kind="outOfSync"
+          working={working}
+          discussing={rebaseDiscussing}
+          onResolveTerminal={() => dash.discussRebase(pr.id)}
+        />
       )}
 
       {hasThreads && (

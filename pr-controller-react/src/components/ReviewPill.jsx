@@ -1,24 +1,8 @@
+import { Badge } from '../design-system/components/core/Badge.jsx';
 import { reviewMeta } from '../meta.js';
 
+// Review-status pill, rendered with the design-system Badge (mono variant).
 export default function ReviewPill({ review }) {
   const m = reviewMeta[review] || reviewMeta.REVIEW_REQUIRED;
-  return (
-    <span
-      style={{
-        flex: 'none',
-        fontFamily: "'IBM Plex Mono', monospace",
-        fontSize: 11,
-        letterSpacing: '.06em',
-        textTransform: 'uppercase',
-        padding: '4px 9px',
-        borderRadius: 4,
-        whiteSpace: 'nowrap',
-        background: m.bg,
-        color: m.fg,
-        border: `1px solid ${m.bd}`,
-      }}
-    >
-      {m.label}
-    </span>
-  );
+  return <Badge tone={m.tone} mono>{m.label}</Badge>;
 }

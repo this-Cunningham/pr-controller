@@ -56,7 +56,7 @@ export default function App() {
         style={{
           position: 'relative',
           zIndex: 1,
-          maxWidth: 900,
+          maxWidth: 'var(--col-max)',
           margin: '0 auto',
           padding: '34px 28px 120px',
         }}

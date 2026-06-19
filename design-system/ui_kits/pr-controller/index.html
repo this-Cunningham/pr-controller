@@ -20,6 +20,7 @@
       const DATA = {
         needs: [
           { id:'pr2412', repo:'acme/web-app', number:2412, title:'Refactor auth middleware to support SSO', review:'REVIEW_REQUIRED', jira:true,
+            branch:{state:'suggested', name:'feature/sso', suggestion:'Keep the early-return guard and move the token-refresh path into a dedicated handler in a follow-up commit.'},
             pills:[['3 auto-fixable','auto'],['behind base','behind'],['CI failing: unit-api','ci']],
             threads:[
               { id:'t1', tag:'hashout', loc:'src/auth/middleware.ts:88', author:'@dana-k', body:'This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.', reason:'Reviewer disputes the change — conflicting intent, your call.' },
@@ -27,6 +28,7 @@
               { id:'t3', tag:'error', loc:'.github/workflows/ci.yml:30', author:'@ci-bot', body:'Step “cache restore” failed to parse — unexpected key “path”.', reason:'Agent couldn’t classify this failure.' },
             ] },
           { id:'pr874', repo:'acme/data-pipeline', number:874, title:'Add backfill job for the events table', review:'DRAFT', jira:false,
+            branch:{state:'out-of-sync', name:'feature/events-backfill', ahead:2, behind:9},
             pills:[['CI failing: lint','ci']],
             threads:[ { id:'t4', tag:'hashout', loc:'jobs/backfill.py:55', author:'@priya', body:'Backfilling synchronously will hold a lock on events for hours in prod. This needs chunking with checkpoints, or a replica. I’d block on this.', reason:'Architectural concern with prod impact — your decision.' } ] },
         ],
@@ -38,6 +40,7 @@
               { id:'t6', tag:'waiting', loc:'CHANGELOG.md:1', author:'@sam', body:'LGTM once the changelog entry lands.', reason:'Waiting on the reviewer.' },
             ] },
           { id:'pr561', repo:'acme/design-system', number:561, title:'Tokenize the spacing scale', review:'REVIEW_REQUIRED', jira:false,
+            branch:{state:'working', name:'ds/spacing-tokens'},
             pills:[['5 auto-fixable','auto'],['behind base','behind']],
             threads:[
               { id:'t7', tag:'agree', loc:'tokens/spacing.json:12', author:'@lee', body:'Base unit should be 4px, not 5.', reason:'Matches the grid — auto-fixing.' },
@@ -91,7 +94,8 @@
           </>);
         }
         if (t.tag === 'agree') {
-          if (status==='approved') return <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Fix approved — applied by the agent. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>;
+          if (status==='approved') return <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Fix approved — staged for the agent. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>;
+          if (status==='applied') return <div style={{marginTop:11,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Applied by the agent.</div>;
           if (status==='skipped') return <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)',animation:'ws-appear .3s ease'}}>Skipped — left for you. <a onClick={()=>set('pending')} style={{color:'var(--accent)',textDecoration:'underline',cursor:'pointer'}}>Undo</a></div>;
           return (<>
             <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}>The agent will apply this fix.</div>
@@ -137,7 +141,41 @@
         );
       }
 
-      function Card({ pr, needsYou, st, setSt, jira, setJira, toast }) {
+      function Callout2({ tone, eyebrow, dot, pulse, children }) {
+        const t = {urgency:{rule:'var(--accent)',bg:'var(--accent-soft)',mark:'var(--accent)'},agent:{rule:'var(--auto-fg)',bg:'var(--auto-bg)',mark:'var(--auto-fg)'},quiet:{rule:'var(--line-2)',bg:'var(--surface-2)',mark:'var(--ink-3)'}}[tone];
+        return <div style={{background:t.bg,borderLeft:'3px solid '+t.rule,borderRadius:'0 5px 5px 0',padding:'12px 14px'}}>
+          {(eyebrow||dot)&&<div style={{display:'flex',alignItems:'center',gap:8,marginBottom:children?7:0}}>{dot&&<span style={{width:8,height:8,borderRadius:'50%',background:t.mark,flex:'none',animation:pulse?'ws-pulse 1.6s ease-in-out infinite':'none'}}/>}{eyebrow&&<span style={{fontFamily:mono,fontSize:11,letterSpacing:'.08em',textTransform:'uppercase',color:t.mark}}>{eyebrow}</span>}</div>}
+          {children&&<div style={{fontSize:13,lineHeight:1.5,color:'var(--ink)'}}>{children}</div>}
+        </div>;
+      }
+
+      function Code({ children }) { return <span style={{fontFamily:mono,fontSize:12.5,color:'var(--ink)'}}>{children}</span>; }
+
+      function BranchBlock({ pr, branchState, setBranchState, toast }) {
+        const b = pr.branch;
+        const state = branchState[pr.id] || b.state;
+        const set = (s)=>setBranchState(p=>({...p,[pr.id]:s}));
+        if (state==='working') return <div style={{marginTop:12}}><Callout2 tone="agent" eyebrow="Agent working" dot pulse>Applying approved changes to <Code>{b.name}</Code>…</Callout2></div>;
+        if (state==='rebased') return <div style={{marginTop:12,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Rebased <Code>{b.name}</Code> onto origin — branch up to date.</div>;
+        if (state==='approach-approved') return <div style={{marginTop:12,fontSize:12.5,color:'var(--auto-fg)',animation:'ws-appear .3s ease'}}>✓ Approach approved — the agent will proceed.</div>;
+        if (state==='suggested') return <div style={{marginTop:12}}><Callout2 tone="quiet" eyebrow="Suggested approach">{b.suggestion}</Callout2><div style={{display:'flex',gap:8,marginTop:9}}><Btn onClick={()=>{set('approach-approved');toast('Approach approved');}}>Approve approach</Btn></div></div>;
+        return <div style={{marginTop:12}}>
+          <Callout2 tone="urgency" eyebrow="Branch out of sync" dot><Code>{b.name}</Code> has diverged from origin — {b.ahead} ahead, {b.behind} behind. The agent couldn’t fast-forward.</Callout2>
+          <div style={{display:'flex',gap:8,marginTop:9,flexWrap:'wrap'}}><Btn onClick={()=>{set('rebased');toast('Rebasing '+b.name+'…');}}>Rebase branch</Btn><Btn v="outline" onClick={()=>{set('resolving');toast('Opening a terminal session…');}}>Resolve in terminal</Btn></div>
+          {state==='resolving' && <div style={{marginTop:11,fontSize:12.5,color:'var(--ink-2)'}}><span style={{fontFamily:mono,color:'var(--accent)'}}>›_</span> Terminal session opened — resolve the conflict there.</div>}
+        </div>;
+      }
+
+      function StagedBar({ st, setSt, toast }) {
+        const ids = Object.keys(st).filter(k=>st[k].status==='approved');
+        if (ids.length===0) return null;
+        return <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:14,flexWrap:'wrap',background:'var(--surface)',border:'1px solid var(--line)',borderRadius:5,padding:'12px 14px',marginBottom:14}}>
+          <span style={{fontSize:13,color:'var(--ink-2)'}}><span style={{color:'var(--ink)',fontWeight:600}}>{ids.length} approval{ids.length===1?'':'s'} staged</span> — ready to apply.</span>
+          <Btn onClick={()=>{ setSt(p=>{const n={...p};ids.forEach(k=>n[k]={status:'applied'});return n;}); toast('Applied '+ids.length+' staged fix'+(ids.length===1?'':'es')); }}>Run agent</Btn>
+        </div>;
+      }
+
+      function Card({ pr, needsYou, st, setSt, jira, setJira, toast, branchState, setBranchState }) {
         const rm = revMeta[pr.review];
         return (
           <div style={{position:'relative',overflow:'hidden',background:'var(--surface)',border:'1px solid var(--line)',borderRadius:5,padding:'18px 20px 18px 22px',animation:'ws-appear .3s ease'}}>
@@ -150,6 +188,7 @@
               <span style={{flex:'none',fontFamily:mono,fontSize:11,letterSpacing:'.06em',textTransform:'uppercase',padding:'4px 9px',borderRadius:4,whiteSpace:'nowrap',background:rm.bg,color:rm.fg,border:'1px solid '+rm.bd}}>{rm.label}</span>
             </div>
             {pr.pills.length>0 && <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:12}}>{pr.pills.map(([label,kind],i)=>{const pm=pillMeta[kind];return <span key={i} style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:11.5,padding:'3px 9px',borderRadius:4,background:pm.bg,color:pm.fg}}>{pm.dot&&<span style={{width:5,height:5,borderRadius:'50%',background:'currentColor'}}/>}{label}</span>;})}</div>}
+            {pr.branch && <BranchBlock pr={pr} branchState={branchState} setBranchState={setBranchState} toast={toast} />}
             {pr.threads.length>0 && <div style={{marginTop:14}}>{pr.threads.map(t=> <ThreadRow key={t.id} t={t} st={st} setSt={setSt} />)}</div>}
             {pr.threads.length===0 && !pr.jira && <div style={{marginTop:14,borderTop:'1px solid var(--line)',paddingTop:13,fontSize:12.5,color:'var(--ink-3)',fontStyle:'italic'}}>No open threads — waiting on the reviewer.</div>}
             {pr.jira && <Jira pr={pr} jira={jira} setJira={setJira} toast={toast} />}
@@ -172,6 +211,7 @@
         const [toastMsg, setToastMsg] = useState(null);
         const [st, setSt] = useState({});
         const [jira, setJira] = useState({});
+        const [branchState, setBranchState] = useState({});
         const tt = useRef();
         useEffect(()=>{ const t=setTimeout(()=>setLoading(false),850); return ()=>clearTimeout(t); },[]);
         const toast = (m)=>{ setToastMsg(m); clearTimeout(tt.current); tt.current=setTimeout(()=>setToastMsg(null),2800); };
@@ -219,7 +259,8 @@
                 <div style={{marginTop:34}}>
                   <div style={{fontSize:13,color:'var(--ink-2)'}}>{active.caption}</div>
                   <div style={{display:'flex',flexDirection:'column',gap:14,marginTop:14}}>
-                    {active.prs.map(pr=> <Card key={pr.id} pr={pr} needsYou={active.needsYou} st={st} setSt={setSt} jira={jira} setJira={setJira} toast={toast} />)}
+                    <StagedBar st={st} setSt={setSt} toast={toast} />
+                    {active.prs.map(pr=> <Card key={pr.id} pr={pr} needsYou={active.needsYou} st={st} setSt={setSt} jira={jira} setJira={setJira} toast={toast} branchState={branchState} setBranchState={setBranchState} />)}
                   </div>
                 </div>
               </>

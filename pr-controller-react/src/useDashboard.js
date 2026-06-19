@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adaptState } from './adapt.js';
+import { MOCK_STATE } from './mockState.js';
+
+// `?mock` (or `?mock=1`) loads a static state.json-shaped fixture through the
+// real adaptState pipeline instead of hitting the backend — for validating every
+// design state without a live PR. No network, no SSE.
+const MOCK = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mock');
 
 // Central dashboard state + actions.
 //
@@ -81,6 +87,7 @@ export function useDashboard(seed = null) {
 
   const fetchState = useCallback(async () => {
     if (seeded) return;
+    if (MOCK) { applyState(adaptState(MOCK_STATE)); return; }
     try {
       const r = await fetch('/state.json');
       applyState(adaptState(await r.json()));
@@ -97,6 +104,8 @@ export function useDashboard(seed = null) {
       await fetchState();
       if (alive) setLoading(false);
     })();
+    // Mock mode is static — no polling, no SSE (there's no backend).
+    if (MOCK) return () => { alive = false; };
     // 60s poll stays as a fallback when the SSE stream is unavailable.
     const id = setInterval(fetchState, POLL_MS);
 
@@ -197,28 +206,41 @@ export function useDashboard(seed = null) {
   // interactive terminal in the worktree to resolve it by hand instead. No threadId.
   const discussRebase = useCallback(
     async (prId) => {
+      // Show the "›_ Terminal session opened…" note in the card immediately on
+      // click (same instant feedback as the thread-level Discuss). Branch-health
+      // has no threadId, so we key the overlay by the PR id itself. Revert only
+      // if a real dispatch fails.
+      setThread(prId, { status: 'discussing' });
       showToast('Opening a terminal session…');
+      if (seeded) return;
       const res = await postDecision({ action: 'discuss', prKey: prId });
-      if (!res?.spawn?.spawned) showToast(res?.spawn?.reason || 'Could not open a terminal session');
+      if (!res?.spawn?.spawned) {
+        setThread(prId, { status: 'pending' });
+        showToast(res?.spawn?.reason || 'Could not open a terminal session');
+      }
     },
-    [showToast]
+    [seeded, setThread, showToast]
   );
 
   const discuss = useCallback(
     async (id) => {
+      // Show the "›_ Terminal session opened…" note immediately on click (instant
+      // feedback, matching the design system) rather than waiting for the backend
+      // round-trip. Revert only if a real dispatch actually fails.
+      setThread(id, { status: 'discussing' });
       showToast('Opening a terminal session…');
+      if (seeded) return;
       const res = await postDecision({
         action: 'discuss',
         prKey: threadToPr.current.get(id),
         threadId: id,
       });
-      if (res?.spawn?.spawned) {
-        setThread(id, { status: 'discussing' });
-      } else {
+      if (!res?.spawn?.spawned) {
+        setThread(id, { status: 'pending' });
         showToast(res?.spawn?.reason || 'Could not open a terminal session');
       }
     },
-    [setThread, showToast]
+    [seeded, setThread, showToast]
   );
 
   const sendRebuttal = useCallback(

@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 // React app can fetch /state.json and POST /decision and /poll during `npm run dev`.
 // In production the built dist/ is served directly by server.mjs (same origin),
 // so no proxy is needed there.
+//
+// The Wabi-Sabi design system is vendored into the app (src/design-system/) and
+// imported with normal relative paths — no alias or out-of-root file access.
 export default {
   plugins: [react()],
   server: {
