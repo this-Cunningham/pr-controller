@@ -4,6 +4,3 @@ worktrees/
 node_modules/
 *.log
 .DS_Store
-
-# Design-system source drops (vendored into pr-controller-react/src/design-system)
-pr-controller-wabi-sabi*/
