@@ -1,0 +1,41 @@
+/* Header scope badge — which PRs the agent watches. data-scope switches
+   between the accent "scoped" pill and the calm "watching all" pill. */
+.btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px var(--space-4); /* 5px off-scale */
+  border-radius: var(--radius-round);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.pill[data-scope="scoped"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+.pill[data-scope="all"] {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: var(--weight-medium);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot[data-scope="scoped"] {
+  border: 1.5px solid var(--accent);
+}
+.dot[data-scope="all"] {
+  background: var(--auto-fg);
+}

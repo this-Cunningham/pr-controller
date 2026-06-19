@@ -34,7 +34,7 @@ decide) and decisions.
 ## Dispatch — when a worker runs
 A worker is dispatched for a PR when, since the last poll, EITHER:
 - a review thread is new/changed AND is **dispatchable**, OR
-- branch health changed AND there is health work (behind-base when approved, or
+- branch health changed AND there is health work (a real merge conflict, or
   failing code CI).
 
 **Dispatchable thread [tested]** (`dispatchable`): a thread dispatches unless the
@@ -144,8 +144,11 @@ something as a question is not by itself a reason to surface.
     its approval. Clean rebase → push `--force-with-lease`; non-trivial conflicts →
     surface, never guess. The manual **Rebase** CTA (`/decision {action:'rebase'}`)
     is kept as a redundant manual re-trigger.
-  - `rebaseAllowed` (approval-gated) is retained only for the informational
-    "behind base" pill; it no longer triggers an automatic rebase.
+  - The informational "behind base" pill (`isBehindBase`: branch BEHIND or
+    CONFLICTING/DIRTY) is NOT approval-gated — it's a fact about the branch
+    regardless of review state. (The old `rebaseAllowed`, which gated this on
+    APPROVED, is removed — a leftover from when the pill meant "the agent may now
+    auto-rebase". Rebasing is driven by the conflict, not approval.)
 
 ## Worktrees & git safety
 - Reuse the user's existing local clones, discovered under `~/cargurus` by git

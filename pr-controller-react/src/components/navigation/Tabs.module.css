@@ -1,0 +1,52 @@
+/* Sticky section tabs with count chips. Active tab carries an accent
+   underline; a tab can emphasize its count (accent chip). */
+.bar {
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin-top: 6px; /* off-scale */
+  padding-top: 8px; /* off-scale */
+}
+.bar[data-sticky="true"] {
+  position: sticky;
+}
+.bar[data-sticky="false"] {
+  position: static;
+}
+
+.tab {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-5) 0;
+  margin-right: 26px; /* off-scale */
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px; /* off-scale */
+  font: var(--weight-semibold) var(--text-tab) var(--font-sans);
+  color: var(--ink-2);
+  border-bottom: 2px solid transparent;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[data-active="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.chip {
+  font: var(--weight-medium) var(--text-pill) var(--font-mono);
+  padding: 1px 8px; /* 8px off-scale */
+  border-radius: var(--radius-round);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.chip[data-accent="true"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+}

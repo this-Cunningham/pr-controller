@@ -134,45 +134,60 @@ export function needsJira(title, complianceChecks, pattern = config.jiraPattern)
   return (complianceChecks || []).length > 0 && !hasJira;
 }
 
-// Rebase only once approved — don't churn the branch while still under review.
-// Still used for the informational "behind base" pill; rebase itself is no longer
-// auto-dispatched (it would silently dismiss approvals — see needsRebase).
-export function rebaseAllowed(reviewDecision, mergeState, mergeable) {
-  if (reviewDecision !== 'APPROVED') return false;
+// Is the branch out of date with its base (behind, or conflicting/dirty)? Drives the
+// informational "behind base" pill.
+export function isBehindBase(mergeState, mergeable) {
   return mergeState === 'BEHIND' || mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
 }
 
-// Does the branch have a genuine merge CONFLICT (not merely behind base)? Not
-// gated on approval — a conflict blocks merge regardless. When there's other work
-// this run (feedback/CI), the worker rebases as part of it (the branch is changing
-// anyway). When there's NOTHING else to do, we do NOT auto-spin a worker just to
-// rebase (that would force-push and dismiss reviews on a quiet PR) — instead the
-// dashboard shows a manual "Rebase" CTA. See server.poll / decision 'rebase'.
+// Does the branch have a genuine merge CONFLICT (not merely behind base)? A conflict
+// blocks merge regardless, so it drives a rebase-only worker run (see dispatchDecision
+// / server.poll). Until it clears, review threads on the PR are deferred.
 export function needsRebase(mergeState, mergeable) {
   return mergeable === 'CONFLICTING' || mergeState === 'DIRTY';
 }
 
 // Decide what (if anything) to dispatch for a PR on a poll, given the diff since
-// the last poll. Pure: returns a plan; server.poll() executes it. Extracted from
-// poll() so the dispatch rules — including Phase E's idle-conflict auto-rebase —
-// are locked by tests instead of buried in I/O.
-//   { kind: 'feedback', rebaseOnConflict } -> enqueue(pr, newThreads, {rebaseOnConflict})
-//   { kind: 'rebase' }                     -> enqueueRebase(pr)  (idle conflict, Phase E)
-//   { kind: 'none' }                       -> do nothing this poll
-// Rules:
-//  - Dispatch a feedback/CI run only when there's work AND something CHANGED this
-//    poll (new threads, or health changed) — a CI failure we already saw doesn't
-//    re-spin. A conflict present alongside that work folds in (rebaseOnConflict).
-//  - Otherwise, an idle merge conflict (nothing else to do) auto-rebases, but only
-//    when health changed — so the same standing conflict isn't re-dispatched every
-//    poll (it would force-push in a loop).
+// the last poll. Pure: returns a plan; server.poll() executes it. Locked by tests.
+//   { kind: 'rebase' }   -> enqueueRebase(pr)        (resolve the conflict, NO threads)
+//   { kind: 'feedback' } -> enqueue(pr, newThreads)  (threads/CI only, branch is clean)
+//   { kind: 'none' }     -> do nothing this poll
+//
+// A real merge CONFLICT and reviewer-feedback are handled as SEPARATE runs, never
+// bundled. Rationale: a worker told to both rebase AND judge threads, that then bails
+// on an unresolvable rebase, used to strand the threads un-judged (they were marked
+// seen but never got a verdict — the PR hung on "Agent working"). So:
+//  - CONFLICT WINS. While a real conflict exists, the ONLY thing we dispatch is a
+//    rebase-only run — never feedback. If that rebase bails, the worker surfaces it;
+//    poll() defers the threads (does not mark them seen) so they wait for the conflict
+//    to clear. The rebase is gated on healthChanged so a standing/surfaced conflict
+//    isn't re-attempted every poll (it can't auto-resolve until the user acts / base
+//    moves).
+//  - NO CONFLICT -> normal feedback path: dispatch threads/CI only when there's work
+//    AND something changed this poll (new threads, or health changed). Feedback runs
+//    NEVER rebase — the branch is already mergeable.
 export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false }) {
+  if (needsRebase)
+    return healthChanged ? { kind: 'rebase' } : { kind: 'none' };
   const workToDo = newThreadCount > 0 || ciFailing;
   if (workToDo && (newThreadCount > 0 || healthChanged))
-    return { kind: 'feedback', rebaseOnConflict: !!needsRebase };
-  if (needsRebase && healthChanged)
-    return { kind: 'rebase' };
+    return { kind: 'feedback' };
   return { kind: 'none' };
+}
+
+// Which thread fingerprints should be marked "seen" after this poll. A thread is
+// "seen" once a worker has actually been handed it. Normally that's every live
+// thread. But while a real merge CONFLICT blocks the PR, we dispatch a rebase-ONLY
+// run (no threads), so marking threads seen now would strand them un-judged (the
+// "Agent working" hang). So during a conflict we DEFER: keep the prior seen set
+// (minus threads that have since disappeared) so today's still-new threads stay
+// "new" and dispatch as a feedback run the first poll AFTER the conflict clears.
+// Pure so server.poll()'s deferral is locked by tests. `prevSeen`/`liveFps` are
+// arrays/iterables of thread fingerprints; returns a Set.
+export function nextSeenThreads(prevSeen, liveFps, needsRebase) {
+  const live = new Set(liveFps);
+  if (needsRebase) return new Set([...prevSeen].filter((fp) => live.has(fp)));
+  return live;
 }
 
 // Scope gate: is this PR in the allowlist? An empty/null `onlyPRs` means no scope

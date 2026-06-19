@@ -1,0 +1,53 @@
+/* Dashboard header — wordmark, scope badge, stats, controls. */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-7);
+  padding-bottom: var(--space-7);
+  border-bottom: 1px solid var(--line);
+}
+
+.main {
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-wordmark);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.stats {
+  margin-top: 11px; /* off-scale */
+  font-size: 13px; /* off-scale */
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+.statNeed {
+  color: var(--accent);
+}
+
+.controls {
+  flex: none;
+  display: flex;
+  gap: 8px; /* off-scale */
+  align-items: center;
+}
+
+.refreshIcon {
+  font-size: 15px; /* off-scale */
+  display: inline-block;
+  margin-right: 8px; /* off-scale */
+}

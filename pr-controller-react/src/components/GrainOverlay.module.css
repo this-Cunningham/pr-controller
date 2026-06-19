@@ -1,0 +1,10 @@
+/* Decorative paper-grain overlay (Wabi-sabi texture). Fixed,
+   non-interactive, behind the content column. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+}

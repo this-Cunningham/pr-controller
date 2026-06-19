@@ -1,26 +1,17 @@
 /* ============================================================
    PR Controller — app stylesheet entry point.
 
-   The Wabi-Sabi design system is vendored into the app at
-   ./design-system (canonical source: ../../design-system). We import
-   its global entry — tokens (colors, typography, spacing, effects,
-   fonts) + resets + keyframes — and add ONLY the app-specific CSS
-   hover/focus helpers below. No colors, sizes, or keyframes are
-   redefined here; they all resolve against the design-system tokens.
+   Design system tokens (from DESIGN_SYSTEM_SOURCE_OF_TRUTH, integrated
+   into the app under ./tokens): webfonts + colors + typography + spacing
+   + effects + base resets/keyframes. Components style themselves with the
+   var(--*) custom properties these define; nothing is redefined here.
 
    Theme is selected via <html data-theme="…"> (see index.html);
    the system ships locked to stone · dark.
    ============================================================ */
-@import './design-system/styles.css';
-
-/* Interactive states. The design-system primitives (Button, Tabs, …) carry their
-   own hover behavior inline; these classes cover only the app-specific controls
-   that aren't design-system components — the PR permalink and the text inputs. */
-.input:focus {
-  border-color: var(--accent);
-  outline: none;
-}
-.pr-link:hover {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
+@import './tokens/fonts.css';
+@import './tokens/colors.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/effects.css';
+@import './tokens/base.css';

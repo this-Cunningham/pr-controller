@@ -1,0 +1,48 @@
+/* PR-level branch health. The surfaced/outofsync states share a box. */
+.box {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-bg);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) var(--space-5);
+}
+
+.head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.mark {
+  color: var(--accent);
+  font-size: var(--text-meta);
+  line-height: var(--leading-body);
+  flex: none;
+}
+
+.line {
+  font-size: 13px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
+
+.detailsToggle {
+  margin-top: var(--space-3);
+}
+
+.details {
+  margin-top: var(--space-2);
+  font-size: var(--text-caption);
+  line-height: 1.55; /* off-scale */
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-card);
+  padding: var(--space-3) 11px; /* 11px off-scale */
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px; /* off-scale */
+  margin-top: 11px; /* off-scale */
+  align-items: center;
+}

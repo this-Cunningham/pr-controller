@@ -1,0 +1,41 @@
+/* Inline live-status row: a pulsing dot + a line of text on ONE row, on a
+   tinted ground. Distinct from Callout (a left-ruled header/body box).
+   Two tones via data-align: agent-working (center) and conflict (top). */
+.line {
+  display: flex;
+  gap: var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+}
+.line[data-tone="agent"] {
+  background: var(--auto-bg);
+  color: var(--auto-fg);
+}
+.line[data-tone="accent"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.line[data-tone="ochre"] {
+  background: var(--err-bg);
+  color: var(--err-fg);
+}
+.line[data-align="center"] {
+  align-items: center;
+  padding: var(--space-3) var(--space-4); /* 9px 12px */
+}
+.line[data-align="top"] {
+  align-items: flex-start;
+  padding: 11px 13px; /* off-scale */
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.line[data-align="top"] .dot {
+  margin-top: 5px; /* off-scale */
+}

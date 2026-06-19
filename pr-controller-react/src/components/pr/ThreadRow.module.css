@@ -1,0 +1,149 @@
+/* One reviewer comment thread. Static styling here; nothing dynamic. */
+.row {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--line);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.loc {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+}
+.author {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-2);
+}
+
+.body {
+  margin-top: var(--space-3);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.body[data-clamp="true"] {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.showMore {
+  margin-top: var(--space-1);
+}
+
+.reason {
+  margin-top: var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.reasonArrow {
+  color: var(--ink-3);
+}
+.reasonSummary {
+  flex: 1;
+  min-width: 140px;
+}
+.reasonToggle {
+  flex: none;
+}
+.reasonFull {
+  margin-top: var(--space-2);
+  margin-left: var(--space-5);
+  font-size: var(--text-caption);
+  line-height: 1.55; /* off-scale */
+  color: var(--ink-2);
+  font-style: italic;
+  border-left: 2px solid var(--line-2);
+  padding-left: 11px; /* off-scale */
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px; /* off-scale: card ref uses 10px, not --text-eyebrow 11px */
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.approachCard {
+  margin-top: var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) 13px; /* 13px off-scale */
+}
+.approachEyebrow {
+  margin-bottom: var(--space-2);
+}
+.approachText {
+  font-size: 13.5px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.approveRow {
+  margin-top: 11px; /* off-scale */
+}
+
+.replyQuote {
+  margin-top: 11px; /* off-scale */
+  background: var(--surface-2);
+  border-left: 2px solid var(--line-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+  font-size: 13px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+}
+.replyEyebrow {
+  margin-top: var(--space-4);
+}
+.replyInput {
+  margin-top: var(--space-2);
+  width: 100%;
+  resize: vertical;
+  font: 13.5px/1.5 var(--font-sans); /* 13.5 off-scale */
+  padding: 10px var(--space-4); /* 10px off-scale */
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  color: var(--ink);
+}
+.sendRow {
+  margin-top: var(--space-3);
+}
+
+.actionRow {
+  margin-top: 10px; /* off-scale */
+  display: flex;
+  align-items: center;
+  gap: 10px; /* off-scale */
+  flex-wrap: wrap;
+}
+.errorRow {
+  margin-top: 11px; /* off-scale */
+  display: flex;
+  align-items: center;
+  gap: 10px; /* off-scale */
+  flex-wrap: wrap;
+}
+
+.noAction {
+  margin-top: 10px; /* off-scale */
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+  font-style: italic;
+}
