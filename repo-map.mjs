@@ -26,7 +26,9 @@ async function findClones(dir, depth, maxDepth, out) {
       try {
         const { stdout } = await exec('git', ['-C', sub, 'remote', 'get-url', 'origin']);
         const slug = repoSlug(stdout);
-        if (slug?.startsWith(`${config.owner}/`)) out.push({ slug, path: sub, depth });
+        // Map EVERY local clone by its full owner/repo slug, not just config.owner's —
+        // a PR from another org must be able to find its local clone (cross-org).
+        if (slug) out.push({ slug, path: sub, depth });
       } catch {}
     }
     if (depth < maxDepth) await findClones(sub, depth + 1, maxDepth, out);
@@ -52,6 +54,8 @@ export async function loadRepoMap() {
 
 // For a PR, return the local clone path if we have one, else null (=> clone fallback).
 export function localCloneFor(map, pr) {
-  const slug = `${config.owner}/${pr.repo}`;
+  // Use the PR's OWN owner/repo (cross-org safe), not the global config.owner —
+  // otherwise a PR from another org never matches its local clone.
+  const slug = pr.nameWithOwner || `${config.owner}/${pr.repo}`;
   return map[slug]?.path || null;
 }

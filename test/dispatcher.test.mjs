@@ -1,6 +1,6 @@
-// Locks the dispatcher's rebase-only path that Phase E (auto-rebase idle
-// conflicts) depends on: an enqueueRebase with NO threads must still fire one
-// worker run with rebase:true. Deps are injected, so no real git/worker spawns.
+// Locks the dispatcher's rebase-only path for auto-rebasing idle conflicts: an
+// enqueueRebase with NO threads must still fire one worker run with rebase:true.
+// Deps are injected, so no real git/worker spawns.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as dispatcher from '../dispatcher.mjs';

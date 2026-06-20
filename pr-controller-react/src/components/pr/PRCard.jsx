@@ -14,33 +14,32 @@ const REVIEW = {
 };
 const PILL_TONE = { behind: "neutral", ci: "accent" };
 
-/** Disposition tag → tab, and branch kind → tab. praise routes nowhere. */
-export const TAG_TAB = { input: "needs", error: "needs", pending: "progress", fixed: "waiting", waiting: "waiting", praise: null };
-export const BRANCH_TAB = { conflict: "progress", surfaced: "needs", outofsync: "needs" };
-
-/** Does this PR have at least one item routing to `tab`? */
-export function prInTab(pr, tab) {
-  const hasThread = (pr.threads || []).some((t) => TAG_TAB[t.tag] === tab);
-  const hasBranch = pr.branch && BRANCH_TAB[pr.branch.kind] === tab;
-  const hasJira = !!pr.jira && tab === "needs";
-  return hasThread || hasBranch || hasJira;
-}
-
 /**
- * The repeating PR unit, rendered for ONE tab. The unit is the ITEM, so a
- * single PR can appear in several tabs — each instance shows only the
- * slice that routes to `tab`. Emphasis (accent rule + seal) is the
- * Needs-you treatment only; the same PR is calm elsewhere.
+ * The repeating PR unit, rendered for ONE lane. The daemon owns routing: it
+ * decides this PR belongs in this lane and hands the card the exact `items` to
+ * show here (server placements). The card is a PURE RENDERER — it never filters,
+ * routes, or reorders. A PR can appear in several lanes, each as its own card with
+ * its own slice of items. Emphasis (accent rule + seal) is the Needs-you treatment
+ * only; the same PR is calm elsewhere.
+ *
+ * `items` is an ordered list, each one of:
+ *   { kind: 'agentWorking', text, tone?, pulse? }   ambient "agent working" line
+ *   { kind: 'branch', branch:{ kind, details? } }   branch health (surfaced/outofsync/conflict)
+ *   { kind: 'thread', thread }                       a reviewer comment thread (DS Thread shape)
+ *   { kind: 'jira' }                                 missing-ticket compliance banner
  */
-export function PRCard({ pr, tab = "needs", controller }) {
+export function PRCard({ pr, lane = "needs", items = [], controller }) {
   const review = REVIEW[pr.review] || REVIEW.REVIEW_REQUIRED;
-  const needsYou = tab === "needs";
-  const agentWorking = tab === "progress";
-  const threads = (pr.threads || []).filter((t) => TAG_TAB[t.tag] === tab);
-  const branchShown = pr.branch && BRANCH_TAB[pr.branch.kind] === tab;
-  const jiraShown = !!pr.jira && tab === "needs";
+  const needsYou = lane === "needs";
   const staged = needsYou ? controller.stagedCount(pr.id) : 0;
-  const showNoThreads = threads.length === 0 && !branchShown && !jiraShown && !agentWorking;
+
+  // Bucket by kind for the canonical visual order (status → branch → threads →
+  // jira). Membership and ordering within a kind are already decided upstream.
+  const statusItems = items.filter((it) => it.kind === "agentWorking");
+  const branchItems = items.filter((it) => it.kind === "branch");
+  const threadItems = items.filter((it) => it.kind === "thread");
+  const hasJira = items.some((it) => it.kind === "jira");
+  const isEmpty = items.length === 0;
 
   return (
     <div className={`${styles.card} ws-appear`}>
@@ -69,39 +68,39 @@ export function PRCard({ pr, tab = "needs", controller }) {
         </div>
       )}
 
-      {agentWorking && pr.progress && (
-        <div className={styles.section}>
-          <StatusLine align="center" tone={pr.progress.tone} pulse={pr.progress.pulse}>{pr.progress.text}</StatusLine>
+      {statusItems.map((it, i) => (
+        <div key={`status-${i}`} className={styles.section}>
+          <StatusLine align="center" tone={it.tone || "agent"} pulse={it.pulse !== false}>{it.text}</StatusLine>
         </div>
-      )}
+      ))}
 
-      {branchShown && (
-        <div className={styles.section}>
+      {branchItems.map((it, i) => (
+        <div key={`branch-${i}`} className={styles.section}>
           <BranchStatus
-            state={pr.branch.kind}
-            detail={pr.branch.detail}
-            details={pr.branch.details}
+            state={it.branch.kind}
+            detail={it.branch.detail}
+            details={it.branch.details}
             detailsOpen={controller.branchDetailsOpen(pr.id)}
             onToggleDetails={() => controller.toggleBranchDetails(pr.id)}
             terminalOpen={controller.branchTerminalOpen(pr.id)}
             onTerminal={() => controller.branchTerminal(pr.id)}
           />
         </div>
-      )}
+      ))}
 
-      {threads.length > 0 && (
+      {threadItems.length > 0 && (
         <div className={styles.threads}>
-          {threads.map((t) => (
-            <ThreadRow key={t.id} thread={t} controller={controller} />
+          {threadItems.map((it) => (
+            <ThreadRow key={it.thread.id} thread={it.thread} controller={controller} />
           ))}
         </div>
       )}
 
-      {showNoThreads && (
+      {hasJira && <JiraBanner pr={pr} controller={controller} />}
+
+      {isEmpty && (
         <div className={styles.noThreads}>No open threads — waiting on the reviewer.</div>
       )}
-
-      {jiraShown && <JiraBanner pr={pr} controller={controller} />}
 
       {needsYou && staged > 0 && (
         <div className={styles.staged}>

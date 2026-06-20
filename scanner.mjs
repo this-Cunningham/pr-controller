@@ -53,6 +53,7 @@ query($owner:String!, $name:String!, $num:Int!) {
     pullRequest(number:$num) {
       reviewDecision
       headRefName
+      baseRefName
       mergeable
       mergeStateStatus
       commits(last:1) {
@@ -78,12 +79,19 @@ query($owner:String!, $name:String!, $num:Int!) {
   }
 }`;
 
-export async function fetchThreads(repo, num) {
+export async function fetchThreads(nameWithOwner, num) {
+  // Derive owner/name from the PR's OWN "owner/repo" (from search), not the global
+  // config.owner — otherwise any PR from another org enriches against the wrong
+  // owner and every thread degrades to {error}. Falls back to config.owner if only
+  // a bare repo name was passed (defensive; all live callers pass nameWithOwner).
+  const [owner, name] = String(nameWithOwner).includes('/')
+    ? nameWithOwner.split('/')
+    : [config.owner, nameWithOwner];
   const out = await gh([
     'api', 'graphql',
     '-f', `query=${THREADS_QUERY}`,
-    '-F', `owner=${config.owner}`,
-    '-F', `name=${repo}`,
+    '-F', `owner=${owner}`,
+    '-F', `name=${name}`,
     '-F', `num=${num}`,
   ]);
   const pr = JSON.parse(out).data.repository.pullRequest;
@@ -125,7 +133,7 @@ export async function fetchThreads(repo, num) {
     failingChecks,                      // code CI — worker fixes
     complianceChecks,                   // needs your input (e.g. JIRA ticket)
   };
-  return { reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, branchHealth, threads };
+  return { reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
 }
 
 // Enrich one PR (from listOpenPRs) with threads + branch health. Shared by
@@ -133,18 +141,20 @@ export async function fetchThreads(repo, num) {
 export async function scanOne(pr) {
   let reviewDecision = 'NONE';
   let headRefName = null;
+  let baseRefName = null;
   let branchHealth = null;
   let threads = [];
   try {
-    const r = await fetchThreads(pr.repo, pr.number);
+    const r = await fetchThreads(pr.nameWithOwner, pr.number);
     reviewDecision = r.reviewDecision || 'NONE';
     headRefName = r.headRefName;
+    baseRefName = r.baseRefName;
     branchHealth = r.branchHealth;
     threads = r.threads;
   } catch (e) {
     threads = [{ error: String(e).slice(0, 200) }];
   }
-  return { ...pr, reviewDecision, headRefName, branchHealth, threads };
+  return { ...pr, reviewDecision, headRefName, baseRefName, branchHealth, threads };
 }
 
 // Look up a single open in-scope PR by "repo#number" and enrich it. Returns null

@@ -1,8 +1,8 @@
 // Per-PR worker dispatch: lock + pending set + auto-fire coalescing drain.
 //
-// Why this exists: poll() used to ensureWorktree()+runWorker() inline and block
-// the whole poll. With live status (SSE) and the user's "Run agent" (Phase 2),
-// dispatches must run out-of-band AND be serialized per PR — two `claude -p`
+// Why this exists: worker dispatch must run out-of-band (a `claude -p` run can take
+// minutes, and the poll + the user's "Run agent" action must not block on it) AND be
+// serialized per PR — two `claude -p`
 // against the same session UUID + worktree would corrupt both. This module owns
 // that serialization.
 //
@@ -63,7 +63,7 @@ export function enqueueRebase(pr, opts = {}) {
   maybeDrain(prKey);
 }
 
-// User-approved approaches (Phase 2): resolve threadIds against the PR's current
+// User-approved approaches: resolve threadIds against the PR's current
 // threads, stage them as apply-approved, and (auto-)fire on the next free slot.
 export function enqueueApproved(pr, threadIds, opts = {}) {
   const prKey = `${pr.repo}#${pr.number}`;

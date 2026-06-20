@@ -14,7 +14,7 @@ them from a prior round may be stale. If the dispatcher reports the branch could
 not fast-forward (divergence/force-push), it surfaces the PR for you and does not
 launch a worker, so you never operate on an out-of-sync tree.
 
-## Default disposition
+## Default stance — agree and fix
 **Agree and fix.** Most review feedback is correct. For each unresolved thread,
 the DEFAULT action is: make the change, commit it, and (when allowed) reply
 `fixed`. Lowercase, exactly `fixed`, nothing else.

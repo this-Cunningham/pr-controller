@@ -43,8 +43,8 @@ async function recordSeenSha(prKey, worktreePath) {
 
 // Read back the last worker run's result JSON for a PR (the file the worker was
 // told to write). Null if absent/unparseable. The file is model-written and not
-// schema-enforced, so we validate the shape Phase 0 depends on and log any drift
-// (bad/renamed fields) loudly — otherwise threads silently fall to "pending".
+// schema-enforced, so we validate the shape deriveRecord depends on and log any drift
+// (bad/renamed fields) loudly — otherwise threads silently fall to the notYetReviewed disposition.
 // Malformed individual actions are dropped; the rest of the result still merges.
 export async function readWorkerResult(outPath) {
   let raw;
@@ -102,11 +102,16 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   }
 
   const bh = opts.branchHealth || {};
+  // The PR's base branch (from the scan). The worker MUST rebase onto the REMOTE
+  // base (origin/<base>), not a local ref — the long-lived clone's local base
+  // branch lags origin, so `git rebase main` rebases onto a stale base and misses
+  // the real conflict GitHub reports. Default to main only if the scan lacked it.
+  const base = pr.baseRefName || 'main';
   const healthBlock = (bh.mergeState || bh.checkState)
     ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
       + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
       + (opts.rebase
-        ? `\nREBASE this run: YES — the branch has a merge conflict. Rebase onto the updated base and resolve conflicts; if it applies cleanly, push with --force-with-lease. If the conflicts are NOT trivial to resolve safely, STOP and surface it (branchHealth.surfaced) — do not guess through a messy merge.`
+        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git fetch origin ${base}\`, then \`git rebase origin/${base}\` — rebase onto the REMOTE base, NOT a local ref (your local ${base} may be stale and would hide the conflict). Resolve conflicts; if it applies cleanly, push with --force-with-lease. If the conflicts are NOT trivial to resolve safely, STOP and surface it (branchHealth.surfaced) — do not guess through a messy merge.`
         : `\nREBASE this run: NO — do not rebase; only fix CI if it's caused by your changes.`)
     : '';
   const threadsHeading = opts.applyApproved

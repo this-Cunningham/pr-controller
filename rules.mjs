@@ -16,7 +16,7 @@ export const DEBUG_REVIEWER = 'claude-debug-reviewer';
 // if a different person reviewed the PR. When the latest comment is YOURS and has
 // the token, re-attribute lastAuthor (and author, if you also opened the thread) to
 // DEBUG_REVIEWER. Pure: returns a new thread (or the same one untouched). Applied in
-// the scanner so EVERY downstream consumer (dispatchable, deriveTier, the UI author
+// the scanner so EVERY downstream consumer (dispatchable, deriveDisposition, the UI author
 // line) sees the simulated reviewer. Remove with the rest of the debug path.
 export function applyDebugReviewer(thread, login = config.login, debugToken = config.debugToken) {
   if (!debugToken || !thread || thread.error) return thread;
@@ -43,10 +43,10 @@ export function dispatchable(thread, login = config.login, token = config.trigge
 // The three responses the worker may record per thread (worker-prompt §taxonomy).
 export const WORKER_RESPONSES = ['fix', 'praise', 'surface'];
 
-// Validate the worker's result JSON against the shape Phase 0 depends on. The
+// Validate the worker's result JSON against the shape the derivation depends on. The
 // file is written by the model (free-form), so its shape isn't guaranteed — a
 // drifted result (renamed field, fenced JSON, missing actions) would silently
-// fall threads through to "pending". This catches that. Returns the sanitized
+// fall threads through to the notYetReviewed disposition. This catches that. Returns the sanitized
 // result plus a list of human-readable `problems`; `result` is null when the
 // payload is unusable. Drops individual malformed actions rather than rejecting
 // the whole file, so one bad entry doesn't lose every verdict.
@@ -79,31 +79,44 @@ export function validateWorkerResult(raw) {
 
 // Derive a thread's DISPOSITION from the WORKER's verdict (its code-grounded
 // `response`), falling back to who-spoke-last when the worker hasn't judged it.
-// This replaces the keyword `preClassify` heuristic — the worker actually reads
-// the code, so its verdict is the source of truth. `action` is the matching entry
-// from the worker result JSON's `actions[]` (or undefined if none yet).
+// The worker reads the actual code, so its `response` is the source of truth for a
+// thread's disposition. `action` is the matching entry from the worker result
+// JSON's `actions[]` (or undefined if none yet).
 //
-// The disposition vocabulary is shared end-to-end (backend `tier` === frontend
-// `tag`); per-item tab routing keys off these names:
+// Each disposition name below is routed to a lane by placements.mjs
+// (LANE_OF_DISPOSITION); the client maps it to a DS tag for styling only. The verdicts:
 //   surface              -> needsYourApproval  (Needs you; reason is code-cited)
 //   fix                  -> agentAutoFixed      (Waiting; agent changed code, replied `fixed`)
 //   praise               -> agentAcknowledged   (never shown; agent reacted 🎉, no code)
 //   no verdict, we last  -> awaitingReviewer    (Waiting; we replied, ball is the reviewer's)
 //   no verdict, them last-> notYetReviewed       (In progress; worker hasn't judged yet)
 //   thread error         -> agentError          (Needs you)
-export function deriveTier(thread, action, login = config.login) {
-  if (thread.error) return { tier: 'agentError', reason: thread.error };
+export function deriveDisposition(thread, action, login = config.login) {
+  if (thread.error) return { disposition: 'agentError', reason: thread.error };
   if (action) {
     if (action.response === 'surface')
-      return { tier: 'needsYourApproval', reason: action.reason || 'The agent surfaced this for your judgment.' };
+      return { disposition: 'needsYourApproval', reason: action.reason || 'The agent surfaced this for your judgment.' };
     if (action.response === 'praise')
-      return { tier: 'agentAcknowledged', reason: action.reason || 'The agent acknowledged this — positive feedback.' };
+      return { disposition: 'agentAcknowledged', reason: action.reason || 'The agent acknowledged this — positive feedback.' };
     // fix (incl. apply-approved): agent changed code and replied — reviewer's move now.
-    return { tier: 'agentAutoFixed', reason: action.reason || 'The agent fixed this; waiting on the reviewer.' };
+    return { disposition: 'agentAutoFixed', reason: action.reason || 'The agent fixed this; waiting on the reviewer.' };
   }
   if (thread.lastAuthor === login)
-    return { tier: 'awaitingReviewer', reason: 'You replied last — waiting on the reviewer.' };
-  return { tier: 'notYetReviewed', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
+    return { disposition: 'awaitingReviewer', reason: 'You replied last — waiting on the reviewer.' };
+  return { disposition: 'notYetReviewed', reason: 'No feedback yet — the agent hasn’t reviewed this thread.' };
+}
+
+// Is a persisted worker verdict file stale? True when none of its actions still
+// match a live (unresolved) thread AND the branch is clean — at that point the
+// file describes only resolved/closed work, so re-reading it would re-assert a fix
+// on a thread that's already gone (the "still shows in auto-handling" bug). Pure so
+// the invalidation in server.deriveAndSetPrFields is locked by tests. A run with no
+// actions is never "stale" (nothing to invalidate).
+export function isWorkerResultStale(result, liveThreadIds, { needsRebase = false, outOfSync = false } = {}) {
+  if (!result || !Array.isArray(result.actions) || result.actions.length === 0) return false;
+  const live = liveThreadIds instanceof Set ? liveThreadIds : new Set(liveThreadIds || []);
+  const anyLive = result.actions.some((a) => live.has(a.threadId));
+  return !anyLive && !needsRebase && !outOfSync;
 }
 
 // Merge incoming threads into a pending Map keyed by threadId, in place. Used by
@@ -155,8 +168,8 @@ export function needsRebase(mergeState, mergeable) {
 //
 // A real merge CONFLICT and reviewer-feedback are handled as SEPARATE runs, never
 // bundled. Rationale: a worker told to both rebase AND judge threads, that then bails
-// on an unresolvable rebase, used to strand the threads un-judged (they were marked
-// seen but never got a verdict — the PR hung on "Agent working"). So:
+// on an unresolvable rebase, would strand the threads un-judged (marked seen but
+// never given a verdict — the PR would hang on "Agent working"). So:
 //  - CONFLICT WINS. While a real conflict exists, the ONLY thing we dispatch is a
 //    rebase-only run — never feedback. If that rebase bails, the worker surfaces it;
 //    poll() defers the threads (does not mark them seen) so they wait for the conflict

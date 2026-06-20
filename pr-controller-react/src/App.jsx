@@ -22,9 +22,9 @@ const EMPTY = {
 };
 
 function Dashboard({ dash, controller }) {
-  const sections = dash.sections;
-  const active = sections.find((s) => s.key === dash.tab) || sections[0];
-  const tabs = sections.map((s) => ({
+  const lanes = dash.lanes;
+  const active = lanes.find((s) => s.key === dash.tab) || lanes[0];
+  const tabs = lanes.map((s) => ({
     key: s.key,
     label: s.title,
     count: s.prs.length,
@@ -44,11 +44,12 @@ function Dashboard({ dash, controller }) {
           </div>
           <div className={styles.cards}>
             {active.prs.length > 0 ? (
-              active.prs.map((pr) => (
-                // Per-item routing: the same PR id can render in multiple tabs, each
-                // showing only the slice that routes here (the DS PRCard filters by
-                // `tab`). Key by section+PR so React keeps them distinct.
-                <PRCard key={`${active.key}:${pr.id}`} pr={pr} tab={active.key} controller={controller} />
+              active.prs.map(({ pr, items }) => (
+                // The daemon already decided this PR belongs in this lane and which
+                // items it shows here (server placements). The card is a pure
+                // renderer of `items`. One PR can still appear in several lanes — as
+                // distinct cards — so key by lane+PR to keep them distinct.
+                <PRCard key={`${active.key}:${pr.id}`} pr={pr} lane={active.key} items={items} controller={controller} />
               ))
             ) : (
               <EmptyState label={EMPTY[active.key]} />
