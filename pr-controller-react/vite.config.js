@@ -14,6 +14,11 @@ export default {
       '/state.json': 'http://localhost:4317',
       '/decision': 'http://localhost:4317',
       '/poll': 'http://localhost:4317',
+      // SSE live-status channel. Without this, worker-started/finished and the
+      // state-updated nudge are silently dead in `npm run dev` and the UI
+      // degrades to the 60s poll with no error. ws:false — it's an EventSource
+      // (plain HTTP stream), not a websocket.
+      '/events': { target: 'http://localhost:4317', ws: false },
     },
   },
   build: { outDir: 'dist' },

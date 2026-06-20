@@ -1,17 +1,25 @@
 import * as React from "react";
 
+export interface BranchAction {
+  label: string;
+  onClick: () => void;
+  /** Optional note rendered after the button when truthy (e.g. a terminal hand-off). */
+  note?: React.ReactNode;
+}
+
 export interface BranchStatusProps {
-  /** Which branch-health state to render. */
-  state: "conflict" | "surfaced" | "outofsync";
-  /** Override the default one-line body copy. */
-  detail?: React.ReactNode;
-  /** Full reason behind a surfaced rebase, revealed by "Show details". */
+  /** 'agent' = ambient pulsing status line; 'attention' = boxed ◆ callout with actions. */
+  tone?: "agent" | "attention";
+  /** Pulse the status dot (for the ambient 'agent' tone). */
+  pulse?: boolean;
+  /** One-line body copy. */
+  message?: React.ReactNode;
+  /** Full reason, revealed by "Show details" (attention tone). */
   details?: React.ReactNode;
   detailsOpen?: boolean;
   onToggleDetails?: () => void;
-  /** Show the terminal hand-off note after the CTA is clicked. */
-  terminalOpen?: boolean;
-  onTerminal?: () => void;
+  /** Action buttons (attention tone). */
+  actions?: BranchAction[];
 }
 
 /**

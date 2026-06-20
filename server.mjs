@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { config, ghEnv } from './config.mjs';
@@ -9,7 +9,9 @@ import { config, ghEnv } from './config.mjs';
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
-import { dispatchable, needsJira, isBehindBase, needsRebase, deriveTier, dispatchDecision, nextSeenThreads } from './rules.mjs';
+import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale } from './rules.mjs';
+import { deriveRecord } from './derive.mjs';
+import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
 
@@ -37,8 +39,8 @@ const DATA = join(config.baseDir, 'data');
 const STATE = join(DATA, 'state.json');
 const DECISIONS = join(DATA, 'decisions.json');
 
-// Serve the built React dashboard from pr-controller-react/dist when present;
-// fall back to the legacy single-file dashboard.html otherwise.
+// Serve the built React dashboard from pr-controller-react/dist. The React app is
+// the canonical client — build it (`yarn build`) before running in production.
 const DIST = join(config.baseDir, 'pr-controller-react', 'dist');
 const hasDist = existsSync(join(DIST, 'index.html'));
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -57,60 +59,55 @@ const outOfSyncPRs = new Set();
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
 
-const TIER_RANK = { needsYourApproval: 0, agentError: 1, agentAutoFixed: 2, notYetReviewed: 3, awaitingReviewer: 4, agentAcknowledged: 5 };
-
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
 const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
 
 // Read back the last worker run's verdict for this PR and derive every dashboard
-// field from it: per-thread tiers, the surfaced branch-health reason, and the
-// PR-level needsYou/autoFixable/pending/priority. Mutates `pr` in place. Shared
-// by poll() and refreshOnePR() so a freshly-polled PR and one refreshed right
-// after a worker run go through identical derivation. Also carries the worker's
-// suggestedReply/suggestedApproach onto each thread for the UI.
+// field from it: per-thread dispositions, branch-health flags, and the surfaced
+// reason. Mutates `pr` in place. Shared by poll() and refreshOnePR() so a freshly-
+// polled PR and one refreshed right after a worker run go through identical
+// derivation. Tab routing + ordering are computed from these in writeState via the
+// placement model (placements.mjs); per-PR ordering is a single sortRank. Also carries
+// the worker's suggestedReply/suggestedApproach onto each thread.
 async function deriveAndSetPrFields(pr) {
-  const h = pr.branchHealth || {};
-  pr.behindBase = isBehindBase(h.mergeState, h.mergeable);
-  pr.ciFailing = (h.failingChecks || []).length > 0;  // code CI only
-  pr.needsRebase = needsRebase(h.mergeState, h.mergeable);  // genuine merge conflict
-  // Compliance failing + no JIRA key in title => surface an input box for the ticket.
-  pr.needsJira = needsJira(pr.title, h.complianceChecks);
-
-  // Derive each thread's tier from the WORKER's verdict (its code-grounded
-  // response), not a keyword heuristic. The worker resolves threads it
-  // fixed/praised, so those are already gone from the scan; what's left is
-  // either surfaced (hash-out, needs you), waiting on the reviewer, or not
-  // yet judged (pending — "No feedback yet"). Match worker actions by threadId.
+  // Read the last worker run's verdict (model-written; validated) and build the
+  // canonical record. deriveRecord is pure + tested (test/derive.test.mjs); this
+  // wrapper supplies the two I/O-backed inputs (the verdict file + the durable
+  // diverged-branch flag). Shared by poll() and refreshOnePR() so both derive identically.
   const result = await readWorkerResult(outPathFor(pr));
-  const actions = new Map((result?.actions || []).map((a) => [a.threadId, a]));
-  pr.threads = pr.threads.map((t) => {
-    const a = actions.get(t.threadId);
-    return { ...t, ...deriveTier(t, a), suggestedReply: a?.suggestedReply, suggestedApproach: a?.suggestedApproach };
-  });
+  deriveRecord(pr, { workerResult: result, outOfSync: outOfSyncPRs.has(`${pr.repo}#${pr.number}`) });
 
-  // A surfaced branch-health reason means the worker TRIED and bailed (e.g. a
-  // rebase whose conflicts weren't trivially resolvable). That's now yours to
-  // resolve, so it escalates to needsYou. (Previously rebase was approval-gated
-  // and this waited on the reviewer; with rebase user-initiated, a bail is on you.)
-  const surfaced = result?.branchHealth?.surfaced;
-  if (surfaced) pr.workerSurfaced = surfaced;
-
-  // The branch diverged from the remote and the worktree couldn't fast-forward,
-  // so the last dispatch bailed without running. Read from the durable set (the
-  // dispatcher sets it; a clean sync clears it) — it can't live on the scanned
-  // PR object, which is rebuilt from GitHub each refresh.
-  pr.outOfSync = outOfSyncPRs.has(`${pr.repo}#${pr.number}`);
-
-  // PR-level fields derived from the per-thread tiers + branch state.
-  pr.needsYou = pr.threads.some((t) => t.tier === 'needsYourApproval') || pr.needsJira || !!pr.outOfSync || !!surfaced;
-  pr.autoFixable = pr.threads.filter((t) => t.tier === 'agentAutoFixed').length;
-  pr.pending = pr.threads.filter((t) => t.tier === 'notYetReviewed').length;
-  pr.priority = Math.min(...pr.threads.map((t) => TIER_RANK[t.tier] ?? 9), 9);
+  // Invalidate a stale worker verdict file: once none of its actions match a live
+  // (unresolved) thread and the branch is clean, the file is stale — unlink it so a
+  // later poll starts clean instead of re-asserting a fix on a resolved thread.
+  // (Fixes the TODO "PR still shows in auto-handling after fix + resolve" bug.)
+  const liveThreadIds = new Set(pr.threads.filter((t) => !t.error && t.threadId).map((t) => t.threadId));
+  if (isWorkerResultStale(result, liveThreadIds, { needsRebase: pr.needsRebase, outOfSync: pr.outOfSync })) {
+    try { await unlink(outPathFor(pr)); } catch {}
+  }
 }
 
 async function writeState(prs) {
-  prs.sort((a, b) => a.priority - b.priority || (b.needsYou - a.needsYou));
-  state = { updatedAt: new Date().toISOString(), scope: config.onlyPRs || [], prs };
+  // Server-authoritative tab routing: the daemon owns which lane each item of a PR
+  // belongs to and ships a flat list of (prKey, lane, subject) rows — a PR in
+  // several tabs is several rows. `placementsFor` is pure + tested
+  // (test/placements.test.mjs). liveStatus is intentionally NOT folded in here:
+  // it's ephemeral and pushed over SSE, so the client overlays "agent working" from
+  // the in-flight set. sortRank (the most-urgent placement) is the only ordering signal.
+  const placements = [];
+  for (const pr of prs) {
+    const rows = placementsFor(pr);
+    pr.sortRank = prSortRank(rows);
+    for (const r of rows) placements.push(r);
+  }
+  prs.sort((a, b) => a.sortRank - b.sortRank);
+  state = {
+    updatedAt: new Date().toISOString(),
+    scope: config.onlyPRs || [],
+    lanes: ['needs', 'progress', 'waiting'],
+    prs,
+    placements,
+  };
   await mkdir(DATA, { recursive: true });
   await writeFile(STATE, JSON.stringify(state, null, 2));
 }
@@ -162,7 +159,7 @@ async function poll() {
       // merge conflict short-circuits to a rebase-ONLY run; otherwise threads/CI.
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
-        needsRebase: pr.needsRebase, healthChanged,
+        needsRebase: pr.needsRebase, healthChanged, rebaseSurfaced: !!pr.workerSurfaced,
       });
 
       // Mark threads seen — but DEFER while a real conflict blocks the PR (a conflict
@@ -177,7 +174,8 @@ async function poll() {
         dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
     }
     await writeState(prs);
-    console.log(`[poll] ${prs.length} PRs, ${prs.filter(p=>p.needsYou).length} need you`);
+    const needPrs = new Set(state.placements.filter((p) => p.lane === 'needs').map((p) => p.prKey)).size;
+    console.log(`[poll] ${prs.length} PRs, ${needPrs} need you`);
   } catch (e) {
     console.error('[poll] failed:', e.message);
   } finally {
@@ -195,13 +193,13 @@ async function recordDecision(payload) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${config.port}`);
   if (req.method === 'GET' && url.pathname === '/') {
-    if (hasDist) {
-      res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(await readFile(join(DIST, 'index.html')));
-    } else {
-      res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(await readFile(join(config.baseDir, 'dashboard.html')));
+    if (!hasDist) {
+      res.writeHead(503, { 'content-type': 'text/plain' });
+      res.end('Dashboard not built. Run `cd pr-controller-react && yarn build`, then reload.');
+      return;
     }
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(await readFile(join(DIST, 'index.html')));
     return;
   }
   // Static assets from the React build (e.g. /assets/index-*.js, fonts).
@@ -283,7 +281,7 @@ const server = createServer(async (req, res) => {
           spawn = { spawned: true, action: 'title updated' };
         }
       }
-      // Phase 2: the user approved one or more proposed approaches. Stage them
+      // The user approved one or more proposed approaches. Stage them
       // into the dispatcher's pending set for this PR; it fires ONE resumed
       // worker (or queues for the next free slot if a worker is already running
       // for this PR — the coalescing lock guarantees no double-dispatch).
@@ -296,19 +294,6 @@ const server = createServer(async (req, res) => {
           const queued = dispatcher.isWorking(payload.prKey);
           dispatcher.enqueueApproved(pr, threadIds, { branchHealth: pr.branchHealth, rebaseOnConflict: pr.needsRebase });
           spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent dispatched' };
-        }
-      }
-      // Manual "Rebase" CTA: the branch has a merge conflict and there's nothing
-      // else queued for the worker to do, so we didn't auto-dispatch (a quiet
-      // force-push would dismiss reviews). The user opted in — dispatch a rebase.
-      if (payload.action === 'rebase') {
-        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
-        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
-        else if (!pr.needsRebase) spawn = { spawned: false, reason: 'no merge conflict to rebase' };
-        else {
-          const queued = dispatcher.isWorking(payload.prKey);
-          dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
-          spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'rebase dispatched' };
         }
       }
       res.writeHead(200, { 'content-type': 'application/json' });

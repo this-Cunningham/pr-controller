@@ -2,7 +2,9 @@
 
 The authoritative statement of what this system should do. Deterministic rules
 marked **[tested]** are locked by `test/rules.test.mjs`; judgment rules marked
-**[prompt]** live in `worker-prompt.md` and are enforced by the worker model.
+**[prompt]** live in `worker-prompt.md` and are enforced by the worker model. For HOW
+the system is built — the data flow and the server-authoritative placement model — see
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Purpose
 Watch all of the user's open PRs across the enterprise and, per PR, dispatch a
@@ -19,8 +21,9 @@ decide) and decisions.
   dispatches a worker only for PRs that changed.
 - Workers are headless `claude -p`, one durable session per PR (resumed across
   rounds), running in a per-PR git worktree.
-- A dashboard (http://localhost:4317) renders all PRs; those needing the user float
-  to the top.
+- A dashboard (http://localhost:4317) renders the daemon's flat `placements` list into
+  three lanes — Needs you / In progress / Waiting on reviewer; PRs float to the top by
+  their `sortRank`. The daemon owns routing (see ARCHITECTURE.md); the frontend renders it.
 
 ## Discovery
 - Open PRs come from `gh search prs --author @me --state open` against `config.host`.
@@ -53,7 +56,7 @@ Re-dispatch is prevented by the last-author rule, NOT by resolving threads — s
 server restart (which clears the in-memory seen-map) will not re-process handled
 threads.
 
-Dispatch is **out-of-band**: `poll()` no longer awaits the worker. It scans,
+Dispatch is **out-of-band**: `poll()` does not await the worker. It scans,
 derives every PR's fields from the *existing* worker result, writes `state.json`,
 and hands changed PRs to the dispatcher (below), which runs workers serially per PR
 and refreshes each PR when its worker exits.
@@ -78,8 +81,8 @@ For each unresolved reviewer-authored thread, exactly one:
   pushed. The worker does NOT resolve a fixed thread: `fixed` is the internal
   done-marker, and the reviewer's resolve is the real "done" + their merge gate. An
   unresolved-`fixed` thread is an honest signal ("agent addressed it; reviewer
-  hasn't confirmed") and is what keeps the thread visible in the Waiting tier
-  (`agentAutoFixed`) instead of vanishing from the scan.
+  hasn't confirmed") and is what keeps the thread visible in the Waiting on reviewer
+  lane (disposition `agentAutoFixed`) instead of vanishing from the scan.
 - **praise** (positive, nothing to change): add a 🎉 `hooray` reaction, no text,
   then resolve (praise still resolves — there's nothing for the reviewer to confirm).
 - **surface** (needs the user's judgment — a disagreement, a scope/product call, a
@@ -135,20 +138,19 @@ something as a question is not by itself a reason to surface.
   - **Folded into a worker run.** When the worker is already dispatched for feedback
     or CI, and the branch also has a conflict, the run also rebases (`rebaseOnConflict`
     → `opts.rebase`): the branch is changing anyway, so it dismisses no extra reviews.
-  - **Idle conflict → auto-rebase (Phase E, REVERSAL).** When a conflict exists with
-    *nothing else to do*, the daemon now AUTO-enqueues a rebase-only run
-    (`dispatcher.enqueueRebase`, gated on `healthChanged` so it doesn't re-spin every
-    poll). This REVERSES the prior "don't auto-spin a quiet PR" rule: a conflicted PR
-    can't merge anyway, so freshness wins over approval-preservation. **Conscious
+  - **Idle conflict → auto-rebase.** When a conflict exists with *nothing else to do*,
+    the daemon AUTO-enqueues a rebase-only run (`dispatcher.enqueueRebase`, gated on
+    `healthChanged` so it doesn't re-spin every poll): a conflicted PR can't merge
+    anyway, so freshness wins over approval-preservation. **Conscious
     tradeoff:** auto-rebasing an already-approved idle PR force-pushes and dismisses
     its approval. Clean rebase → push `--force-with-lease`; non-trivial conflicts →
-    surface, never guess. The manual **Rebase** CTA (`/decision {action:'rebase'}`)
-    is kept as a redundant manual re-trigger.
+    surface, never guess. Once the agent surfaces a conflict as too risky, the daemon
+    stops auto-retrying it (it stays in Needs you for the user) until the conflict clears
+    — a later health change (even an unrelated CI flip) must not re-spin a rebase that
+    would just bail again. [tested: `dispatchDecision` with `rebaseSurfaced`]
   - The informational "behind base" pill (`isBehindBase`: branch BEHIND or
     CONFLICTING/DIRTY) is NOT approval-gated — it's a fact about the branch
-    regardless of review state. (The old `rebaseAllowed`, which gated this on
-    APPROVED, is removed — a leftover from when the pill meant "the agent may now
-    auto-rebase". Rebasing is driven by the conflict, not approval.)
+    regardless of review state. Rebasing is driven by the conflict, not approval.
 
 ## Worktrees & git safety
 - Reuse the user's existing local clones, discovered under `~/cargurus` by git
@@ -204,11 +206,12 @@ resolve / rebase) on the PRs it can see.
   can't find.
 - `lastSeenSha` records the worktree HEAD after each run for the resume delta diff.
 
-## Dashboard dispositions — derived from the worker's verdict [tested: `deriveTier`]
-Each thread's `tier` (the shared **disposition** vocabulary) comes from the worker's
-code-grounded `response` (read back from `data/worker-<repo>-<num>.json` and merged
-by `threadId` in `poll()`), NOT a keyword heuristic. The old `preClassify` guess is
-retired. The same names are used end-to-end (backend `tier` === frontend `tag`):
+## Dashboard dispositions — derived from the worker's verdict [tested: `deriveDisposition` in test/rules.test.mjs]
+Each thread's **disposition** (the per-item verdict) comes from the worker's
+code-grounded `response` (read from `data/worker-<repo>-<num>.json` and merged by
+`threadId` in `derive.mjs`/`deriveRecord`), NOT a keyword heuristic. The frontend
+(`adapt.js` `DISPOSITION_TO_TAG`) maps each disposition to the design system's short
+tag vocabulary (`input | fixed | waiting | pending | praise | error`) for styling only:
 - **surface** → `needsYourApproval` (carries the worker's code-cited reason).
 - **fix** (incl. apply-approved) → `agentAutoFixed` — the worker changed code and
   replied `fixed` but does NOT resolve (§taxonomy), so the thread stays OPEN and is
@@ -218,22 +221,28 @@ retired. The same names are used end-to-end (backend `tier` === frontend `tag`):
   had the last word → `notYetReviewed` ("No feedback yet" — the worker hasn't judged it).
 - A thread scan error → `agentError`.
 
-PR-level fields still follow from the dispositions: `needsYou` = any
-`needsYourApproval` OR `needsJira` OR `outOfSync` OR a worker-`surfaced` branch-health
-reason; `autoFixable` = count of `agentAutoFixed`; `pending` = count of `notYetReviewed`.
+There are no PR-level rollups: each item produces a placement row (`placements.mjs`),
+and a PR's lane ordering is its single `sortRank` (`prSortRank` — its most-urgent
+placement). Whether a PR "needs you" is simply whether it has any placement in the
+`needs` lane.
 
-## Dashboard tabs — per-ITEM routing [tested: `adapt.adaptSections`]
-The unit of tab placement is the **item** (a thread, or a PR-health signal), NOT the
-PR card. The same PR therefore appears in every tab where it has ≥1 item, each card
-rendering only that tab's slice. Routing happens in the frontend adapter
-(`pr-controller-react/src/adapt.js`), reacting to both `state.json` and the live
-frontend overlays (SSE in-flight set + the staged/dispatched "cart").
-- **Needs you:** `needsYourApproval` (untouched or staged) + `agentError` threads;
-  `needsJira` / `outOfSync` / worker-`surfaced` health. A staged approval moves OUT
-  the instant its Run fires (the `dispatched` overlay → In progress).
-- **In progress:** `notYetReviewed` + `dispatched` threads; in-flight branch work
-  (failing CI, behind-base, an auto-rebasing conflict); any PR with a worker actually
-  in flight. Calm card + a pulsing "Agent working" cue.
+## Dashboard lanes — server-authoritative routing [tested: `placements.placementsFor` in test/placements.test.mjs; `adapt.buildLanes` in test/adapt.test.mjs]
+The unit of placement is the **item** (a thread, or a PR-health signal), NOT the PR
+card — but routing is decided server-side. The daemon (`placements.mjs`/`placementsFor`)
+emits one placement row per (PR, lane, item); a PR in several lanes is several rows. The
+frontend (`adapt.js`/`buildLanes`) FILTERS those rows into lanes and applies the
+client-only overlays (the SSE in-flight set + the staged/dispatched "cart"); it derives
+no routing. The card is a pure renderer of the `items` it's handed. Lane membership
+(`LANE_OF_DISPOSITION`):
+- **Needs you:** `needsYourApproval` + `agentError` threads; the branch/JIRA
+  pseudo-dispositions `jiraNeeded`, `branchOutOfSync`, and
+  `branchConflict` (a standing conflict lives here until a rebase worker is actually in
+  flight). A staged approval moves OUT the instant its Run fires (the client
+  `isDispatched` overlay → In progress).
+- **In progress:** `notYetReviewed` + `agentWorking`; plus client overlays — a
+  `dispatched` thread (optimistic Run) and a `branchConflict` only while a rebase worker
+  is in flight (`isRebasing`). Calm card + a pulsing "Agent working" cue. (Behind-base /
+  CI are decorative pills, not routing signals.)
 - **Waiting on reviewer:** `agentAutoFixed` + `awaitingReviewer` threads — the agent
   addressed it; the reviewer is the next actor. `agentAcknowledged` (praise) is shown
-  in no tab.
+  in no lane.

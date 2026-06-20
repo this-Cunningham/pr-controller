@@ -1,23 +1,23 @@
-// Adapts the pr-controller backend's state.json into the shapes the vendored
-// wabi-sabi design-system components consume (PullRequest / Thread, see
-// design-system/components/pr/*.d.ts). The pipeline is the source of truth for
-// DATA; this file reshapes it for the UI. Keep this the ONLY translation point.
+// Thin adapter from the backend's state.json to the shapes the vendored Wabi-Sabi
+// design-system components consume. The daemon owns tab routing (it ships a flat
+// `placements` list — see placements.mjs); this file does presentational mapping only:
+//   - the backend disposition -> the DS short tag vocabulary
+//   - per-PR/branch/thread -> DS prop shapes
+//   - grouping the server's placement rows into per-lane cards + ordered items
 //
-// Backend PR shape (state.json):
-//   { number, title, repo, nameWithOwner, url, isDraft, reviewDecision,
-//     needsYou, needsJira, behindBase, ciFailing, needsRebase, outOfSync, autoFixable, pending,
-//     workerSurfaced, branchHealth: { failingChecks[], complianceChecks[] },
-//     threads: [{ threadId, path, line, author, body, lastAuthor, tier, reason, suggested*, error }] }
-//   tier is the worker's verdict (rules.deriveTier): needsYourApproval |
-//   agentAutoFixed | agentAcknowledged | awaitingReviewer | notYetReviewed | agentError
-//
-// DS shapes (what the components consume):
-//   PullRequest { id, repo, number, title, review, jira, pills[], branch?, threads[] }
-//   Thread { id, tag, loc, author, body, reasonSummary, reasonFull?, approach?, reply? }
-//   tag is the DS SHORT vocabulary: input | fixed | waiting | pending | praise | error
+// Backend state.json (new contract):
+//   { updatedAt, scope, lanes:['needs','progress','waiting'],
+//     prs: [{ repo, number, title, url, isDraft, reviewDecision, behindBase,
+//             branchHealth:{failingChecks[]}, sortRank,
+//             threads:[{ threadId, path, line, author, lastAuthor, body, disposition,
+//                        reason, suggestedReply, suggestedApproach, error }] }],
+//     placements: [{ prKey, lane, subjectKind, subjectId, disposition, reason, sortRank }] }
 
-// Backend disposition tier -> DS thread tag.
-const TIER_TO_DSTAG = {
+// Backend disposition -> DS thread tag (the DS's SHORT vocabulary:
+// input | fixed | waiting | pending | praise | error). This is the ONLY routing-
+// adjacent map left on the client, and it's purely cosmetic — the DS components are
+// frozen on these names, so a thread carries one of them for styling.
+export const DISPOSITION_TO_TAG = {
   needsYourApproval: 'input',
   agentAutoFixed: 'fixed',
   awaitingReviewer: 'waiting',
@@ -26,65 +26,64 @@ const TIER_TO_DSTAG = {
   agentError: 'error',
 };
 
-// Disposition tag -> tab, and branch kind -> tab. Mirrors the DS's own TAG_TAB /
-// BRANCH_TAB (design-system PRCard.jsx). Kept here too so routing/section
-// membership stays pure (React-free) and unit-testable; the DS card re-derives the
-// same result internally from the identical tag vocabulary.
-//   input/error -> Needs you · pending -> In progress · fixed/waiting -> Waiting · praise -> none
-export const TAG_TAB = { input: 'needs', error: 'needs', pending: 'progress', fixed: 'waiting', waiting: 'waiting', praise: null };
-//   conflict -> In progress (agent is rebasing) · surfaced/outofsync -> Needs you
-export const BRANCH_TAB = { conflict: 'progress', surfaced: 'needs', outofsync: 'needs' };
-
-// Does this PR have at least one item routing to `tab`?
-export function prInTab(pr, tab) {
-  const hasThread = (pr.threads || []).some((t) => TAG_TAB[t.tag] === tab);
-  const hasBranch = pr.branch && BRANCH_TAB[pr.branch.kind] === tab;
-  const hasJira = !!pr.jira && tab === 'needs';
-  return hasThread || hasBranch || hasJira;
+// Branch placement -> generic BranchStatus presentation. `tone` picks the visual:
+// 'agent' = ambient pulsing status line (a rebase actively running); 'attention' =
+// boxed ◆ callout with optional details + action buttons. `actions` are semantic keys
+// ('terminal' | 'rebase') that PRCard binds to controller methods. A new branch state
+// is a new case here — no change to the BranchStatus component.
+function branchPresentation(row) {
+  if (row.disposition === 'branchConflict' && row._rebasing)
+    return { tone: 'agent', pulse: true, message: 'Resolving merge conflict — the agent is rebasing this branch.' };
+  if (row.disposition === 'branchConflict')
+    // One conflict card; the agent's explanation (if it surfaced one) rides along as
+    // "Show details", and is simply absent otherwise.
+    return { tone: 'attention', message: 'Merge conflict — the agent rebases it automatically when the branch changes; resolve it in a terminal if it’s stuck.', details: row.reason || undefined, actions: ['terminal'] };
+  if (row.disposition === 'branchOutOfSync')
+    return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: ['terminal'] };
+  return { tone: 'attention', message: row.reason };
 }
 
-// Per-PR branch health, derived once. Returns the DS BranchHealth shape (or null).
-// surfaced (agent tried the rebase and bailed) wins over a raw conflict; out-of-sync
-// (the agent never ran) is its own state. A plain conflict means the agent is
-// auto-rebasing right now (informational, In progress).
-function deriveBranch(raw) {
-  const surfaced = raw.workerSurfaced || null;
-  if (surfaced) return { kind: 'surfaced', details: surfaced };
-  if (raw.outOfSync) return { kind: 'outofsync' };
-  if (raw.needsRebase) return { kind: 'conflict' };
-  return null;
-}
+const LANES = [
+  { key: 'needs', title: 'Needs you' },
+  { key: 'progress', title: 'In progress' },
+  { key: 'waiting', title: 'Waiting on reviewer' },
+];
 
-export function progressStatus(branchKind) {
-  if (branchKind === 'conflict')
-    return { text: 'Rebasing onto the latest base — review threads resume once it lands.', tone: 'agent', pulse: true };
-  if (branchKind === 'surfaced')
-    return { text: 'Paused on a merge conflict — resolve it (see Needs you) before the agent handles these threads.', tone: 'ochre', pulse: false };
-  return { text: 'Agent working — addressing this PR now.', tone: 'agent', pulse: true };
-}
+const prKeyOf = (pr) => `${pr.repo}#${pr.number}`;
 
-// Signal pills the DS renders (behind base, CI failing). The "N auto-fixable" count
-// pill is intentionally dropped — those threads now appear as real rows in Waiting.
-function derivePills(raw) {
+// Signal pills (decoration only — behind base, CI failing). Routing is unaffected.
+function derivePills(pr) {
   const pills = [];
-  if (raw.behindBase) pills.push({ label: 'behind base', kind: 'behind' });
-  const ci = (raw.branchHealth?.failingChecks || []);
+  if (pr.behindBase) pills.push({ label: 'behind base', kind: 'behind' });
+  const ci = pr.branchHealth?.failingChecks || [];
   if (ci.length) pills.push({ label: `CI failing: ${ci.map((c) => c.name).join(', ')}`, kind: 'ci' });
   return pills;
 }
 
-function adaptThread(t, i, prId, isDispatched) {
+// PR -> the metadata a card header needs. No threads/branch/jira routing fields:
+// the card renders the `items` it's handed, nothing more.
+export function adaptPRMeta(pr) {
+  return {
+    id: prKeyOf(pr),
+    repo: pr.repo,
+    number: pr.number,
+    title: pr.title,
+    url: pr.url,
+    review: pr.isDraft ? 'DRAFT' : pr.readyToMerge ? 'READY' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
+    pills: derivePills(pr),
+  };
+}
+
+// One backend thread -> the DS Thread shape. `dispatched` (the user approved + ran
+// this thread, worker not finished) shows it as `pending` so it reads as "agent
+// reviewing now" while it's in flight — the one optimistic, client-only nuance.
+export function adaptThread(t, { dispatched = false } = {}) {
   if (t.error) {
-    return { id: `err-${i}`, tag: 'error', loc: '', author: '', body: String(t.error), reasonSummary: 'Scan error.' };
+    return { id: t.threadId || 'err', tag: 'error', loc: '', author: '', body: String(t.error || t.reason || ''), reasonSummary: 'Scan error.' };
   }
-  // lastAuthor (who replied last) differs from author (who opened the thread) once
-  // the conversation has moved; show it so a replied-to thread doesn't look stale.
   const author = t.lastAuthor && t.lastAuthor !== t.author ? t.lastAuthor : t.author;
-  let tag = TIER_TO_DSTAG[t.tier] || 'waiting';
-  // App-only live nuance: a surfaced thread the user approved + ran (dispatched)
-  // should move Needs-you -> In progress before the worker finishes. Re-tag it as
-  // `pending` so the DS routes it to progress; state.json catches up post-run.
-  if (tag === 'input' && isDispatched(prId, t.threadId)) tag = 'pending';
+  let tag = DISPOSITION_TO_TAG[t.disposition] || 'waiting';
+  if (tag === 'input' && dispatched) tag = 'pending';
   return {
     id: t.threadId,
     tag,
@@ -93,52 +92,107 @@ function adaptThread(t, i, prId, isDispatched) {
     body: t.body || '',
     reasonSummary: t.reason || '',
     reasonFull: t.reason || '',
-    // Worker-drafted aids on a surfaced (input) thread.
     approach: t.suggestedApproach || undefined,
     reply: t.suggestedReply || undefined,
   };
 }
 
-export function adaptPR(pr, overlays = {}) {
-  const isDispatched = overlays.isDispatched || (() => false);
-  const id = `${pr.repo}#${pr.number}`;
-  return {
-    id,
-    repo: pr.repo,
-    number: pr.number,
-    title: pr.title,
-    url: pr.url,
-    review: pr.isDraft ? 'DRAFT' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
-    jira: !!pr.needsJira,
-    pills: derivePills(pr),
-    branch: deriveBranch(pr),
-    progress: progressStatus(deriveBranch(pr)?.kind),
-    threads: (pr.threads || []).map((t, i) => adaptThread(t, i, id, isDispatched)),
-  };
-}
-
-// Section membership: each tab lists the FULL DS PRs that have ≥1 item routing to
-// it (the DS PRCard then renders only that tab's slice). A PR can appear in several
-// tabs. `overlays.isWorking(prId)` also pulls an in-flight PR into In progress even
-// before a verdict lands (e.g. a rebase-only run with no threads yet).
-export function adaptSections(prs, overlays = {}) {
+// Apply the two client-only overlays on top of the server's authoritative
+// placements:
+//   - a DISPATCHED thread (Run agent fired, worker not finished) moves Needs you ->
+//     In progress immediately (state.json catches up when the worker exits).
+//   - a WORKING PR (SSE in-flight set) with no other progress row gets a synthetic
+//     "agent working" row, so a rebase-only/thread-less run still shows In progress.
+function applyOverlays(placements, prs, overlays) {
   const isWorking = overlays.isWorking || (() => false);
-  const ui = prs.map((p) => adaptPR(p, overlays));
-  const inTab = (key) => ui.filter((p) => prInTab(p, key) || (key === 'progress' && isWorking(p.id)));
-  return [
-    { key: 'needs', title: 'Needs you', needsYou: true, prs: inTab('needs') },
-    { key: 'progress', title: 'In progress', needsYou: false, prs: inTab('progress') },
-    { key: 'waiting', title: 'Waiting on reviewer', needsYou: false, prs: inTab('waiting') },
-  ];
+  const isDispatched = overlays.isDispatched || (() => false);
+  const isRebasing = overlays.isRebasing || (() => false);
+
+  const rows = placements.map((r) => {
+    // A dispatched (Run-fired) thread moves Needs you -> In progress immediately.
+    if (r.subjectKind === 'thread' && r.lane === 'needs' && isDispatched(r.prKey, r.subjectId)) {
+      return { ...r, lane: 'progress', _dispatched: true };
+    }
+    // A standing conflict lives in Needs you; show it In progress ("rebasing now")
+    // ONLY while a rebase worker is actually in flight for this PR.
+    if (r.disposition === 'branchConflict' && isRebasing(r.prKey)) {
+      return { ...r, lane: 'progress', _rebasing: true };
+    }
+    return { ...r };
+  });
+
+  for (const pr of prs) {
+    const key = prKeyOf(pr);
+    if (isWorking(key) && !rows.some((r) => r.prKey === key && r.lane === 'progress')) {
+      rows.push({ prKey: key, lane: 'progress', subjectKind: 'live', subjectId: 'live', disposition: 'agentWorking', reason: '', sortRank: 2 });
+    }
+  }
+  return rows;
 }
 
-// Strip state.json to the raw pieces the hook needs; sections are computed
-// reactively in useDashboard (they depend on frontend overlays, not just fetches).
+// Build the per-lane render items for one PR card from its placement rows in that
+// lane. The card is a pure renderer — this decides WHAT it shows, in display order.
+function buildItems(lane, pr, rows, overlays) {
+  const isDispatched = overlays.isDispatched || (() => false);
+  const threadById = new Map((pr.threads || []).map((t) => [t.threadId, t]));
+  const ordered = [...rows].sort((a, b) => (a.sortRank ?? 9) - (b.sortRank ?? 9));
+
+  const items = [];
+  // In progress: lead with the ambient "agent working" line when real work is here
+  // (threads or a live run). A plain conflict is self-describing via BranchStatus.
+  if (lane === 'progress' && ordered.some((r) => r.subjectKind === 'thread' || r.subjectKind === 'live')) {
+    items.push({ kind: 'agentWorking', text: 'Agent working — addressing this PR now.', tone: 'agent', pulse: true });
+  }
+
+  for (const r of ordered) {
+    if (r.subjectKind === 'thread') {
+      const t = threadById.get(r.subjectId);
+      if (t) items.push({ kind: 'thread', thread: adaptThread(t, { dispatched: isDispatched(r.prKey, r.subjectId) }) });
+    } else if (r.subjectKind === 'jira') {
+      items.push({ kind: 'jira' });
+    } else if (r.subjectKind === 'branch') {
+      items.push({ kind: 'branch', branch: branchPresentation(r) });
+    }
+    // 'live' rows are represented by the agentWorking line above — no separate item.
+  }
+  return items;
+}
+
+// Group the server's flat placement rows (plus client overlays) into the three
+// lanes, each carrying its PR cards (meta + ordered items), PRs ordered by urgency.
+export function buildLanes(prs, placements, overlays = {}) {
+  const prByKey = new Map(prs.map((p) => [prKeyOf(p), p]));
+  const rows = applyOverlays(placements || [], prs, overlays);
+
+  return LANES.map(({ key, title }) => {
+    const laneRows = rows.filter((r) => r.lane === key);
+    const byPr = new Map();
+    for (const r of laneRows) {
+      if (!byPr.has(r.prKey)) byPr.set(r.prKey, []);
+      byPr.get(r.prKey).push(r);
+    }
+    const cards = [...byPr.entries()]
+      .map(([prKey, prRows]) => {
+        const pr = prByKey.get(prKey);
+        if (!pr) return null;
+        return {
+          pr: adaptPRMeta(pr),
+          items: buildItems(key, pr, prRows, overlays),
+          sortRank: Math.min(...prRows.map((r) => (typeof r.sortRank === 'number' ? r.sortRank : 9))),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.sortRank - b.sortRank || a.pr.id.localeCompare(b.pr.id));
+    return { key, title, prs: cards };
+  });
+}
+
+// Strip state.json to the raw pieces the hook needs; lanes are computed reactively
+// in useDashboard (they fold in client overlays, not just the fetch).
 export function adaptState(state) {
   return {
     prs: state?.prs || [],
-    // `scope` is config.onlyPRs: empty = all PRs (full production), a list = the
-    // daemon is restricted to those PR keys. The worker always acts on what it sees.
+    placements: state?.placements || [],
     scope: state?.scope || [],
     updatedAt: state?.updatedAt || null,
   };

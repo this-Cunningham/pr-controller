@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { adaptState, adaptSections } from './adapt.js';
+import { adaptState, buildLanes } from './adapt.js';
 
 // Central dashboard state + actions.
 //
 // Two modes:
 //  - Live (default): fetches the backend's /state.json, adapts it, polls every
 //    60s, and posts user actions to /decision.
-//  - Seeded (gallery): pass a `seed` with static sections/threads/jira and
+//  - Seeded (gallery): pass a `seed` with static lanes/threads/jira and
 //    skipLoading — no network, used by the Components gallery.
 //
 // Thread overlay state keyed by thread id:
@@ -33,10 +33,14 @@ async function postDecision(payload) {
 export function useDashboard(seed = null) {
   const seeded = !!seed;
 
-  // Raw backend PRs (state.json). Sections are NOT stored — they're derived
-  // reactively below (useMemo) because per-item routing depends on the frontend
-  // overlays (workingPRs/dispatched), not only on what was fetched.
+  // Raw backend PRs (state.json). Lanes are NOT stored — they're built reactively
+  // below (useMemo) by FILTERING the daemon's authoritative `placements` (the daemon
+  // owns routing); per-lane membership also folds in the client overlays
+  // (workingPRs/dispatched/rebasingPRs), so it depends on more than the last fetch.
   const [rawPrs, setRawPrs] = useState(seed?.prs || []);
+  // Server-authoritative placement rows (state.json `placements`). The daemon owns
+  // tab routing now; we filter + group these into lanes below (no FE routing).
+  const [placements, setPlacements] = useState(seed?.placements || []);
   // scope = config.onlyPRs: [] means all PRs (full production), a list means the
   // daemon is restricted to those PR keys. The worker always acts on what it sees.
   const [scope, setScope] = useState(seed?.scope || []);
@@ -77,10 +81,11 @@ export function useDashboard(seed = null) {
 
   const applyState = useCallback((adapted) => {
     setRawPrs(adapted.prs);
+    setPlacements(adapted.placements);
     setScope(adapted.scope);
     // thread id -> prKey, so user actions can address the backend. Built from the
     // raw PRs (every thread is present once here, regardless of which tab it routes
-    // to) — the per-section slices would only see a subset.
+    // to) — a per-lane slice would only see a subset.
     const map = new Map();
     for (const pr of adapted.prs)
       for (const t of pr.threads || []) if (t.threadId) map.set(t.threadId, `${pr.repo}#${pr.number}`);
@@ -98,23 +103,24 @@ export function useDashboard(seed = null) {
     }
   }, [seeded, applyState, showToast]);
 
-  // Sections are derived per-item from the raw PRs PLUS the live overlays, so a
-  // thread re-routes the moment an overlay changes (e.g. approving + running an
-  // approach moves it Needs-you -> In progress before the worker even finishes).
-  // Seeded gallery passes sections straight through (it renders PRCards directly,
-  // not via these sections, but keep the shape consistent).
-  const sections = useMemo(() => {
-    if (seeded) return seed?.sections || [];
-    return adaptSections(rawPrs, {
+  // Lanes are built by FILTERING the daemon's authoritative placements (the daemon
+  // owns routing) and folding in the live overlays, so a thread moves lanes the
+  // moment an overlay changes (e.g. approving + running an approach shifts it
+  // Needs-you -> In progress before the worker even finishes). Seeded gallery passes
+  // lanes straight through (it renders PRCards directly, but keep the shape consistent).
+  const lanes = useMemo(() => {
+    if (seeded) return seed?.lanes || [];
+    return buildLanes(rawPrs, placements, {
       isWorking: (prId) => workingPRs.has(prId),
       isDispatched: (prId, threadId) => (dispatched[prId] || []).includes(threadId),
+      isRebasing: (prId) => rebasingPRs.has(prId),
     });
-  }, [seeded, seed, rawPrs, workingPRs, dispatched]);
+  }, [seeded, seed, rawPrs, placements, workingPRs, dispatched, rebasingPRs]);
 
   const openCount = rawPrs.length;
   const needCount = useMemo(
-    () => sections.find((s) => s.key === 'needs')?.prs.length ?? 0,
-    [sections]
+    () => lanes.find((s) => s.key === 'needs')?.prs.length ?? 0,
+    [lanes]
   );
 
   // initial load + poll + live status (SSE)
@@ -195,7 +201,7 @@ export function useDashboard(seed = null) {
     [dispatched]
   );
 
-  // Phase 2: approving an approach STAGES it locally (a per-PR cart) — it does
+  // Approving an approach STAGES it locally (a per-PR cart) — it does
   // NOT dispatch. "Run agent (N)" below sends the whole cart in one resumed worker.
   const stageApproach = useCallback((prId, threadId) => {
     setStaged((prev) => {
@@ -232,21 +238,6 @@ export function useDashboard(seed = null) {
       }
     },
     [staged, showToast]
-  );
-
-  // Manual "Rebase" CTA: the branch has a merge conflict and nothing else was
-  // queued, so the agent didn't auto-rebase. Dispatch one on demand.
-  const rebasePR = useCallback(
-    async (prId) => {
-      showToast('Dispatching the rebase…');
-      const res = await postDecision({ action: 'rebase', prKey: prId });
-      if (res?.spawn?.spawned) {
-        showToast(res.spawn.queued ? 'Agent busy — rebase queued for the next run' : 'Rebase dispatched');
-      } else {
-        showToast(res?.spawn?.reason || 'Could not dispatch the rebase');
-      }
-    },
-    [showToast]
   );
 
   // Branch-health discuss: the agent already TRIED the rebase and surfaced it as
@@ -381,7 +372,7 @@ export function useDashboard(seed = null) {
     updated,
     toastMsg,
     setTab,
-    sections,
+    lanes,
     openCount,
     needCount,
     threadStatus,
@@ -399,7 +390,6 @@ export function useDashboard(seed = null) {
     unstageApproach,
     undoReply,
     runAgent,
-    rebasePR,
     discussRebase,
     discuss,
     sendRebuttal,

@@ -1,10 +1,18 @@
 // PR dashboard config. `onlyPRs` is the scope primitive / circuit-breaker.
+//
+// Every identity/scope field can be overridden by an env var (PRC_*) so the daemon
+// can run against a different GitHub (e.g. personal github.com for e2e testing)
+// without editing this committed config. Defaults are the cargurus enterprise setup.
+//   PRC_HOST, PRC_OWNER, PRC_LOGIN, PRC_PORT, PRC_POLL_MINUTES
+//   PRC_ONLY_PRS="repo#1,repo#2"  (empty string = ALL your open PRs; unset = the defaults below)
+const env = process.env;
+const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 export const config = {
-  host: 'code.cargurus.com',
-  owner: 'cargurus-eng',
-  login: 'ccunningham',
-  port: 4317,
-  pollMinutes: 30,
+  host: env.PRC_HOST || 'code.cargurus.com',
+  owner: env.PRC_OWNER || 'cargurus-eng',
+  login: env.PRC_LOGIN || 'ccunningham',
+  port: Number(env.PRC_PORT) || 4317,
+  pollMinutes: Number(env.PRC_POLL_MINUTES) || 30,
 
   // Scope allowlist of "repo#number" keys the tool is allowed to touch.
   //  - empty/null  -> ALL of your open PRs (full production; no circuit-breaker).
@@ -12,7 +20,7 @@ export const config = {
   //                   invisible to the daemon).
   // This is both the hardening sandbox (scope to one throwaway PR and exercise the
   // real push/comment/resolve/rebase paths) and a permanent prod kill-switch.
-  onlyPRs: ['site-vdp-remix#835', 'cargurus-listings-ui#2129', 'site-vdp-remix#717'],
+  onlyPRs: 'PRC_ONLY_PRS' in env ? csv(env.PRC_ONLY_PRS) : ['site-vdp-remix#835', 'cargurus-listings-ui#2129', 'site-vdp-remix#717'],
 
   // Check categorization (substring, case-insensitive):
   //  - complianceChecks: red because of a missing JIRA ticket etc. — fixable, but

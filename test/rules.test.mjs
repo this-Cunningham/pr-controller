@@ -2,8 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveTier,
-  validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER,
+  dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
+  validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -42,31 +42,31 @@ test('dispatchable: my comment WITH @claude-debug -> dispatch', () => {
 
 const ME2 = 'ccunningham';
 
-test('deriveTier: worker surfaced -> needsYourApproval with the code-cited reason', () => {
-  const r = deriveTier({ lastAuthor: 'jheipler' }, { response: 'surface', reason: 'breaks the guard' }, ME2);
-  assert.equal(r.tier, 'needsYourApproval');
+test('deriveDisposition: worker surfaced -> needsYourApproval with the code-cited reason', () => {
+  const r = deriveDisposition({ lastAuthor: 'jheipler' }, { response: 'surface', reason: 'breaks the guard' }, ME2);
+  assert.equal(r.disposition, 'needsYourApproval');
   assert.equal(r.reason, 'breaks the guard');
 });
 
-test('deriveTier: worker fixed -> agentAutoFixed (Phase B: split from praise)', () => {
-  const r = deriveTier({ lastAuthor: ME2 }, { response: 'fix', reason: 'fixed it' }, ME2);
-  assert.equal(r.tier, 'agentAutoFixed');
+test('deriveDisposition: worker fixed -> agentAutoFixed (distinct from praise)', () => {
+  const r = deriveDisposition({ lastAuthor: ME2 }, { response: 'fix', reason: 'fixed it' }, ME2);
+  assert.equal(r.disposition, 'agentAutoFixed');
 });
 
-test('deriveTier: worker praised -> agentAcknowledged (Phase B: distinct from fix)', () => {
-  assert.equal(deriveTier({ lastAuthor: ME2 }, { response: 'praise' }, ME2).tier, 'agentAcknowledged');
+test('deriveDisposition: worker praised -> agentAcknowledged (distinct from fix)', () => {
+  assert.equal(deriveDisposition({ lastAuthor: ME2 }, { response: 'praise' }, ME2).disposition, 'agentAcknowledged');
 });
 
-test('deriveTier: no worker action, reviewer last word -> notYetReviewed', () => {
-  assert.equal(deriveTier({ lastAuthor: 'jheipler' }, undefined, ME2).tier, 'notYetReviewed');
+test('deriveDisposition: no worker action, reviewer last word -> notYetReviewed', () => {
+  assert.equal(deriveDisposition({ lastAuthor: 'jheipler' }, undefined, ME2).disposition, 'notYetReviewed');
 });
 
-test('deriveTier: no worker action, I replied last -> awaitingReviewer', () => {
-  assert.equal(deriveTier({ lastAuthor: ME2 }, undefined, ME2).tier, 'awaitingReviewer');
+test('deriveDisposition: no worker action, I replied last -> awaitingReviewer', () => {
+  assert.equal(deriveDisposition({ lastAuthor: ME2 }, undefined, ME2).disposition, 'awaitingReviewer');
 });
 
-test('deriveTier: thread error -> agentError', () => {
-  assert.equal(deriveTier({ error: 'scan failed' }, undefined, ME2).tier, 'agentError');
+test('deriveDisposition: thread error -> agentError', () => {
+  assert.equal(deriveDisposition({ error: 'scan failed' }, undefined, ME2).disposition, 'agentError');
 });
 
 test('validateWorkerResult: valid result passes with no problems', () => {
@@ -128,6 +128,31 @@ test('mergePending: dedupes by threadId, skips errored / id-less threads', () =>
   assert.equal(m.get('a').body, 'v2'); // latest wins
 });
 
+// isWorkerResultStale — the stale-verdict-file invalidation (the "PR still shows in
+// auto-handling after fix + resolve" fix). A persisted file is stale once none of
+// its actions match a live thread and the branch is clean.
+test('isWorkerResultStale: an action still matching a live thread -> not stale', () => {
+  assert.equal(isWorkerResultStale({ actions: [{ threadId: 'a', response: 'fix' }] }, new Set(['a']), {}), false);
+});
+
+test('isWorkerResultStale: no actions match a live thread + clean branch -> stale', () => {
+  const result = { actions: [{ threadId: 'gone', response: 'fix' }] };
+  assert.equal(isWorkerResultStale(result, new Set(['live']), {}), true);
+  assert.equal(isWorkerResultStale(result, new Set(), {}), true);
+});
+
+test('isWorkerResultStale: stale actions but the branch still needs work -> NOT stale (keep the file)', () => {
+  const result = { actions: [{ threadId: 'gone', response: 'fix' }] };
+  assert.equal(isWorkerResultStale(result, new Set(), { needsRebase: true }), false);
+  assert.equal(isWorkerResultStale(result, new Set(), { outOfSync: true }), false);
+});
+
+test('isWorkerResultStale: no actions / no result -> never stale', () => {
+  assert.equal(isWorkerResultStale({ actions: [] }, new Set(), {}), false);
+  assert.equal(isWorkerResultStale(null, new Set(), {}), false);
+  assert.equal(isWorkerResultStale({}, new Set(), {}), false);
+});
+
 const cfg = {
   ignoreChecks: ['license/', 'cla', 'dco'],
   complianceChecks: ['compliance/sox', 'compliance/'],
@@ -185,9 +210,9 @@ test('applyDebugReviewer: my comment with the token -> re-attributed to a review
   const t = applyDebugReviewer(
     { author: 'someone', lastAuthor: ME, lastBody: `surface this @claude-debug` }, ME, DBG);
   assert.equal(t.lastAuthor, DEBUG_REVIEWER);
-  // dispatchable now sees a reviewer last word, and deriveTier (no verdict) -> notYetReviewed
+  // dispatchable now sees a reviewer last word, and deriveDisposition (no verdict) -> notYetReviewed
   assert.equal(dispatchable(t, ME), true);
-  assert.equal(deriveTier(t, undefined, ME).tier, 'notYetReviewed');
+  assert.equal(deriveDisposition(t, undefined, ME).disposition, 'notYetReviewed');
 });
 
 test('applyDebugReviewer: also rewrites author when I opened the thread too', () => {
@@ -248,6 +273,14 @@ test('dispatchDecision: failing CI newly appeared (health changed), no conflict 
 test('dispatchDecision: idle conflict + health changed -> rebase', () => {
   const d = dispatchDecision({ newThreadCount: 0, ciFailing: false, needsRebase: true, healthChanged: true });
   assert.equal(d.kind, 'rebase');
+});
+
+test('dispatchDecision: a SURFACED conflict does NOT re-rebase, even on a health change', () => {
+  // the agent already flagged it too risky; re-spinning (e.g. on an unrelated CI flip)
+  // would just bail again — leave it in Needs you for the user.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: true, rebaseSurfaced: true }).kind, 'none');
+  // but a conflict NOT yet surfaced still rebases on the change (the first attempt).
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: true, rebaseSurfaced: false }).kind, 'rebase');
 });
 
 test('dispatchDecision: standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {

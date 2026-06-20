@@ -1,47 +1,49 @@
 import * as React from "react";
 import type { PRController, Thread } from "./ThreadRow";
 
+export type Lane = "needs" | "progress" | "waiting";
+
 export interface BranchHealth {
-  /** conflict → In progress · surfaced / outofsync → Needs you. */
-  kind: "conflict" | "surfaced" | "outofsync";
-  /** Override the default one-line copy. */
-  detail?: React.ReactNode;
-  /** Full reason behind a surfaced rebase ("Show details"). */
+  /** 'agent' = ambient pulsing status (a rebase running) → In progress; 'attention' = needs-you callout. */
+  tone: "agent" | "attention";
+  pulse?: boolean;
+  message: React.ReactNode;
+  /** Full reason, revealed by "Show details". */
   details?: React.ReactNode;
+  /** Action keys the card binds to controller methods. */
+  actions?: ("terminal" | "rebase")[];
 }
 
-export interface PullRequest {
+/** Card metadata only — no routing fields; the card renders the `items` it's given. */
+export interface PullRequestMeta {
   id: string;
-  /** "owner/repo" */
+  /** "repo" (display) */
   repo: string;
   number: number;
   title: string;
-  review: "APPROVED" | "REVIEW_REQUIRED" | "DRAFT";
-  /** Missing-ticket compliance banner (routes to Needs you). */
-  jira?: boolean;
+  url?: string;
+  review: "READY" | "APPROVED" | "REVIEW_REQUIRED" | "DRAFT";
   /** Signal pills. kind: 'behind' (behind base) | 'ci' (CI failing). */
   pills?: { label: string; kind: "behind" | "ci" }[];
-  /** PR-level branch health (routes by kind). */
-  branch?: BranchHealth;
-  threads?: Thread[];
 }
 
-export type Tab = "needs" | "progress" | "waiting";
+/** One render item for a card, already routed to this lane by the daemon. */
+export type PRCardItem =
+  | { kind: "agentWorking"; text: React.ReactNode; tone?: "agent" | "accent" | "ochre"; pulse?: boolean }
+  | { kind: "branch"; branch: BranchHealth }
+  | { kind: "thread"; thread: Thread }
+  | { kind: "jira" };
 
 export interface PRCardProps {
-  pr: PullRequest;
-  /** Which tab this instance renders — only items routing here are shown. */
-  tab?: Tab;
+  pr: PullRequestMeta;
+  /** Which lane this card renders in — drives emphasis only (needs = accent + seal). */
+  lane?: Lane;
+  /** The ordered items to render. The card does NOT filter or reorder them. */
+  items?: PRCardItem[];
   controller: PRController;
 }
 
-/** Disposition tag → tab; branch kind → tab. */
-export const TAG_TAB: Record<string, Tab | null>;
-export const BRANCH_TAB: Record<string, Tab>;
-/** Whether a PR has at least one item routing to `tab`. */
-export function prInTab(pr: PullRequest, tab: Tab): boolean;
-
 /**
- * @startingPoint section="PR Controller" subtitle="PR card — per-tab item slice" viewport="640x400"
+ * @startingPoint section="PR Controller" subtitle="PR card — pure per-lane renderer" viewport="640x400"
  */
 export function PRCard(props: PRCardProps): JSX.Element;
