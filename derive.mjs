@@ -13,6 +13,7 @@ export function deriveRecord(pr, { workerResult = null, outOfSync = false } = {}
   pr.behindBase = isBehindBase(h.mergeState, h.mergeable);     // informational pill
   pr.ciFailing = (h.failingChecks || []).length > 0;           // code CI only
   pr.needsRebase = needsRebase(h.mergeState, h.mergeable);     // genuine merge conflict
+  pr.readyToMerge = h.mergeState === 'CLEAN';                  // GitHub's green-button state (a PR-level badge, not a lane)
   // Compliance failing + no JIRA key in title => surface an input box for the ticket.
   pr.needsJira = needsJira(pr.title, h.complianceChecks);
 

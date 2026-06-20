@@ -107,12 +107,12 @@ test('outOfSync -> a Needs-you branch row', () => {
   assert.equal(l.needs[0].disposition, 'branchOutOfSync');
 });
 
-test('workerSurfaced wins over a raw conflict -> Needs you, not In progress', () => {
+test('a surfaced rebase -> one Needs-you conflict row carrying the agent reason', () => {
   const l = lanesOf(pr({ workerSurfaced: 'rebase too risky', needsRebase: true }));
   assert.equal(l.needs.length, 1);
-  assert.equal(l.needs[0].disposition, 'branchSurfaced');
-  assert.equal(l.needs[0].reason, 'rebase too risky');
-  assert.equal(l.progress.length, 0); // surfaced precedence: no conflict row
+  assert.equal(l.needs[0].disposition, 'branchConflict'); // folded into the one conflict state
+  assert.equal(l.needs[0].reason, 'rebase too risky');    // the explanation rides on the conflict row
+  assert.equal(l.progress.length, 0);
 });
 
 test('a standing merge conflict -> Needs you (your turn), NOT a perpetual In-progress', () => {

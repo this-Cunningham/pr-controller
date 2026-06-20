@@ -275,6 +275,14 @@ test('dispatchDecision: idle conflict + health changed -> rebase', () => {
   assert.equal(d.kind, 'rebase');
 });
 
+test('dispatchDecision: a SURFACED conflict does NOT re-rebase, even on a health change', () => {
+  // the agent already flagged it too risky; re-spinning (e.g. on an unrelated CI flip)
+  // would just bail again — leave it in Needs you for the user.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: true, rebaseSurfaced: true }).kind, 'none');
+  // but a conflict NOT yet surfaced still rebases on the change (the first attempt).
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: true, rebaseSurfaced: false }).kind, 'rebase');
+});
+
 test('dispatchDecision: standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {
   assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false }).kind, 'none');
 });

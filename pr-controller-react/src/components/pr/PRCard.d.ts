@@ -4,12 +4,14 @@ import type { PRController, Thread } from "./ThreadRow";
 export type Lane = "needs" | "progress" | "waiting";
 
 export interface BranchHealth {
-  /** conflict (live rebase) → In progress · surfaced / outofsync / standing conflict → Needs you. */
-  kind: "conflict" | "surfaced" | "outofsync";
-  /** One-line override copy (e.g. a standing conflict's "resolve it here"). */
-  detail?: React.ReactNode;
-  /** Full reason behind a surfaced rebase ("Show details"). */
+  /** 'agent' = ambient pulsing status (a rebase running) → In progress; 'attention' = needs-you callout. */
+  tone: "agent" | "attention";
+  pulse?: boolean;
+  message: React.ReactNode;
+  /** Full reason, revealed by "Show details". */
   details?: React.ReactNode;
+  /** Action keys the card binds to controller methods. */
+  actions?: ("terminal" | "rebase")[];
 }
 
 /** Card metadata only — no routing fields; the card renders the `items` it's given. */
@@ -20,7 +22,7 @@ export interface PullRequestMeta {
   number: number;
   title: string;
   url?: string;
-  review: "APPROVED" | "REVIEW_REQUIRED" | "DRAFT";
+  review: "READY" | "APPROVED" | "REVIEW_REQUIRED" | "DRAFT";
   /** Signal pills. kind: 'behind' (behind base) | 'ci' (CI failing). */
   pills?: { label: string; kind: "behind" | "ci" }[];
 }

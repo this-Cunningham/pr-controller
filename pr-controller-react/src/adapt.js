@@ -26,14 +26,22 @@ export const DISPOSITION_TO_TAG = {
   agentError: 'error',
 };
 
-// Branch pseudo-disposition (from a placement row) -> DS BranchStatus kind.
-export const BRANCH_DISPOSITION_TO_KIND = {
-  branchSurfaced: 'surfaced',
-  branchOutOfSync: 'outofsync',
-  // A standing conflict renders as the actionable "resolve it" treatment; a LIVE
-  // rebase (worker in flight) overrides this to the pulsing 'conflict' card — see buildItems.
-  branchConflict: 'surfaced',
-};
+// Branch placement -> generic BranchStatus presentation. `tone` picks the visual:
+// 'agent' = ambient pulsing status line (a rebase actively running); 'attention' =
+// boxed ◆ callout with optional details + action buttons. `actions` are semantic keys
+// ('terminal' | 'rebase') that PRCard binds to controller methods. A new branch state
+// is a new case here — no change to the BranchStatus component.
+function branchPresentation(row) {
+  if (row.disposition === 'branchConflict' && row._rebasing)
+    return { tone: 'agent', pulse: true, message: 'Resolving merge conflict — the agent is rebasing this branch.' };
+  if (row.disposition === 'branchConflict')
+    // One conflict card; the agent's explanation (if it surfaced one) rides along as
+    // "Show details", and is simply absent otherwise.
+    return { tone: 'attention', message: 'Merge conflict — the agent rebases it automatically when the branch changes; resolve it in a terminal if it’s stuck.', details: row.reason || undefined, actions: ['terminal'] };
+  if (row.disposition === 'branchOutOfSync')
+    return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: ['terminal'] };
+  return { tone: 'attention', message: row.reason };
+}
 
 const LANES = [
   { key: 'needs', title: 'Needs you' },
@@ -61,7 +69,7 @@ export function adaptPRMeta(pr) {
     number: pr.number,
     title: pr.title,
     url: pr.url,
-    review: pr.isDraft ? 'DRAFT' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
+    review: pr.isDraft ? 'DRAFT' : pr.readyToMerge ? 'READY' : pr.reviewDecision === 'APPROVED' ? 'APPROVED' : 'REVIEW_REQUIRED',
     pills: derivePills(pr),
   };
 }
@@ -143,12 +151,7 @@ function buildItems(lane, pr, rows, overlays) {
     } else if (r.subjectKind === 'jira') {
       items.push({ kind: 'jira' });
     } else if (r.subjectKind === 'branch') {
-      // A conflict is the pulsing "rebasing" card ONLY while actively rebasing;
-      // otherwise it's the actionable "resolve it" (DS 'surfaced') card in Needs you.
-      const kind = r.disposition === 'branchConflict' && r._rebasing ? 'conflict' : BRANCH_DISPOSITION_TO_KIND[r.disposition];
-      const detail = r.disposition === 'branchConflict' && !r._rebasing ? r.reason : undefined;
-      const details = r.disposition === 'branchSurfaced' ? r.reason : undefined;
-      items.push({ kind: 'branch', branch: { kind, detail, details } });
+      items.push({ kind: 'branch', branch: branchPresentation(r) });
     }
     // 'live' rows are represented by the agentWorking line above — no separate item.
   }

@@ -8,6 +8,7 @@ import { StagedApprovalsBar } from "./StagedApprovalsBar.jsx";
 import styles from "./PRCard.module.css";
 
 const REVIEW = {
+  READY: { tone: "sage", label: "✓ ready to merge" },
   APPROVED: { tone: "sage", label: "Approved" },
   REVIEW_REQUIRED: { tone: "neutral", label: "Review required" },
   DRAFT: { tone: "outline", label: "Draft" },
@@ -74,19 +75,29 @@ export function PRCard({ pr, lane = "needs", items = [], controller }) {
         </div>
       ))}
 
-      {branchItems.map((it, i) => (
-        <div key={`branch-${i}`} className={styles.section}>
-          <BranchStatus
-            state={it.branch.kind}
-            detail={it.branch.detail}
-            details={it.branch.details}
-            detailsOpen={controller.branchDetailsOpen(pr.id)}
-            onToggleDetails={() => controller.toggleBranchDetails(pr.id)}
-            terminalOpen={controller.branchTerminalOpen(pr.id)}
-            onTerminal={() => controller.branchTerminal(pr.id)}
-          />
-        </div>
-      ))}
+      {branchItems.map((it, i) => {
+        const b = it.branch;
+        // Bind the adapter's semantic action keys to controller methods (adapt.js is
+        // React-free, so it emits keys; the card wires the handlers).
+        const actions = (b.actions || []).map(() => ({
+          label: "Open in terminal",
+          onClick: () => controller.branchTerminal(pr.id),
+          note: controller.branchTerminalOpen(pr.id) ? "Terminal session opened…" : undefined,
+        }));
+        return (
+          <div key={`branch-${i}`} className={styles.section}>
+            <BranchStatus
+              tone={b.tone}
+              pulse={b.pulse}
+              message={b.message}
+              details={b.details}
+              detailsOpen={controller.branchDetailsOpen(pr.id)}
+              onToggleDetails={() => controller.toggleBranchDetails(pr.id)}
+              actions={actions}
+            />
+          </div>
+        );
+      })}
 
       {threadItems.length > 0 && (
         <div className={styles.threads}>

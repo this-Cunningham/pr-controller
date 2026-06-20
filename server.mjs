@@ -159,7 +159,7 @@ async function poll() {
       // merge conflict short-circuits to a rebase-ONLY run; otherwise threads/CI.
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
-        needsRebase: pr.needsRebase, healthChanged,
+        needsRebase: pr.needsRebase, healthChanged, rebaseSurfaced: !!pr.workerSurfaced,
       });
 
       // Mark threads seen — but DEFER while a real conflict blocks the PR (a conflict
@@ -294,19 +294,6 @@ const server = createServer(async (req, res) => {
           const queued = dispatcher.isWorking(payload.prKey);
           dispatcher.enqueueApproved(pr, threadIds, { branchHealth: pr.branchHealth, rebaseOnConflict: pr.needsRebase });
           spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent dispatched' };
-        }
-      }
-      // Manual "Rebase" CTA: the branch has a merge conflict and there's nothing
-      // else queued for the worker to do, so we didn't auto-dispatch (a quiet
-      // force-push would dismiss reviews). The user opted in — dispatch a rebase.
-      if (payload.action === 'rebase') {
-        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
-        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
-        else if (!pr.needsRebase) spawn = { spawned: false, reason: 'no merge conflict to rebase' };
-        else {
-          const queued = dispatcher.isWorking(payload.prKey);
-          dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
-          spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'rebase dispatched' };
         }
       }
       res.writeHead(200, { 'content-type': 'application/json' });

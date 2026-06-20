@@ -144,8 +144,10 @@ something as a question is not by itself a reason to surface.
     anyway, so freshness wins over approval-preservation. **Conscious
     tradeoff:** auto-rebasing an already-approved idle PR force-pushes and dismisses
     its approval. Clean rebase → push `--force-with-lease`; non-trivial conflicts →
-    surface, never guess. The manual **Rebase** CTA (`/decision {action:'rebase'}`)
-    is kept as a redundant manual re-trigger.
+    surface, never guess. Once the agent surfaces a conflict as too risky, the daemon
+    stops auto-retrying it (it stays in Needs you for the user) until the conflict clears
+    — a later health change (even an unrelated CI flip) must not re-spin a rebase that
+    would just bail again. [tested: `dispatchDecision` with `rebaseSurfaced`]
   - The informational "behind base" pill (`isBehindBase`: branch BEHIND or
     CONFLICTING/DIRTY) is NOT approval-gated — it's a fact about the branch
     regardless of review state. Rebasing is driven by the conflict, not approval.
@@ -233,7 +235,7 @@ client-only overlays (the SSE in-flight set + the staged/dispatched "cart"); it 
 no routing. The card is a pure renderer of the `items` it's handed. Lane membership
 (`LANE_OF_DISPOSITION`):
 - **Needs you:** `needsYourApproval` + `agentError` threads; the branch/JIRA
-  pseudo-dispositions `jiraNeeded`, `branchSurfaced`, `branchOutOfSync`, and
+  pseudo-dispositions `jiraNeeded`, `branchOutOfSync`, and
   `branchConflict` (a standing conflict lives here until a rebase worker is actually in
   flight). A staged approval moves OUT the instant its Run fires (the client
   `isDispatched` overlay → In progress).

@@ -23,6 +23,7 @@ function pr(over = {}) {
     needsRebase: over.needsRebase ?? false,
     outOfSync: over.outOfSync ?? false,
     workerSurfaced: over.workerSurfaced ?? null,
+    readyToMerge: over.readyToMerge ?? false,
     branchHealth: over.branchHealth ?? { failingChecks: [] },
     threads: (over.threads || []).map((t, i) => ({
       threadId: t.id ?? `t${i}`, path: 'a.js', line: 1,
@@ -100,18 +101,20 @@ test('needsJira -> a Needs-you card with a jira item', () => {
   assert.deepEqual(itemsFor(l.needs, 'site-vdp-remix#1').map((i) => i.kind), ['jira']);
 });
 
-test('outOfSync -> a Needs-you branch item (kind outofsync)', () => {
+test('outOfSync -> a Needs-you branch item (attention, terminal action)', () => {
   const l = lanesFrom([pr({ outOfSync: true })]);
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
   assert.deepEqual(items.map((i) => i.kind), ['branch']);
-  assert.equal(items[0].branch.kind, 'outofsync');
+  assert.equal(items[0].branch.tone, 'attention');
+  assert.deepEqual(items[0].branch.actions, ['terminal']);
 });
 
 test('surfaced wins over a conflict -> Needs-you branch item, not In progress', () => {
   const l = lanesFrom([pr({ workerSurfaced: 'rebase too risky', needsRebase: true })]);
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
-  assert.equal(items[0].branch.kind, 'surfaced');
-  assert.equal(items[0].branch.details, 'rebase too risky');
+  assert.equal(items[0].branch.tone, 'attention');
+  assert.equal(items[0].branch.details, 'rebase too risky'); // agent's reason behind "Show details"
+  assert.deepEqual(items[0].branch.actions, ['terminal']);
   assert.equal(cardIds(l.progress).length, 0);
 });
 
@@ -120,8 +123,10 @@ test('a standing conflict (no active rebase) -> Needs you, actionable "resolve i
   assert.deepEqual(cardIds(l.needs), ['site-vdp-remix#1']);
   assert.equal(cardIds(l.progress).length, 0);
   const branch = itemsFor(l.needs, 'site-vdp-remix#1').find((i) => i.kind === 'branch');
-  assert.equal(branch.branch.kind, 'surfaced');                 // actionable, not a fake rebasing pulse
-  assert.match(branch.branch.detail, /Merge conflict/);
+  assert.equal(branch.branch.tone, 'attention');                // actionable, not a fake rebasing pulse
+  assert.deepEqual(branch.branch.actions, ['terminal']);        // resolve by hand; the agent auto-rebases or surfaces
+  assert.match(branch.branch.message, /Merge conflict/);
+  assert.equal(branch.branch.details, undefined);               // no agent explanation -> no "Show details"
 });
 
 test('a conflict WITH a rebase worker in flight -> In progress, "rebasing now" card', () => {
@@ -129,7 +134,7 @@ test('a conflict WITH a rebase worker in flight -> In progress, "rebasing now" c
   const l = lanesFrom([pr({ needsRebase: true })], { isRebasing: (prId) => prId === key });
   assert.deepEqual(cardIds(l.progress), [key]);
   assert.equal(cardIds(l.needs).length, 0);
-  assert.equal(itemsFor(l.progress, key).find((i) => i.kind === 'branch').branch.kind, 'conflict');
+  assert.equal(itemsFor(l.progress, key).find((i) => i.kind === 'branch').branch.tone, 'agent'); // ambient "rebasing now"
 });
 
 test('overlay: a dispatched approval moves the thread Needs-you -> In progress (as pending)', () => {
@@ -154,6 +159,12 @@ test('adaptPRMeta: draft -> DRAFT review; CI failing -> a ci pill', () => {
   const meta = adaptPRMeta(pr({ isDraft: true, branchHealth: { failingChecks: [{ name: 'unit' }] } }));
   assert.equal(meta.review, 'DRAFT');
   assert.ok(meta.pills.some((p) => p.kind === 'ci'));
+});
+
+test('adaptPRMeta: a ready-to-merge PR -> READY badge (a PR-level status, not a lane)', () => {
+  assert.equal(adaptPRMeta(pr({ readyToMerge: true })).review, 'READY');
+  assert.equal(adaptPRMeta(pr({ readyToMerge: true, reviewDecision: 'APPROVED' })).review, 'READY'); // READY supersedes APPROVED
+  assert.equal(adaptPRMeta(pr({ readyToMerge: true, isDraft: true })).review, 'DRAFT');               // draft still wins
 });
 
 test('cards within a lane are ordered by urgency (surfaced/approval before error)', () => {

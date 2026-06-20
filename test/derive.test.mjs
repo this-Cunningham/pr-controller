@@ -58,3 +58,11 @@ test('deriveRecord: outOfSync flows through from the dispatcher flag', () => {
   assert.equal(deriveRecord(scannedPr({}), { outOfSync: true }).outOfSync, true);
   assert.equal(deriveRecord(scannedPr({}), { outOfSync: false }).outOfSync, false);
 });
+
+test('deriveRecord: readyToMerge follows GitHub mergeState === CLEAN (PR-level badge)', () => {
+  const bh = (mergeState) => ({ mergeable: 'MERGEABLE', mergeState, failingChecks: [], complianceChecks: [] });
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('CLEAN') })).readyToMerge, true);
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('BLOCKED') })).readyToMerge, false); // required reviews/checks not met
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('BEHIND') })).readyToMerge, false);  // behind base is its own state
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('DIRTY') })).readyToMerge, false);   // conflict
+});

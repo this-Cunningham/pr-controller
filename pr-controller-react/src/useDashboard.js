@@ -240,21 +240,6 @@ export function useDashboard(seed = null) {
     [staged, showToast]
   );
 
-  // Manual "Rebase" CTA: the branch has a merge conflict and nothing else was
-  // queued, so the agent didn't auto-rebase. Dispatch one on demand.
-  const rebasePR = useCallback(
-    async (prId) => {
-      showToast('Dispatching the rebase…');
-      const res = await postDecision({ action: 'rebase', prKey: prId });
-      if (res?.spawn?.spawned) {
-        showToast(res.spawn.queued ? 'Agent busy — rebase queued for the next run' : 'Rebase dispatched');
-      } else {
-        showToast(res?.spawn?.reason || 'Could not dispatch the rebase');
-      }
-    },
-    [showToast]
-  );
-
   // Branch-health discuss: the agent already TRIED the rebase and surfaced it as
   // too risky to do mechanically, so re-dispatching would just bail again. Open an
   // interactive terminal in the worktree to resolve it by hand instead. No threadId.
@@ -405,7 +390,6 @@ export function useDashboard(seed = null) {
     unstageApproach,
     undoReply,
     runAgent,
-    rebasePR,
     discussRebase,
     discuss,
     sendRebuttal,

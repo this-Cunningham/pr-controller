@@ -16,6 +16,22 @@ Routing lives in exactly one pure, tested function: `placementsFor` in `placemen
 If you are tempted to compute "which tab does this go in?" in the React app, stop — that
 decision belongs in `placements.mjs`.
 
+## Lanes are for items; PR-level state is a badge
+
+A lane (Needs you / In progress / Waiting on reviewer) is a destination for an **item** —
+a thread or a branch signal that needs a next action. A status that is true of a **whole
+PR** (its review or merge state — e.g. approved, or ready to merge) is a **badge** on the
+card, never a lane.
+
+The reason is the placement model itself: a lane classifies items, so a PR appears in a
+lane because it *has an item there*. A PR-level status has no item to attach to — making
+it a lane would force the PR to be classified twice along two unrelated axes at once (a
+whole-PR reason competing with its item-level reasons), which is the ambiguity the
+placement model exists to remove.
+
+Rule of thumb: if a signal is a property of the PR rather than of one actionable item,
+render it as a badge (or a header filter/sort) — not a lane.
+
 ## The pipeline (by file)
 
 Each hop is small, pure where it can be, and tested:
@@ -85,9 +101,8 @@ Non-thread pseudo-dispositions (from `placementsFor`):
 | disposition       | lane     | subject                                        |
 |-------------------|----------|------------------------------------------------|
 | `jiraNeeded`      | needs    | missing JIRA ticket (compliance check)         |
-| `branchSurfaced`  | needs    | agent tried a rebase and surfaced it           |
 | `branchOutOfSync` | needs    | branch diverged; agent never ran               |
-| `branchConflict`  | needs    | standing merge conflict                        |
+| `branchConflict`  | needs    | merge conflict (carries the agent's reason if it surfaced one) |
 | `agentWorking`    | progress | a worker is in flight (no other progress row)  |
 
 The client maps each disposition to the design-system short tag

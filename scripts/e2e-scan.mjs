@@ -47,7 +47,7 @@ console.log('\n=== LANES (what the dashboard tabs would show) ===');
 for (const lane of lanes) {
   console.log(`\n[${lane.key}] ${lane.title} — ${lane.prs.length} card(s)`);
   for (const card of lane.prs) {
-    const items = card.items.map((i) => i.kind + (i.thread ? `:${i.thread.tag}` : i.branch ? `:${i.branch.kind}` : '')).join(', ');
+    const items = card.items.map((i) => i.kind + (i.thread ? `:${i.thread.tag}` : i.branch ? `:${i.branch.tone}` : '')).join(', ');
     console.log(`  • ${card.pr.id}  [${items || '∅'}]`);
   }
 }

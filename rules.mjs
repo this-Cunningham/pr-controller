@@ -173,15 +173,17 @@ export function needsRebase(mergeState, mergeable) {
 //  - CONFLICT WINS. While a real conflict exists, the ONLY thing we dispatch is a
 //    rebase-only run — never feedback. If that rebase bails, the worker surfaces it;
 //    poll() defers the threads (does not mark them seen) so they wait for the conflict
-//    to clear. The rebase is gated on healthChanged so a standing/surfaced conflict
-//    isn't re-attempted every poll (it can't auto-resolve until the user acts / base
-//    moves).
+//    to clear. The rebase is gated on healthChanged so a conflict isn't re-attempted
+//    every poll. And once the agent has SURFACED a conflict as too risky to
+//    auto-resolve (rebaseSurfaced), the daemon stops auto-retrying entirely and leaves
+//    it in Needs you for the user — re-spinning would just bail again (or force-push
+//    something risky). Normal flow resumes once the conflict clears (surfaced drops).
 //  - NO CONFLICT -> normal feedback path: dispatch threads/CI only when there's work
 //    AND something changed this poll (new threads, or health changed). Feedback runs
 //    NEVER rebase — the branch is already mergeable.
-export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false }) {
+export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false, rebaseSurfaced = false }) {
   if (needsRebase)
-    return healthChanged ? { kind: 'rebase' } : { kind: 'none' };
+    return rebaseSurfaced ? { kind: 'none' } : healthChanged ? { kind: 'rebase' } : { kind: 'none' };
   const workToDo = newThreadCount > 0 || ciFailing;
   if (workToDo && (newThreadCount > 0 || healthChanged))
     return { kind: 'feedback' };

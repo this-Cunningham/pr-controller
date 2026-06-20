@@ -7,3 +7,7 @@
 - [x] Integrate the incoming design system into the dashboard — done: the Wabi-Sabi design system is vendored into pr-controller-react (CSS modules + tokens) and the theme is frozen; adapt.js maps dispositions to the DS tag vocabulary.
 - [ ] "agent surfaced" copy can be very lengthy -- can we get a TLDR version with option to "expand" where we would get this current copy after expanding
 - [ ] look into polishing the prompts we inject into our workers, the initial prompt but then also eventual prompts that are injected mid session
+- [ ] add config slider that adjusts the "surface this to me" sensitivity of the workers. (maybe some users will want their workers to surface more things. some users will want their workers to handle everything (except aborted complicated rebases)) this slider would change the prompts that the workers get when going over PRs
+- [ ] add my new loading indicators from claude design
+- [ ] can we make the threads clickable that go to the comment/thread in github?
+- [ ] is it hard to surface the diff from the threads in our app?
