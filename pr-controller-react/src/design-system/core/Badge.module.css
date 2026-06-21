@@ -1,0 +1,50 @@
+/* Small status pill. Color from data-tone; data-mono switches to the
+   uppercase tracked mono variant used for review-status pills. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px; /* 6px off-scale */
+  font-family: var(--font-sans);
+  font-size: var(--text-pill);
+  padding: 3px var(--space-3); /* 3px off-scale */
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+}
+
+.badge[data-mono="true"] {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: 0.06em; /* off-scale tracking */
+  text-transform: uppercase;
+  padding: var(--space-1) var(--space-3);
+}
+
+.badge[data-tone="neutral"] {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.badge[data-tone="active"] {
+  background: var(--auto-bg);
+  color: var(--auto-fg);
+}
+.badge[data-tone="urgent"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.badge[data-tone="praise"] {
+  background: var(--praise-bg);
+  color: var(--praise-fg);
+}
+.badge[data-tone="outline"] {
+  background: transparent;
+  color: var(--ink-3);
+  border-color: var(--line-2);
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}

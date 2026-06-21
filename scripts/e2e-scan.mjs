@@ -13,7 +13,7 @@ import { scanAll } from '../scanner.mjs';
 import { readWorkerResult } from '../worker.mjs';
 import { deriveRecord } from '../derive.mjs';
 import { placementsFor, prSortRank } from '../placements.mjs';
-import { buildLanes } from '../pr-controller-react/src/adapt.js';
+import { buildLanes } from '../pr-controller-react/src/features/dashboard/adapt.js';
 import { config } from '../config.mjs';
 
 const DATA = join(config.baseDir, 'data');

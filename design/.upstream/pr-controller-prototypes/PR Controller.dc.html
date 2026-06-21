@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+  <style>html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}</style>
+</helmet>
+<div style="min-height:100vh;background:var(--bg)">
+
+  <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width:900px;margin:0 auto;padding:34px 28px 120px">
+      <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)">
+        <div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:28px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
+            <span title="The agent always acts for real — this only changes which PRs it watches.">
+              <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
+            </span>
+          </div>
+          <div style="margin-top:11px;font-size:13px;color:var(--ink-2);font-family:var(--font-mono)">{{ openCount }} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style="color:var(--accent)">{{ needCount }} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {{ updated }}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex:none">
+          <div style="display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px">
+            <button onClick="{{ onViewDashboard }}" style="{{ dashBtnStyle }}">Dashboard</button>
+            <button onClick="{{ onViewSwimlanes }}" style="{{ swimBtnStyle }}">Swimlanes</button>
+          </div>
+          <x-import component-from-global-scope="DesignSystem_220c99.ThemeSwitcher" hint-size="auto,38px"></x-import>
+          <button onClick="{{ onRefresh }}" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font:500 13px var(--font-sans);padding:9px 15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink)">
+            <sc-if value="{{ refreshing }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;display:inline-block;animation:ws-spin .9s linear infinite">⟳</span></sc-if>
+            <sc-if value="{{ notRefreshing }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;display:inline-block">⟳</span></sc-if>
+            {{ refreshLabel }}
+          </button>
+        </div>
+      </header>
+
+      <sc-if value="{{ loading }}" hint-placeholder-val="{{ true }}">
+        <x-import component-from-global-scope="DesignSystem_220c99.Skeleton" caption="Fetching your open pull requests…" count="{{ 3 }}" hint-size="100%,260px"></x-import>
+      </sc-if>
+      <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <x-import component-from-global-scope="DesignSystem_220c99.Tabs" tabs="{{ tabs }}" active="{{ tab }}" on-change="{{ onTab }}" sticky="{{ true }}" hint-size="100%,52px"></x-import>
+          <div style="margin-top:16px;font-size:13px;color:var(--ink-2);font-style:italic">{{ dashCaption }}</div>
+          <sc-if value="{{ dashHasPrs }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
+              <sc-for list="{{ dashItemsList }}" as="row" hint-placeholder-count="3">
+                <dc-import name="PRCard" pr="{{ row.pr }}" lane="{{ tab }}" items="{{ row.items }}" controller="{{ controller }}" hint-size="100%,220px"></dc-import>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ dashEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px">
+              <x-import component-from-global-scope="DesignSystem_220c99.EmptyState" label="{{ dashEmptyLabel }}" hint-size="100%,60px"></x-import>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSwimlanes }}" hint-placeholder-val="{{ false }}">
+    <div style="height:100vh;display:flex;flex-direction:column;overflow:hidden">
+      <header style="flex:none;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:24px 32px 18px;border-bottom:1px solid var(--line)">
+        <div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:27px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
+            <span title="The agent always acts for real — this only changes which PRs it watches.">
+              <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
+            </span>
+          </div>
+          <div style="margin-top:11px;font-size:13px;color:var(--ink-2);font-family:var(--font-mono)">{{ openCount }} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style="color:var(--accent)">{{ needCount }} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {{ updated }}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex:none">
+          <div style="display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px">
+            <button onClick="{{ onViewDashboard }}" style="{{ dashBtnStyle }}">Dashboard</button>
+            <button onClick="{{ onViewSwimlanes }}" style="{{ swimBtnStyle }}">Swimlanes</button>
+          </div>
+          <x-import component-from-global-scope="DesignSystem_220c99.ThemeSwitcher" hint-size="auto,38px"></x-import>
+          <button onClick="{{ onRefresh }}" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font:500 13px var(--font-sans);padding:9px 15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink)">
+            <sc-if value="{{ refreshing }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;display:inline-block;animation:ws-spin .9s linear infinite">⟳</span></sc-if>
+            <sc-if value="{{ notRefreshing }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;display:inline-block">⟳</span></sc-if>
+            {{ refreshLabel }}
+          </button>
+        </div>
+      </header>
+
+      <sc-if value="{{ loading }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;gap:18px;padding:4px 32px 26px;overflow:hidden">
+          <div style="flex:1;min-width:0"><x-import component-from-global-scope="DesignSystem_220c99.Skeleton" caption="Loading…" count="{{ 3 }}" hint-size="100%,260px"></x-import></div>
+          <div style="flex:1;min-width:0"><x-import component-from-global-scope="DesignSystem_220c99.Skeleton" caption="Loading…" count="{{ 3 }}" hint-size="100%,260px"></x-import></div>
+          <div style="flex:1;min-width:0"><x-import component-from-global-scope="DesignSystem_220c99.Skeleton" caption="Loading…" count="{{ 3 }}" hint-size="100%,260px"></x-import></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ notLoading }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;min-height:0;display:flex;gap:18px;padding:20px 32px 26px;overflow-x:auto">
+          <sc-for list="{{ columns }}" as="col" hint-placeholder-count="3">
+            <section style="flex:1;min-width:312px;display:flex;flex-direction:column;min-height:0">
+              <div style="{{ col.headStyle }}">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <h2 style="margin:0;font:600 15px var(--font-sans);color:var(--ink)">{{ col.title }}</h2>
+                  <span style="{{ col.countStyle }}">{{ col.count }}</span>
+                </div>
+                <div style="margin-top:6px;font-size:12px;color:var(--ink-3);font-style:italic">{{ col.caption }}</div>
+              </div>
+              <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-right:4px;padding-bottom:8px">
+                <sc-if value="{{ col.isEmpty }}" hint-placeholder-val="{{ false }}">
+                  <x-import component-from-global-scope="DesignSystem_220c99.EmptyState" label="{{ col.emptyLabel }}" hint-size="100%,60px"></x-import>
+                </sc-if>
+                <sc-if value="{{ col.hasCards }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                    <sc-for list="{{ col.cards }}" as="card" hint-placeholder-count="2">
+                      <div onClick="{{ card.onOpen }}" style="position:relative;overflow:hidden;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:15px 15px 15px 17px;animation:ws-appear .3s ease;transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease" style-hover="border-color:var(--line-2);transform:translateY(-2px);box-shadow:0 6px 18px -10px rgba(0,0,0,.55)">
+                        <sc-if value="{{ card.needsYou }}" hint-placeholder-val="{{ false }}">
+                          <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)"></div>
+                        </sc-if>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                          <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ card.repoNum }}</span>
+                          <span style="flex:none"><x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ card.reviewTone }}" mono="{{ true }}" hint-size="auto,22px">{{ card.reviewLabel }}</x-import></span>
+                        </div>
+                        <div style="font-size:14.5px;font-weight:600;line-height:1.4;margin-top:8px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">{{ card.title }}</div>
+                        <sc-if value="{{ card.hasPills }}" hint-placeholder-val="{{ false }}">
+                          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+                            <sc-for list="{{ card.pills }}" as="pill" hint-placeholder-count="1">
+                              <x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ pill.tone }}" hint-size="auto,20px">{{ pill.label }}</x-import>
+                            </sc-for>
+                          </div>
+                        </sc-if>
+                        <div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                          <x-import component-from-global-scope="DesignSystem_220c99.DispositionTag" tone="{{ card.leadTone }}" hint-size="auto,20px">{{ card.leadLabel }}</x-import>
+                          <sc-if value="{{ card.hasLoc }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ card.leadLoc }}</span></sc-if>
+                          <sc-if value="{{ card.hasMore }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3)">{{ card.moreLabel }}</span></sc-if>
+                        </div>
+                        <sc-if value="{{ card.stagedShow }}" hint-placeholder-val="{{ false }}">
+                          <div style="{{ card.stagedStyle }}">
+                            <span style="{{ card.stagedDotStyle }}"></span>{{ card.stagedText }}
+                          </div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </section>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ hasExpanded }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ onCloseCard }}" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 20px;animation:ws-appear .18s ease;overflow-y:auto">
+        <div onClick="{{ stopProp }}" style="position:relative;width:100%;max-width:640px;animation:ws-fadeup .22s ease">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+            <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">{{ expandedColName }}</span>
+            <button onClick="{{ onCloseCard }}" aria-label="Close" style="cursor:pointer;display:inline-flex;align-items:center;gap:7px;font:500 12.5px var(--font-sans);color:var(--ink-2);background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:6px 12px">Close&nbsp;<span style="font-family:var(--font-mono);font-size:11px">esc</span></button>
+          </div>
+          <dc-import name="PRCard" pr="{{ expandedPr }}" lane="{{ expandedLane }}" items="{{ expandedItems }}" controller="{{ controller }}" hint-size="100%,300px"></dc-import>
+        </div>
+      </div>
+    </sc-if>
+  </sc-if>
+
+  <x-import component-from-global-scope="DesignSystem_220c99.Toast" message="{{ toastMsg }}" hint-size="auto,44px"></x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  TAG_LANE = { input: "needs", error: "needs", pending: "progress", fixed: "waiting", waiting: "waiting", praise: null };
+  BRANCH_LANE = { conflict: "progress", surfaced: "needs", outofsync: "needs" };
+  TAG_CHIP = {
+    input: { tone: "urgent", label: "needs your input" },
+    error: { tone: "error", label: "agent error" },
+    pending: { tone: "pending", label: "no feedback yet" },
+    fixed: { tone: "active", label: "agent fixed · waiting" },
+    waiting: { tone: "neutral", label: "waiting on reviewer" },
+  };
+  REVIEW = {
+    APPROVED: { tone: "active", label: "Approved" },
+    REVIEW_REQUIRED: { tone: "neutral", label: "Review required" },
+    DRAFT: { tone: "outline", label: "Draft" },
+  };
+  PILL_TONE = { behind: "neutral", ci: "urgent" };
+  LANES = [
+    { key: "needs", title: "Needs you", caption: "Resolve these before the agent continues.", empty: "Nothing needs you right now." },
+    { key: "progress", title: "In progress", caption: "The agent is working on these — just glance.", empty: "Nothing in progress." },
+    { key: "waiting", title: "Waiting on reviewer", caption: "Addressed — waiting on the reviewer.", empty: "Nothing waiting on a reviewer." },
+  ];
+  PRS = [
+    { id: "pr2412", repo: "acme/web-app", number: 2412, title: "Refactor auth middleware to support SSO", review: "REVIEW_REQUIRED",
+      pills: [{ label: "behind base", kind: "behind" }, { label: "CI failing: unit-api", kind: "ci" }],
+      branch: { kind: "conflict" },
+      threads: [
+        { id: "t1", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
+          body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.",
+          reasonSummary: "Reviewer disputes the change — needs your judgment.",
+          reasonFull: "The reviewer is right that the early return powers silent re-auth. The agent can’t tell whether SSO is meant to replace that path or sit beside it — that’s a product call, so it surfaced the thread with a drafted reply rather than guessing.",
+          reply: "Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it. Pushing a fix shortly." },
+        { id: "t2", tag: "fixed", loc: "src/auth/sso.ts:142", author: "@marco",
+          body: "Nit: use const here and destructure the config object instead of repeated property access.",
+          reasonSummary: "Mechanical refactor — fixed and replied to the reviewer.",
+          reasonFull: "Pure style change with no behavior impact, so the agent applied it, replied “fixed”, and left the thread open for @marco to confirm." },
+        { id: "t3", tag: "pending", loc: "src/auth/sso.ts:201", author: "@priya",
+          body: "Should this read the issuer from env rather than hardcoding it?",
+          reasonSummary: "Queued — the agent hasn’t judged this yet." },
+      ] },
+    { id: "pr874", repo: "acme/data-pipeline", number: 874, title: "Add backfill job for the events table", review: "DRAFT", jira: true,
+      pills: [{ label: "CI failing: lint", kind: "ci" }],
+      threads: [
+        { id: "t4", tag: "input", loc: "jobs/backfill.py:55", author: "@priya",
+          body: "Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this.",
+          reasonSummary: "Architectural concern with prod impact — your call.",
+          reasonFull: "The agent agrees the synchronous lock is unsafe in prod, but rewriting the job to chunk-and-checkpoint changes runtime behavior, so it drafted an approach for your approval instead of applying it.",
+          approach: "Rewrite the job to process events in 10k-row chunks against a checkpoint table, and target the read replica for the scan. Keep the synchronous path behind a --small flag for local runs." },
+      ] },
+    { id: "pr561", repo: "acme/design-system", number: 561, title: "Tokenize the spacing scale", review: "REVIEW_REQUIRED", pills: [{ label: "behind base", kind: "behind" }],
+      branch: { kind: "surfaced", details: "The rebase touched tokens/spacing.json, where both branches renamed the same keys. Auto-merging would silently drop one side’s rename — the agent stopped rather than guess which wins." },
+      threads: [
+        { id: "t7", tag: "fixed", loc: "tokens/spacing.json:12", author: "@lee",
+          body: "Base unit should be four px, not five — matches the grid.",
+          reasonSummary: "Matched the documented grid — fixed, waiting on @lee." },
+      ] },
+    { id: "pr2399", repo: "acme/web-app", number: 2399, title: "Bump lodash to 4.17.21", review: "APPROVED", pills: [],
+      threads: [
+        { id: "t5", tag: "fixed", loc: "package.json:24", author: "@deps-bot", body: "Lockfile is out of sync with package.json.", reasonSummary: "Regenerated the lockfile — waiting on the reviewer." },
+        { id: "t6", tag: "waiting", loc: "CHANGELOG.md:1", author: "@sam", body: "LGTM once the changelog entry lands.", reasonSummary: "You added the entry — waiting on @sam to re-approve." },
+        { id: "t13", tag: "pending", loc: "src/index.ts:3", author: "@ci-bot", body: "Bundle-size check still running.", reasonSummary: "Queued — the agent hasn’t reviewed this yet." },
+      ] },
+    { id: "pr990", repo: "acme/api", number: 990, title: "Add rate limiting to the public API", review: "REVIEW_REQUIRED", pills: [],
+      threads: [
+        { id: "te1", tag: "error", loc: ".github/workflows/ci.yml:30", author: "@ci-bot",
+          body: "Step “cache restore” failed to parse — unexpected key “path” at line 30.",
+          reasonSummary: "The agent couldn’t classify this failure.",
+          reasonFull: "The run failed before any test executed, with a YAML parse error the agent doesn’t have enough context to fix safely. Open a terminal to inspect." },
+        { id: "te2", tag: "pending", loc: "src/limiter.ts:44", author: "@marco", body: "Does this handle burst windows correctly?", reasonSummary: "Queued — the agent is reviewing this now." },
+      ] },
+    { id: "pr2380", repo: "acme/web-app", number: 2380, title: "Docs: clarify local env setup", review: "APPROVED", pills: [],
+      threads: [
+        { id: "tp1", tag: "praise", loc: "README.md:42", author: "@dana-k", body: "This was overdue — much clearer now.", reasonSummary: "Positive feedback — no action." },
+        { id: "tw1", tag: "waiting", loc: "README.md:60", author: "@sam", body: "One tiny follow-up in-thread, nothing blocking.", reasonSummary: "Waiting on @sam." },
+      ] },
+    { id: "pr203", repo: "acme/infra", number: 203, title: "Bump terraform aws provider to 5.x", review: "REVIEW_REQUIRED", pills: [],
+      branch: { kind: "outofsync" }, threads: [] },
+  ];
+
+  state = { view: "dashboard", tab: "needs", scope: "all", loading: true, refreshing: false, updated: "just now", toastMsg: null, expanded: null, ts: {}, bs: {}, jira: {}, runs: {} };
+
+  componentDidMount() {
+    this._t = setTimeout(() => this.setState({ loading: false }), 850);
+  }
+  componentWillUnmount() {
+    clearTimeout(this._t);
+    clearTimeout(this._tt);
+  }
+
+  toast(m) {
+    this.setState({ toastMsg: m });
+    clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toastMsg: null }), 2800);
+  }
+  tset(id, extra) { const ts = this.state.ts; this.setState({ ts: { ...ts, [id]: { ...(ts[id] || {}), ...extra } } }); }
+  bset(id, extra) { const bs = this.state.bs; this.setState({ bs: { ...bs, [id]: { ...(bs[id] || {}), ...extra } } }); }
+
+  prInLane(pr, lane) {
+    const t = (pr.threads || []).some((x) => this.TAG_LANE[x.tag] === lane);
+    const b = pr.branch && this.BRANCH_LANE[pr.branch.kind] === lane;
+    const j = pr.jira && lane === "needs";
+    return t || b || j;
+  }
+  buildItems(pr, lane) {
+    const items = [];
+    const conflictHere = pr.branch && pr.branch.kind === "conflict" && this.BRANCH_LANE.conflict === lane;
+    if (lane === "progress" && !conflictHere) items.push({ kind: "agentWorking" });
+    if (pr.branch && this.BRANCH_LANE[pr.branch.kind] === lane) items.push({ kind: "branch", branch: { kind: pr.branch.kind, detail: pr.branch.detail, details: pr.branch.details } });
+    (pr.threads || []).forEach((t) => { if (this.TAG_LANE[t.tag] === lane) items.push({ kind: "thread", thread: t }); });
+    if (pr.jira && lane === "needs") items.push({ kind: "jira" });
+    return items;
+  }
+  laneSummary(pr, lane) {
+    const out = [];
+    this.buildItems(pr, lane).forEach((it) => {
+      if (it.kind === "thread") out.push({ ...(this.TAG_CHIP[it.thread.tag] || this.TAG_CHIP.waiting), loc: it.thread.loc });
+      else if (it.kind === "branch") { const k = it.branch.kind; out.push({ tone: k === "conflict" ? "active" : "urgent", label: k === "conflict" ? "merge conflict" : k === "surfaced" ? "rebase — needs you" : "branch diverged", loc: null }); }
+      else if (it.kind === "jira") out.push({ tone: "urgent", label: "missing ticket", loc: null });
+      else if (it.kind === "agentWorking") out.push({ tone: "active", label: "agent working", loc: null });
+    });
+    if (out.length === 0) out.push({ tone: "neutral", label: "waiting on reviewer", loc: null });
+    return out;
+  }
+
+  makeController() {
+    const self = this;
+    const st = () => this.state;
+    return {
+      approachStaged: (id) => !!(st().ts[id] && st().ts[id].approachStaged),
+      approveApproach: (id) => { self.tset(id, { approachStaged: true }); self.toast("Approach staged for the next agent run"); },
+      unstageApproach: (id) => self.tset(id, { approachStaged: false }),
+      replySent: (id) => !!(st().ts[id] && st().ts[id].replySent),
+      replyText: (id) => (st().ts[id] || {}).replyText,
+      sendReply: (id, text) => { const v = (text || "").trim(); if (!v) return false; self.tset(id, { replySent: true, replyText: v }); self.toast("Reply sent to the reviewer"); },
+      undoReply: (id) => self.tset(id, { replySent: false }),
+      discuss: (id) => self.tset(id, { terminalOpen: true }),
+      threadTerminalOpen: (id) => !!(st().ts[id] && st().ts[id].terminalOpen),
+      branchDetailsOpen: (prId) => !!(st().bs[prId] && st().bs[prId].detailsOpen),
+      toggleBranchDetails: (prId) => self.bset(prId, { detailsOpen: !(st().bs[prId] && st().bs[prId].detailsOpen) }),
+      branchTerminalOpen: (prId) => !!(st().bs[prId] && st().bs[prId].terminalOpen),
+      branchTerminal: (prId) => self.bset(prId, { terminalOpen: true }),
+      jiraValue: (prId) => st().jira[prId],
+      setTicket: (prId, value) => { const v = (value || "").trim().toUpperCase(); if (!v) return false; self.setState({ jira: { ...st().jira, [prId]: v } }); self.toast("Linked to " + v); },
+      stagedCount: (prId) => { const pr = self.PRS.find((p) => p.id === prId); if (!pr) return 0; return (pr.threads || []).filter((t) => t.tag === "input" && t.approach && st().ts[t.id] && st().ts[t.id].approachStaged).length; },
+      running: (prId) => st().runs[prId] === "running",
+      runAgent: (prId) => { const n = (self.PRS.find((p) => p.id === prId).threads || []).filter((t) => t.tag === "input" && t.approach && st().ts[t.id] && st().ts[t.id].approachStaged).length; self.setState({ runs: { ...st().runs, [prId]: "running" } }); self.toast("Running agent — " + n + " staged item" + (n === 1 ? "" : "s") + " queued"); },
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const controller = this.makeController();
+    const scopeN = 3;
+    const lanes = this.LANES.map((l) => ({ ...l, prs: this.PRS.filter((pr) => this.prInLane(pr, l.key)) }));
+    const needCount = lanes.find((l) => l.key === "needs").prs.length;
+
+    const segBase = { cursor: "pointer", border: "none", font: "500 12.5px var(--font-sans)", padding: "6px 12px", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--ink-2)" };
+    const segActive = { ...segBase, background: "var(--surface)", color: "var(--ink)", boxShadow: "var(--shadow-seg)" };
+
+    // dashboard
+    const tab = s.tab;
+    const activeLane = lanes.find((l) => l.key === tab) || lanes[0];
+    const tabs = lanes.map((l) => ({ key: l.key, label: l.title, count: l.prs.length, emphasize: l.key === "needs" }));
+    const dashItemsList = activeLane.prs.map((pr) => ({ key: pr.id, pr, items: this.buildItems(pr, tab) }));
+
+    // swimlanes columns
+    const columns = lanes.map((l) => {
+      const accent = l.key === "needs" && l.prs.length > 0;
+      const cards = l.prs.map((pr) => {
+        const review = this.REVIEW[pr.review] || this.REVIEW.REVIEW_REQUIRED;
+        const summary = this.laneSummary(pr, l.key);
+        const lead = summary[0];
+        const more = summary.length - 1;
+        const needsYou = l.key === "needs";
+        const staged = needsYou ? controller.stagedCount(pr.id) : 0;
+        const running = controller.running(pr.id);
+        const stagedShow = staged > 0 || running;
+        return {
+          key: pr.id,
+          repoNum: pr.repo + " #" + pr.number,
+          title: pr.title,
+          reviewTone: review.tone, reviewLabel: review.label,
+          pills: (pr.pills || []).map((p) => ({ label: p.label, tone: this.PILL_TONE[p.kind] || "neutral" })),
+          hasPills: (pr.pills || []).length > 0,
+          needsYou,
+          leadTone: lead.tone, leadLabel: lead.label, leadLoc: lead.loc, hasLoc: !!lead.loc,
+          hasMore: more > 0, moreLabel: "+" + more + " more",
+          stagedShow, stagedText: running ? "Agent run started" : staged + " approach" + (staged === 1 ? "" : "es") + " staged",
+          stagedStyle: { marginTop: 9, fontSize: 11.5, color: running ? "var(--auto-fg)" : "var(--ink-2)", display: "flex", alignItems: "center", gap: 6 },
+          stagedDotStyle: { width: 6, height: 6, borderRadius: "50%", background: running ? "var(--auto-fg)" : "var(--accent)", animation: running ? "ws-pulse 1.8s ease-in-out infinite" : "none" },
+          onOpen: () => this.setState({ expanded: { prId: pr.id, lane: l.key } }),
+        };
+      });
+      return {
+        key: l.key, title: l.title, caption: l.caption, count: l.prs.length,
+        headStyle: { flex: "none", paddingBottom: 12, borderBottom: "2px solid " + (accent ? "var(--accent)" : "var(--line-2)") },
+        countStyle: { font: "500 11.5px var(--font-mono)", padding: "1px 8px", borderRadius: 10, background: accent ? "var(--accent-bg)" : "var(--surface-2)", color: accent ? "var(--accent)" : "var(--ink-2)" },
+        isEmpty: l.prs.length === 0, emptyLabel: l.empty, hasCards: l.prs.length > 0, cards,
+      };
+    });
+
+    // modal
+    const expanded = s.expanded;
+    const expandedPr = expanded && this.PRS.find((p) => p.id === expanded.prId);
+
+    return {
+      isDashboard: s.view === "dashboard",
+      isSwimlanes: s.view === "swimlanes",
+      onViewDashboard: () => this.setState({ view: "dashboard" }),
+      onViewSwimlanes: () => this.setState({ view: "swimlanes" }),
+      dashBtnStyle: s.view === "dashboard" ? segActive : segBase,
+      swimBtnStyle: s.view === "swimlanes" ? segActive : segBase,
+
+      scope: s.scope, scopeN, scopedLabel: "Scoped · " + scopeN + " PRs",
+      onToggleScope: () => { const n = s.scope === "all" ? "scoped" : "all"; this.setState({ scope: n }); this.toast(n === "all" ? "Watching all your open PRs" : "Scoped to " + scopeN + " allowlisted PRs"); },
+      openCount: this.PRS.length, needCount, updated: s.updated,
+      refreshing: s.refreshing, notRefreshing: !s.refreshing, refreshLabel: s.refreshing ? "Refreshing…" : "Refresh",
+      onRefresh: () => { if (s.refreshing) return; this.setState({ refreshing: true }); setTimeout(() => { this.setState({ refreshing: false, updated: "just now" }); this.toast("Up to date"); }, 900); },
+      loading: s.loading, notLoading: !s.loading,
+      controller,
+      toastMsg: s.toastMsg,
+      stopProp: (e) => e.stopPropagation(),
+
+      tabs, tab, onTab: (k) => this.setState({ tab: k }),
+      dashCaption: activeLane.caption,
+      dashItemsList, dashHasPrs: activeLane.prs.length > 0,
+      dashEmpty: activeLane.prs.length === 0, dashEmptyLabel: activeLane.empty,
+
+      columns,
+
+      hasExpanded: !!expandedPr,
+      expandedPr,
+      expandedLane: expanded && expanded.lane,
+      expandedItems: expandedPr ? this.buildItems(expandedPr, expanded.lane) : [],
+      expandedColName: expanded ? ({ needs: "Needs you", progress: "In progress", waiting: "Waiting on reviewer" }[expanded.lane]) : "",
+      onCloseCard: () => this.setState({ expanded: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

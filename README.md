@@ -70,7 +70,8 @@ Requires `gh` authenticated against the enterprise host (see `config.host`).
 The UI is a Vite + React app in `pr-controller-react/` (design system is the
 source of truth; do not restyle the components ad hoc). The backend is the single
 source of truth for both data AND routing — the daemon (`placements.mjs`) emits a flat
-`placements` list assigning each item to a lane. `pr-controller-react/src/adapt.js`
+`placements` list assigning each item to a lane.
+`pr-controller-react/src/features/dashboard/adapt.js`
 (`buildLanes`) only FILTERS those placements into lanes and maps each disposition to the
 design system's tag vocabulary; it derives no routing. The card (`PRCard`) is a pure
 renderer of the items it's handed. See [ARCHITECTURE.md](ARCHITECTURE.md).

@@ -1,0 +1,26 @@
+{
+  "$comment": "Resolved mapping for the /pull-new-designs skill (Step 0). Each upstream Claude Design project maps to its committed sync baseline + the app destinations a run reconciles into, so re-runs resolve deterministically instead of re-guessing. 'styling' is this repo's component styling convention; 'namespace' is the design-system bundle namespace used to detect baselines by content, not folder name.",
+  "policy": {
+    "onUpstreamRemoval": "mirror-when-complete",
+    "note": "Apply an upstream removal (delete the primitive/token locally) when syncing from a COMPLETE design-system import — a kind=design-system project verified complete against its _ds_manifest, where absence reliably means 'removed', so mirror it. From a product/prototype export (a partial slice), NEVER infer removal: absence only means 'not used by these prototypes'. Either way, surface what changed in the report."
+  },
+  "projects": {
+    "wabi-sabi-foundation": {
+      "namespace": "DesignSystem_220c99",
+      "kind": "design-system",
+      "baseline": "design/.upstream/pr-controller-prototypes/_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55",
+      "note": "No standalone foundation export yet — the foundation is bundled in the pr-controller-prototypes export, so its baseline IS that export's _ds/. Don't copy it into a separate dir (duplicates + drifts on the next product sync). A standalone foundation import would give it its own design/.upstream/wabi-sabi-foundation/ baseline.",
+      "tokens": "pr-controller-react/src/design-system/tokens",
+      "primitives": "pr-controller-react/src/design-system",
+      "styling": "css-modules"
+    },
+    "pr-controller-prototypes": {
+      "namespace": "DesignSystem_220c99",
+      "kind": "product-prototypes",
+      "projectId": "c011d797-77eb-43cb-a9d3-5f323a57bccd",
+      "baseline": "design/.upstream/pr-controller-prototypes",
+      "features": ["pr-controller-react/src/features/dashboard"],
+      "styling": "css-modules"
+    }
+  }
+}

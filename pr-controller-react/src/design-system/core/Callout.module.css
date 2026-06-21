@@ -1,0 +1,55 @@
+/* Left-ruled status box. data-tone sets the rule/bg/mark trio via local
+   custom properties so the dot + eyebrow pick up the mark color. */
+.callout {
+  background: var(--c-bg);
+  border-left: 3px solid var(--c-rule);
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+  padding: var(--space-4) var(--space-5);
+}
+
+.callout[data-tone="urgent"] {
+  --c-rule: var(--accent);
+  --c-bg: var(--accent-soft);
+  --c-mark: var(--accent);
+}
+.callout[data-tone="active"] {
+  --c-rule: var(--auto-fg);
+  --c-bg: var(--auto-bg);
+  --c-mark: var(--auto-fg);
+}
+.callout[data-tone="neutral"] {
+  --c-rule: var(--line-2);
+  --c-bg: var(--surface-2);
+  --c-mark: var(--ink-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* 8px off-scale */
+}
+.header[data-spaced="true"] {
+  margin-bottom: var(--space-2);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-mark);
+  flex: none;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--c-mark);
+}
+
+.body {
+  font-size: 13px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
