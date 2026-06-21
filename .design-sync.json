@@ -8,8 +8,8 @@
     "wabi-sabi-foundation": {
       "namespace": "DesignSystem_220c99",
       "kind": "design-system",
-      "baseline": "design/.upstream/wabi-sabi-foundation",
-      "note": "The complete Wabi-Sabi foundation (verified against _ds_manifest: 83 tokens, 6 themes, all primitives). A future standalone foundation import refreshes it.",
+      "baseline": "design/.upstream/pr-controller-prototypes/_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55",
+      "note": "No standalone foundation export yet — the foundation is bundled in the pr-controller-prototypes export, so its baseline IS that export's _ds/. Don't copy it into a separate dir (duplicates + drifts on the next product sync). A standalone foundation import would give it its own design/.upstream/wabi-sabi-foundation/ baseline.",
       "tokens": "pr-controller-react/src/design-system/tokens",
       "primitives": "pr-controller-react/src/design-system",
       "styling": "css-modules"
