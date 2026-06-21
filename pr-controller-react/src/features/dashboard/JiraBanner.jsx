@@ -3,12 +3,12 @@ import { Button } from "../../design-system/core/Button.jsx";
 import styles from "./JiraBanner.module.css";
 
 /**
- * Compliance banner shown on a PR card when the title is missing a
- * ticket key. Pending → input + Set ticket. Linked → confirmation.
+ * Compliance banner shown on a PR card when the title is missing a ticket key.
+ * Presentational: `linked` is the current ticket (or null) and `onSetTicket` sets
+ * one (returns false to reject). Pending → input + Set ticket. Linked → confirmation.
  */
-export function JiraBanner({ pr, controller }) {
+export function JiraBanner({ linked, onSetTicket }) {
   const [value, setValue] = React.useState("");
-  const linked = controller.jiraValue(pr.id);
 
   if (linked) {
     return (
@@ -34,7 +34,7 @@ export function JiraBanner({ pr, controller }) {
             placeholder="ABC-123"
             className={styles.input}
           />
-          <Button variant="primary" onClick={() => { if (controller.setTicket(pr.id, value) !== false) setValue(""); }}>
+          <Button variant="primary" onClick={() => { if (onSetTicket(value) !== false) setValue(""); }}>
             Set ticket
           </Button>
         </div>

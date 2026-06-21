@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { PRController, Thread } from "./ThreadRow";
+import type { Thread, ThreadRowProps } from "./ThreadRow";
 
 export type Lane = "needs" | "progress" | "waiting";
 
@@ -27,20 +27,34 @@ export interface PullRequestMeta {
   pills?: { label: string; kind: "behind" | "ci" }[];
 }
 
-/** One render item for a card, already routed to this lane by the daemon. */
+/** One render item for a card, already routed to this lane by the daemon. A thread
+ * item carries its own presentational props (`threadProps`), wired by the parent. */
 export type PRCardItem =
   | { kind: "agentWorking"; text: React.ReactNode; tone?: "agent" | "accent" | "ochre"; pulse?: boolean }
   | { kind: "branch"; branch: BranchHealth }
-  | { kind: "thread"; thread: Thread }
+  | { kind: "thread"; thread: Thread; threadProps?: Omit<ThreadRowProps, "thread"> }
   | { kind: "jira" };
 
+/** Pure renderer — data + `onX` callbacks as plain props; it never touches the state hook. */
 export interface PRCardProps {
   pr: PullRequestMeta;
   /** Which lane this card renders in — drives emphasis only (needs = accent + seal). */
   lane?: Lane;
   /** The ordered items to render. The card does NOT filter or reorder them. */
   items?: PRCardItem[];
-  controller: PRController;
+  /** Count of staged approaches in this PR's cart (Needs-you only). */
+  stagedCount?: number;
+  /** Whether a worker is currently running for this PR. */
+  running?: boolean;
+  onRunAgent?(): void;
+  branchDetailsOpen?: boolean;
+  onToggleBranchDetails?(): void;
+  branchTerminalOpen?: boolean;
+  onBranchTerminal?(): void;
+  /** The linked JIRA ticket, or null when none is set. */
+  jiraLinked?: string | null;
+  /** Set the PR's ticket. Return false to reject (e.g. empty/invalid). */
+  onSetTicket?(value: string): boolean | void;
 }
 
 /**

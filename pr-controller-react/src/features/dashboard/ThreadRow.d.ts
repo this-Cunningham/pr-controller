@@ -20,36 +20,27 @@ export interface Thread {
   reply?: string;
 }
 
-/** Stateful controller the PR components delegate to (e.g. the dashboard hook). */
-export interface PRController {
-  // needs-your-input thread
-  approachStaged(id: string): boolean;
-  approveApproach(id: string): void;
-  unstageApproach(id: string): void;
-  replySent(id: string): boolean;
-  replyText(id: string): string;
-  /** Return false to reject (e.g. empty input). */
-  sendReply(id: string, text: string): boolean | void;
-  undoReply(id: string): void;
-  discuss(id: string): void;
-  threadTerminalOpen(id: string): boolean;
-  // per-PR staged-approval cart
-  stagedCount(prId: string): number;
-  running(prId: string): boolean;
-  runAgent(prId: string): void;
-  // branch health
-  branchDetailsOpen(prId: string): boolean;
-  toggleBranchDetails(prId: string): void;
-  branchTerminalOpen(prId: string): boolean;
-  branchTerminal(prId: string): void;
-  // jira
-  jiraValue(prId: string): string | null;
-  setTicket(prId: string, value: string): boolean | void;
-}
-
+/**
+ * Presentational thread row. The thread's data plus its handlers + state arrive as
+ * plain props, already bound to this (PR, thread) by the parent — no controller object,
+ * no context.
+ */
 export interface ThreadRowProps {
   thread: Thread;
-  controller: PRController;
+  /** `input` only: whether this thread's approach is staged into the PR's cart. */
+  staged?: boolean;
+  /** `input` only: whether a reply has been sent to the reviewer. */
+  replySent?: boolean;
+  /** `input` only: the text of the sent reply (shown when `replySent`). */
+  sentReplyText?: string;
+  /** Whether a terminal session is open for this thread. */
+  terminalOpen?: boolean;
+  onApprove?(): void;
+  onUnstage?(): void;
+  /** Send the (edited) reply. Return false to reject (e.g. empty input). */
+  onSendReply?(text: string): boolean | void;
+  onUndoReply?(): void;
+  onDiscuss?(): void;
 }
 
 export function ThreadRow(props: ThreadRowProps): JSX.Element;

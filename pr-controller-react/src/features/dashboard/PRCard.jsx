@@ -19,20 +19,34 @@ const PILL_TONE = { behind: "neutral", ci: "urgent" };
  * The repeating PR unit, rendered for ONE lane. The daemon owns routing: it
  * decides this PR belongs in this lane and hands the card the exact `items` to
  * show here (server placements). The card is a PURE RENDERER — it never filters,
- * routes, or reorders. A PR can appear in several lanes, each as its own card with
- * its own slice of items. Emphasis (accent rule + seal) is the Needs-you treatment
- * only; the same PR is calm elsewhere.
+ * routes, or reorders, and it never touches the dashboard state hook: it gets the
+ * data + `onX` callbacks it needs as plain props (thread items carry their own via
+ * `threadProps`). A PR can appear in several lanes, each as its own card with its
+ * own slice of items. Emphasis (accent rule + seal) is the Needs-you treatment only.
  *
  * `items` is an ordered list, each one of:
  *   { kind: 'agentWorking', text, tone?, pulse? }   ambient "agent working" line
  *   { kind: 'branch', branch:{ kind, details? } }   branch health (surfaced/outofsync/conflict)
- *   { kind: 'thread', thread }                       a reviewer comment thread (DS Thread shape)
+ *   { kind: 'thread', thread, threadProps }          a reviewer comment thread + its handlers
  *   { kind: 'jira' }                                 missing-ticket compliance banner
  */
-export function PRCard({ pr, lane = "needs", items = [], controller }) {
+export function PRCard({
+  pr,
+  lane = "needs",
+  items = [],
+  stagedCount = 0,
+  running = false,
+  onRunAgent,
+  branchDetailsOpen = false,
+  onToggleBranchDetails,
+  branchTerminalOpen = false,
+  onBranchTerminal,
+  jiraLinked = null,
+  onSetTicket,
+}) {
   const review = REVIEW[pr.review] || REVIEW.REVIEW_REQUIRED;
   const needsYou = lane === "needs";
-  const staged = needsYou ? controller.stagedCount(pr.id) : 0;
+  const staged = needsYou ? stagedCount : 0;
 
   // Bucket by kind for the canonical visual order (status → branch → threads →
   // jira). Membership and ordering within a kind are already decided upstream.
@@ -77,12 +91,12 @@ export function PRCard({ pr, lane = "needs", items = [], controller }) {
 
       {branchItems.map((it, i) => {
         const b = it.branch;
-        // Bind the adapter's semantic action keys to controller methods (adapt.js is
-        // React-free, so it emits keys; the card wires the handlers).
+        // Bind the adapter's semantic action keys to this card's branch handlers
+        // (adapt.js is React-free, so it emits keys; the card wires the handlers).
         const actions = (b.actions || []).map((a) => ({
           label: a.label || "Open in terminal",
-          onClick: () => controller.branchTerminal(pr.id),
-          note: controller.branchTerminalOpen(pr.id) ? "Terminal session opened…" : undefined,
+          onClick: onBranchTerminal,
+          note: branchTerminalOpen ? "Terminal session opened…" : undefined,
         }));
         return (
           <div key={`branch-${i}`} className={styles.section}>
@@ -91,8 +105,8 @@ export function PRCard({ pr, lane = "needs", items = [], controller }) {
               pulse={b.pulse}
               message={b.message}
               details={b.details}
-              detailsOpen={controller.branchDetailsOpen(pr.id)}
-              onToggleDetails={() => controller.toggleBranchDetails(pr.id)}
+              detailsOpen={branchDetailsOpen}
+              onToggleDetails={onToggleBranchDetails}
               actions={actions}
             />
           </div>
@@ -102,12 +116,12 @@ export function PRCard({ pr, lane = "needs", items = [], controller }) {
       {threadItems.length > 0 && (
         <div className={styles.threads}>
           {threadItems.map((it) => (
-            <ThreadRow key={it.thread.id} thread={it.thread} controller={controller} />
+            <ThreadRow key={it.thread.id} thread={it.thread} {...it.threadProps} />
           ))}
         </div>
       )}
 
-      {hasJira && <JiraBanner pr={pr} controller={controller} />}
+      {hasJira && <JiraBanner linked={jiraLinked} onSetTicket={onSetTicket} />}
 
       {isEmpty && (
         <div className={styles.noThreads}>No open threads — waiting on the reviewer.</div>
@@ -115,7 +129,7 @@ export function PRCard({ pr, lane = "needs", items = [], controller }) {
 
       {needsYou && staged > 0 && (
         <div className={styles.staged}>
-          <StagedApprovalsBar count={staged} running={controller.running(pr.id)} onRun={() => controller.runAgent(pr.id)} />
+          <StagedApprovalsBar count={staged} running={running} onRun={onRunAgent} />
         </div>
       )}
     </div>

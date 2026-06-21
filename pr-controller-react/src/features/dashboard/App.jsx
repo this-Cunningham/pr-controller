@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { useDashboard } from './useDashboard.js';
-import { makeController } from './controller.js';
+import { cardProps, threadProps } from './cardProps.js';
 import GrainOverlay from './GrainOverlay.jsx';
 import Header from './Header.jsx';
 import { Tabs } from '../../design-system/navigation/Tabs.jsx';
@@ -21,7 +20,17 @@ const EMPTY = {
   waiting: 'Nothing waiting on a reviewer.',
 };
 
-function Dashboard({ dash, controller }) {
+// Attach each thread item's presentational props (data + handlers, bound to this PR +
+// thread) so PRCard/ThreadRow stay pure renderers — they never touch the state hook.
+function wireItems(dash, prId, items) {
+  return items.map((it) =>
+    it.kind === 'thread'
+      ? { ...it, threadProps: threadProps(dash, prId, it.thread.id) }
+      : it
+  );
+}
+
+function Dashboard({ dash }) {
   const lanes = dash.lanes;
   const active = lanes.find((s) => s.key === dash.tab) || lanes[0];
   const tabs = lanes.map((s) => ({
@@ -46,10 +55,17 @@ function Dashboard({ dash, controller }) {
             {active.prs.length > 0 ? (
               active.prs.map(({ pr, items }) => (
                 // The daemon already decided this PR belongs in this lane and which
-                // items it shows here (server placements). The card is a pure
-                // renderer of `items`. One PR can still appear in several lanes — as
-                // distinct cards — so key by lane+PR to keep them distinct.
-                <PRCard key={`${active.key}:${pr.id}`} pr={pr} lane={active.key} items={items} controller={controller} />
+                // items it shows here (server placements). The card is a pure renderer:
+                // we hand it the items (each thread carrying its own data + handlers)
+                // plus this PR's card-level props. One PR can appear in several lanes —
+                // as distinct cards — so key by lane+PR to keep them distinct.
+                <PRCard
+                  key={`${active.key}:${pr.id}`}
+                  pr={pr}
+                  lane={active.key}
+                  items={wireItems(dash, pr.id, items)}
+                  {...cardProps(dash, pr.id)}
+                />
               ))
             ) : (
               <EmptyState label={EMPTY[active.key]} />
@@ -63,13 +79,12 @@ function Dashboard({ dash, controller }) {
 
 export default function App() {
   const dash = useDashboard();
-  const controller = useMemo(() => makeController(dash), [dash]);
 
   return (
     <div className={styles.app}>
       <GrainOverlay />
       <div className={styles.column}>
-        <Dashboard dash={dash} controller={controller} />
+        <Dashboard dash={dash} />
       </div>
       <Toast message={dash.toastMsg} />
     </div>

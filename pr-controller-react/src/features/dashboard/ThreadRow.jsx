@@ -16,19 +16,30 @@ const TAGS = {
 };
 
 /**
- * One reviewer comment thread inside a PR card. Controls vary by the
- * agent's disposition tag. Body clamp, reasoning toggle and the reply
- * draft are internal state; durable actions delegate to `controller`.
+ * One reviewer comment thread inside a PR card. A pure presentational component:
+ * the body clamp, reasoning toggle and reply draft are local UI state; everything
+ * durable arrives as props — the thread's data plus its handlers/state, already
+ * bound to this (PR, thread) by the parent. No controller, no context.
  *
- *   input   → up to two agent-drafted aids: a "Suggested approach"
- *             (Approve stages it into the PR's cart) and/or a pre-filled,
- *             editable "Suggested reply" (Send reply); plus Discuss in terminal.
+ *   input   → up to two agent-drafted aids: a "Suggested approach" (onApprove stages
+ *             it into the PR's cart) and/or a pre-filled, editable "Suggested reply"
+ *             (onSendReply); plus Discuss in terminal.
  *   error   → Open in terminal.
  *   pending → "no feedback yet" caption (agent reviewing now).
  *   fixed / waiting / praise → no actions, just a caption.
  */
-export function ThreadRow({ thread, controller: c }) {
-  const id = thread.id;
+export function ThreadRow({
+  thread,
+  staged = false,
+  replySent = false,
+  sentReplyText = "",
+  terminalOpen = false,
+  onApprove,
+  onUnstage,
+  onSendReply,
+  onUndoReply,
+  onDiscuss,
+}) {
   const tag = TAGS[thread.tag] || TAGS.waiting;
   const [reply, setReply] = React.useState(thread.reply || "");
   const [bodyOpen, setBodyOpen] = React.useState(false);
@@ -40,8 +51,6 @@ export function ThreadRow({ thread, controller: c }) {
 
   let controls = null;
   if (thread.tag === "input") {
-    const staged = c.approachStaged(id);
-    const sent = c.replySent(id);
     controls = (
       <>
         {thread.approach && (
@@ -49,19 +58,19 @@ export function ThreadRow({ thread, controller: c }) {
             <div className={`${styles.eyebrow} ${styles.approachEyebrow}`}>Suggested approach</div>
             <div className={styles.approachText}>{thread.approach}</div>
             {staged ? (
-              <Confirmation text="✓ Approach staged — runs with this PR’s next agent run." fg="var(--auto-fg)" onUndo={() => c.unstageApproach(id)} />
+              <Confirmation text="✓ Approach staged — runs with this PR’s next agent run." fg="var(--auto-fg)" onUndo={onUnstage} />
             ) : (
               <div className={styles.approveRow}>
-                <Button variant="primary" onClick={() => c.approveApproach(id)}>Approve approach</Button>
+                <Button variant="primary" onClick={onApprove}>Approve approach</Button>
               </div>
             )}
           </div>
         )}
         {thread.reply &&
-          (sent ? (
+          (replySent ? (
             <>
-              <div className={styles.replyQuote}>You: {c.replyText(id)}</div>
-              <Confirmation text="✓ Reply sent to the reviewer." fg="var(--auto-fg)" onUndo={() => c.undoReply(id)} />
+              <div className={styles.replyQuote}>You: {sentReplyText}</div>
+              <Confirmation text="✓ Reply sent to the reviewer." fg="var(--auto-fg)" onUndo={onUndoReply} />
             </>
           ) : (
             <>
@@ -73,21 +82,21 @@ export function ThreadRow({ thread, controller: c }) {
                 className={styles.replyInput}
               />
               <div className={styles.sendRow}>
-                <Button variant="primary" onClick={() => c.sendReply(id, reply)}>Send reply</Button>
+                <Button variant="primary" onClick={() => onSendReply(reply)}>Send reply</Button>
               </div>
             </>
           ))}
         <div className={styles.actionRow}>
-          <Button variant="outline" onClick={() => c.discuss(id)}>Discuss in terminal</Button>
-          {c.threadTerminalOpen(id) && <TerminalNote>Terminal session opened…</TerminalNote>}
+          <Button variant="outline" onClick={onDiscuss}>Discuss in terminal</Button>
+          {terminalOpen && <TerminalNote>Terminal session opened…</TerminalNote>}
         </div>
       </>
     );
   } else if (thread.tag === "error") {
     controls = (
       <div className={styles.errorRow}>
-        <Button variant="outline" onClick={() => c.discuss(id)}>Open in terminal</Button>
-        {c.threadTerminalOpen(id) && <TerminalNote>Terminal session opened…</TerminalNote>}
+        <Button variant="outline" onClick={onDiscuss}>Open in terminal</Button>
+        {terminalOpen && <TerminalNote>Terminal session opened…</TerminalNote>}
       </div>
     );
   } else if (thread.tag === "pending") {

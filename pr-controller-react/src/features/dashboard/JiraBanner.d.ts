@@ -1,10 +1,10 @@
 import * as React from "react";
-import type { PRController } from "./ThreadRow";
 
 export interface JiraBannerProps {
-  /** The PR this banner belongs to (needs `id`). */
-  pr: { id: string };
-  controller: PRController;
+  /** The linked ticket key, or null when none is set yet. */
+  linked: string | null;
+  /** Set the PR's ticket. Return false to reject (e.g. empty/invalid). */
+  onSetTicket(value: string): boolean | void;
 }
 
 export function JiraBanner(props: JiraBannerProps): JSX.Element;
