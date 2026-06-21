@@ -1,0 +1,38 @@
+/* First-fetch loading state — caption + three fading placeholder cards.
+   Per-card opacity and per-bar width/height are dynamic (inline). */
+.wrap {
+  margin-top: 30px; /* off-scale */
+}
+
+.captionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* off-scale */
+  margin-bottom: 16px; /* off-scale */
+}
+.loader {
+  flex: none;
+}
+.caption {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-cards);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 20px; /* off-scale */
+}
+
+.bar {
+  background: var(--surface-2);
+  border-radius: var(--space-1);
+}

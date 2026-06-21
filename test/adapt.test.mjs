@@ -1,4 +1,4 @@
-// Locks the FRONTEND composition (pr-controller-react/src/adapt.js): turning the
+// Locks the FRONTEND composition (pr-controller-react/src/features/dashboard/adapt.js): turning the
 // daemon's server-authoritative `placements` + `prs` into per-lane cards with
 // ordered render items, plus the two client-only overlays (dispatched / working).
 // Tab ROUTING itself is owned by the daemon and locked in test/placements.test.mjs;
@@ -6,7 +6,7 @@
 // groups + renders it faithfully and adds nothing of its own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLanes, adaptThread, adaptPRMeta, DISPOSITION_TO_TAG } from '../pr-controller-react/src/adapt.js';
+import { buildLanes, adaptThread, adaptPRMeta, DISPOSITION_TO_TAG } from '../pr-controller-react/src/features/dashboard/adapt.js';
 import { placementsFor } from '../placements.mjs';
 
 // A backend state.json PR record. `threads` take { id, disposition, error, lastAuthor }.
@@ -106,7 +106,7 @@ test('outOfSync -> a Needs-you branch item (attention, terminal action)', () => 
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
   assert.deepEqual(items.map((i) => i.kind), ['branch']);
   assert.equal(items[0].branch.tone, 'attention');
-  assert.deepEqual(items[0].branch.actions, ['terminal']);
+  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', label: 'Resolve in terminal' }]);
 });
 
 test('surfaced wins over a conflict -> Needs-you branch item, not In progress', () => {
@@ -114,7 +114,7 @@ test('surfaced wins over a conflict -> Needs-you branch item, not In progress', 
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
   assert.equal(items[0].branch.tone, 'attention');
   assert.equal(items[0].branch.details, 'rebase too risky'); // agent's reason behind "Show details"
-  assert.deepEqual(items[0].branch.actions, ['terminal']);
+  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', label: 'Open in terminal' }]);
   assert.equal(cardIds(l.progress).length, 0);
 });
 
@@ -124,7 +124,7 @@ test('a standing conflict (no active rebase) -> Needs you, actionable "resolve i
   assert.equal(cardIds(l.progress).length, 0);
   const branch = itemsFor(l.needs, 'site-vdp-remix#1').find((i) => i.kind === 'branch');
   assert.equal(branch.branch.tone, 'attention');                // actionable, not a fake rebasing pulse
-  assert.deepEqual(branch.branch.actions, ['terminal']);        // resolve by hand; the agent auto-rebases or surfaces
+  assert.deepEqual(branch.branch.actions, [{ key: 'terminal', label: 'Open in terminal' }]); // resolve by hand; the agent auto-rebases or surfaces
   assert.match(branch.branch.message, /Merge conflict/);
   assert.equal(branch.branch.details, undefined);               // no agent explanation -> no "Show details"
 });

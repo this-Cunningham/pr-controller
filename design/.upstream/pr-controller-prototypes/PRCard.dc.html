@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+</helmet>
+<div style="{{ previewWrap }}">
+<div style="position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:18px 20px 18px 22px;animation:ws-appear .3s ease">
+  <sc-if value="{{ needsYou }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)"></div>
+      <div style="position:absolute;top:15px;right:15px;width:9px;height:9px;border-radius:50%;background:var(--accent)"></div>
+    </div>
+  </sc-if>
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+    <div style="min-width:0">
+      <a href="{{ prUrl }}" style="display:inline-block;font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line-2);padding-bottom:1px">{{ prRepoNum }}</a>
+      <div style="font-size:15.5px;font-weight:600;line-height:1.45;margin-top:7px;color:var(--ink);text-wrap:pretty">{{ pr.title }}</div>
+    </div>
+    <x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ reviewTone }}" mono="{{ true }}" hint-size="auto,24px">{{ reviewLabel }}</x-import>
+  </div>
+
+  <sc-if value="{{ hasPills }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:12px">
+      <sc-for list="{{ pills }}" as="pill" hint-placeholder-count="2">
+        <x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ pill.tone }}" hint-size="auto,22px">{{ pill.label }}</x-import>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasItems }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <sc-for list="{{ displayItems }}" as="item" hint-placeholder-count="1">
+        <div>
+          <sc-if value="{{ item.isThread }}" hint-placeholder-val="{{ true }}">
+            <div style="{{ item.threadStyle }}">
+              <dc-import name="ThreadRow" thread="{{ item.thread }}" controller="{{ controller }}" hint-size="100%,180px"></dc-import>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ item.isAgent }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:13px">
+              <x-import component-from-global-scope="DesignSystem_220c99.Callout" tone="active" hint-size="100%,56px">
+                <span style="display:flex;align-items:center;gap:11px">
+                  <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="ripple" size="{{ 22 }}" hint-size="22px,22px"></x-import>
+                  <span style="color:var(--auto-fg)">{{ item.agentText }}</span>
+                </span>
+              </x-import>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ item.isBranch }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:13px">
+              <sc-if value="{{ item.branchConflict }}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="DesignSystem_220c99.Callout" tone="active" hint-size="100%,56px">
+                  <span style="display:flex;align-items:center;gap:11px">
+                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="ripple" size="{{ 22 }}" hint-size="22px,22px"></x-import>
+                    <span style="color:var(--auto-fg)">{{ item.conflictText }}</span>
+                  </span>
+                </x-import>
+              </sc-if>
+              <sc-if value="{{ item.branchSurfaced }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--accent-soft);border:1px solid var(--accent-bg);border-radius:var(--radius-card);padding:12px 14px">
+                  <div style="display:flex;gap:9px;align-items:flex-start">
+                    <span style="color:var(--accent);font-size:12px;line-height:1.5;flex:none">◆</span>
+                    <div style="font-size:13px;line-height:1.5;color:var(--ink)">{{ item.surfacedText }}</div>
+                  </div>
+                  <sc-if value="{{ item.branchHasDetails }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="margin-top:9px">
+                        <x-import component-from-global-scope="DesignSystem_220c99.TextButton" tone="muted" underline="{{ false }}" on-click="{{ onToggleBranchDetails }}" hint-size="auto,18px">{{ branchDetailsLabel }}</x-import>
+                      </div>
+                      <sc-if value="{{ branchDetailsOpen }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-top:7px;font-size:12.5px;line-height:1.55;color:var(--ink-2);background:var(--surface-2);border-radius:var(--radius-card);padding:9px 11px">{{ item.branchDetails }}</div>
+                      </sc-if>
+                    </div>
+                  </sc-if>
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:11px;align-items:center">
+                    <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onBranchTerminal }}" hint-size="auto,40px">Open in terminal</x-import>
+                    <sc-if value="{{ branchTerminalOpen }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:ws-appear .3s ease"><span style="font-family:var(--font-mono);color:var(--accent)">›_</span>Terminal session opened…</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ item.branchOutofsync }}" hint-placeholder-val="{{ false }}">
+                <div style="background:var(--accent-soft);border:1px solid var(--accent-bg);border-radius:var(--radius-card);padding:12px 14px">
+                  <div style="display:flex;gap:9px;align-items:flex-start">
+                    <span style="color:var(--accent);font-size:12px;line-height:1.5;flex:none">◆</span>
+                    <div style="font-size:13px;line-height:1.5;color:var(--ink)">{{ item.outofsyncText }}</div>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:11px;align-items:center">
+                    <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onBranchTerminal }}" hint-size="auto,40px">Resolve in terminal</x-import>
+                    <sc-if value="{{ branchTerminalOpen }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:ws-appear .3s ease"><span style="font-family:var(--font-mono);color:var(--accent)">›_</span>Terminal session opened…</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ item.isJira }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+              <sc-if value="{{ jiraLinked }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12.5px;color:var(--auto-fg);animation:ws-appear .3s ease">✓ Linked to {{ jiraValue }} — compliance check cleared.</div>
+              </sc-if>
+              <sc-if value="{{ jiraUnlinked }}" hint-placeholder-val="{{ true }}">
+                <div style="background:var(--accent-soft);border:1px solid var(--accent-bg);border-radius:var(--radius-card);padding:13px 14px">
+                  <div style="display:flex;gap:9px;align-items:flex-start">
+                    <span style="color:var(--accent);font-size:12px;line-height:1.5">◆</span>
+                    <div style="font-size:13px;line-height:1.5;color:var(--ink)">This PR’s title is missing a ticket key — the compliance check failed. Add one to continue.</div>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:11px">
+                    <input value="{{ jiraDraft }}" onChange="{{ onJiraChange }}" placeholder="ABC-123" style="font:13px var(--font-mono);text-transform:uppercase;padding:8px 11px;width:140px;border:1px solid var(--line-2);border-radius:var(--radius-card);background:var(--surface);color:var(--ink)"/>
+                    <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onSetTicket }}" hint-size="auto,40px">Set ticket</x-import>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px;font-size:12.5px;color:var(--ink-3);font-style:italic">No open threads — waiting on the reviewer.</div>
+  </sc-if>
+
+  <sc-if value="{{ showStaged }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:12px 14px">
+        <span style="font-size:13px;color:var(--ink-2)">
+          <sc-if value="{{ running }}" hint-placeholder-val="{{ false }}">
+            <span style="display:inline-flex;gap:7px;align-items:center"><span style="font-family:var(--font-mono);color:var(--accent)">›_</span>Agent run started — {{ stagedNote }}</span>
+          </sc-if>
+          <sc-if value="{{ notRunning }}" hint-placeholder-val="{{ true }}">
+            <span><span style="color:var(--ink);font-weight:600">{{ stagedCountLabel }}</span> for this PR.</span>
+          </sc-if>
+        </span>
+        <sc-if value="{{ notRunning }}" hint-placeholder-val="{{ true }}">
+          <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onRun }}" hint-size="auto,40px">Run agent ({{ staged }})</x-import>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</div></x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:600,&quot;height&quot;:320},&quot;pr&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;lane&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;needs&quot;,&quot;progress&quot;,&quot;waiting&quot;],&quot;default&quot;:&quot;needs&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;items&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;any[]&quot;},&quot;controller&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}">
+class Component extends DCLogic {
+  REVIEW = {
+    APPROVED: { tone: "active", label: "Approved" },
+    REVIEW_REQUIRED: { tone: "neutral", label: "Review required" },
+    DRAFT: { tone: "outline", label: "Draft" },
+  };
+  PILL_TONE = { behind: "neutral", ci: "urgent" };
+  state = { jiraDraft: "" };
+
+  // Sample data + a no-op controller so this DC renders on its own when opened
+  // directly (no props). When mounted by the app shell it always gets real props.
+  SAMPLE_PR = { id: "sample", repo: "acme/web-app", number: 2412, title: "Refactor auth middleware to support SSO", review: "REVIEW_REQUIRED", pills: [{ label: "behind base", kind: "behind" }, { label: "CI failing: unit-api", kind: "ci" }] };
+  SAMPLE_ITEMS = [{ kind: "thread", thread: { id: "s1", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
+    body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. Please keep the guard.",
+    reasonSummary: "Reviewer disputes the change — needs your judgment.",
+    reasonFull: "The agent can’t tell whether SSO replaces that path or sits beside it — a product call, so it surfaced the thread with a drafted reply.",
+    approach: "Keep the expired-token guard and add the SSO branch above it, so silent re-auth keeps working alongside SSO.",
+    reply: "Good catch — SSO sits alongside the existing refresh path. I’ll keep the expired-token guard and add the SSO branch above it." }}];
+  // No-op sample controller. The standalone file is a STATIC render (sample
+  // data so it displays; durable actions are inert). The composed view passes
+  // the real controller — that's where state + setters get hooked up.
+  stubController() {
+    const F = () => false, Z = () => 0, N = () => {};
+    return { approachStaged: F, approveApproach: N, unstageApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
+  }
+
+  renderVals() {
+    const pr = this.props.pr || this.SAMPLE_PR;
+    const lane = this.props.lane || "needs";
+    const c = this.props.controller || (this._stub || (this._stub = this.stubController()));
+    const items = this.props.items || (this.props.pr ? [] : this.SAMPLE_ITEMS);
+    const review = this.REVIEW[pr.review] || this.REVIEW.REVIEW_REQUIRED;
+    const needsYou = lane === "needs";
+    const staged = needsYou && c ? c.stagedCount(pr.id) : 0;
+    const running = c ? c.running(pr.id) : false;
+
+    let threadSeen = false;
+    const displayItems = items.map((it, i) => {
+      const d = {
+        key: (it.thread && it.thread.id) || (it.kind + i),
+        isThread: it.kind === "thread",
+        isAgent: it.kind === "agentWorking",
+        isBranch: it.kind === "branch",
+        isJira: it.kind === "jira",
+        thread: it.thread,
+      };
+      // First thread in a card gets a 14px lead (matches the product's
+      // threads-block margin); later threads rely on their hairline divider.
+      if (it.kind === "thread") { d.threadStyle = threadSeen ? {} : { marginTop: "14px" }; threadSeen = true; }
+      if (it.kind === "agentWorking") d.agentText = it.text || "Agent working — addressing this PR now.";
+      if (it.kind === "branch") {
+        const b = it.branch || {};
+        d.branchConflict = b.kind === "conflict";
+        d.branchSurfaced = b.kind === "surfaced";
+        d.branchOutofsync = b.kind === "outofsync";
+        d.branchHasDetails = !!b.details;
+        d.branchDetails = b.details;
+        d.conflictText = b.detail || "Resolving merge conflict — the agent is rebasing this; if it can’t resolve safely it’ll surface it for you.";
+        d.surfacedText = b.detail || "Rebase too risky to do automatically — open a terminal to continue.";
+        d.outofsyncText = b.detail || "Branch has diverged from remote — the agent hasn’t run on it.";
+      }
+      return d;
+    });
+
+    const jiraLinked = c ? c.jiraValue(pr.id) : null;
+
+    return {
+      pr,
+      prUrl: pr.url || "#",
+      prRepoNum: pr.repo + " #" + pr.number,
+      reviewTone: review.tone,
+      reviewLabel: review.label,
+      needsYou,
+      pills: (pr.pills || []).map((p) => ({ label: p.label, tone: this.PILL_TONE[p.kind] || "neutral" })),
+      hasPills: (pr.pills || []).length > 0,
+      displayItems,
+      hasItems: items.length > 0,
+      isEmpty: items.length === 0,
+      controller: c,
+      // preview-only constraint: centers + caps width when opened standalone
+      // (no real `pr` prop); transparent when mounted by the app.
+      previewWrap: this.props.pr ? {} : { padding: "40px 20px", maxWidth: "640px", margin: "0 auto", boxSizing: "border-box" },
+      // branch (one per card)
+      branchDetailsOpen: c ? c.branchDetailsOpen(pr.id) : false,
+      branchDetailsLabel: (c && c.branchDetailsOpen(pr.id)) ? "↳ Hide details" : "↳ Show details",
+      branchTerminalOpen: c ? c.branchTerminalOpen(pr.id) : false,
+      onToggleBranchDetails: () => c.toggleBranchDetails(pr.id),
+      onBranchTerminal: () => c.branchTerminal(pr.id),
+      // jira
+      jiraLinked: !!jiraLinked,
+      jiraUnlinked: !jiraLinked,
+      jiraValue: jiraLinked,
+      jiraDraft: this.state.jiraDraft,
+      onJiraChange: (e) => this.setState({ jiraDraft: e.target.value }),
+      onSetTicket: () => { if (c.setTicket(pr.id, this.state.jiraDraft) !== false) this.setState({ jiraDraft: "" }); },
+      // staged footer
+      showStaged: needsYou && staged > 0,
+      staged,
+      running,
+      notRunning: !running,
+      stagedNote: staged + " staged item" + (staged === 1 ? "" : "s") + " queued.",
+      stagedCountLabel: staged + " approach" + (staged === 1 ? "" : "es") + " staged",
+      onRun: () => c.runAgent(pr.id),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -15,14 +15,19 @@ truth for how the system is built. [SPEC.md](SPEC.md) is the behavior spec.
 - **Vocabulary:** the per-item verdict is a `disposition` (not `tier`); tabs are `lanes`
   (not `sections`); the design-system short `tag` is styling only. The worker emits a
   `response` (fix/praise/surface); the daemon derives the `disposition`.
-- **The design system is frozen** (`DESIGN_SYSTEM_SOURCE_OF_TRUTH/` + the vendored
-  `pr-controller-react/src/components/`): components render, they don't route; don't
-  restyle ad hoc.
+- **The design system is frozen** (baseline `design/.upstream/wabi-sabi-foundation/`
+  + the vendored `pr-controller-react/src/design-system/`): components render, they
+  don't route; don't restyle ad hoc. Sync it only via `/pull-new-designs` (see
+  `.design-sync.json` for the project→baseline→app mapping).
 
 ## Running it
 
 - Tests: `node --test "test/**/*.test.mjs"`
 - Dashboard build: `cd pr-controller-react && yarn build` (server serves `dist/`).
+- Design-system adherence lint: `cd pr-controller-react && yarn lint` — enforces token
+  hygiene (no raw hex/px, design-system fonts only) + per-component prop/tone contracts,
+  vendored from the foundation's `_adherence.oxlintrc.json` (run as ESLint; see
+  `eslint.config.js`).
 - Daemon: `node server.mjs` — env-overridable via `PRC_*` (see `config.mjs` /
   ARCHITECTURE.md). Workers spawn real `claude -p` and push to real PRs;
   `config.onlyPRs` is the scope primitive + circuit-breaker.

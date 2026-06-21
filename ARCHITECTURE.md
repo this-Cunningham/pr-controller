@@ -58,10 +58,10 @@ Each hop is small, pure where it can be, and tested:
 6. **`dispatcher.mjs` / `worker.mjs` / `worktree.mjs`** — per-PR worker serialization
    (one in-flight worker per PR, a coalescing pending set); the headless `claude -p`
    worker runs in a per-PR git worktree.
-7. **`pr-controller-react/src/adapt.js`** — `buildLanes(prs, placements, overlays)`
-   FILTERS the placement rows into the three lanes, applies client-only overlays, and
-   builds the render `items`. `PRCard` is a pure renderer of `items` (tested:
-   `test/adapt.test.mjs`).
+7. **`pr-controller-react/src/features/dashboard/adapt.js`** — `buildLanes(prs,
+   placements, overlays)` FILTERS the placement rows into the three lanes, applies
+   client-only overlays, and builds the render `items`. `PRCard` is a pure renderer of
+   `items` (tested: `test/adapt.test.mjs`).
 
 ## The wire: `state.json`
 
@@ -135,9 +135,10 @@ server's data):
 
 ## The design system is frozen
 
-The Wabi-Sabi design system (`DESIGN_SYSTEM_SOURCE_OF_TRUTH/`, vendored into
-`pr-controller-react/src/components/`) is brand source-of-truth. Its components RENDER;
-they do not route. Keep the theme/tokens intact; don't restyle ad hoc. The only
+The Wabi-Sabi design system (baseline `design/.upstream/wabi-sabi-foundation/`,
+vendored into `pr-controller-react/src/design-system/`) is brand source-of-truth. Its
+components RENDER; they do not route. Keep the theme/tokens intact; don't restyle ad
+hoc — sync it only via `/pull-new-designs` (mapping in `.design-sync.json`). The only
 client-side translation is `DISPOSITION_TO_TAG` (disposition → DS tag) in `adapt.js`.
 
 ## Config

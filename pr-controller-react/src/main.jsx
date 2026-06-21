@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme.css';
-import App from './App.jsx';
+import App from './features/dashboard/App.jsx';
 
 // Restore the saved theme before first paint (ThemeSwitcher persists it). The DS
 // ships locked to stone·dark; colors.css keys all six themes off <html data-theme>.

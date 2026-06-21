@@ -1,0 +1,70 @@
+// Demo fixture for the dashboard — a representative state.json covering every
+// disposition tone, the seal/needs treatment, the JIRA banner, the staged-approach
+// flow, the AgentWorking (ripple) treatment, and the "Resolve in terminal" branch
+// label. No daemon / no live GitHub data required.
+//
+// USAGE (chrome-devtools CLI — visual QA without the real daemon):
+//   cd pr-controller-react && yarn build           # build the dashboard
+//   node ../server.mjs &                           # (or any static serve of dist/)
+//   chrome-devtools navigate_page --type url --url "http://localhost:4317" \
+//     --initScript "$(cat demo/inject-demo-state.js)"
+//
+// It runs before the app's scripts and intercepts the /state.json fetch, returning
+// FIX below. Switch lanes with the tab buttons. To force the first-load Skeleton
+// (ensō OrganicLoader) instead, change the FIX return to `new Promise(()=>{})`.
+const FIX = {
+  updatedAt: "2026-06-21T03:00:00.000Z",
+  scope: ["demo/web#101"],
+  lanes: ["needs", "progress", "waiting"],
+  prs: [
+    {
+      repo: "demo/web", number: 101, title: "Add SSO login flow", url: "#",
+      isDraft: false, reviewDecision: "REVIEW_REQUIRED", behindBase: true,
+      needsJira: true, branchHealth: { failingChecks: [{ name: "unit-api" }] }, sortRank: 0,
+      threads: [
+        { threadId: "t1", path: "src/auth.js", line: 42, author: "reviewer", lastAuthor: "reviewer",
+          body: "This silently swallows the expired-token error — is that intentional?",
+          disposition: "needsYourApproval", reason: "Reviewer flagged a possible bug; the agent drafted an approach.",
+          suggestedApproach: "Keep the expired-token guard and add the SSO branch above it.",
+          suggestedReply: "Good catch — the guard is intentional for silent re-auth; I'll add the SSO branch above it." }
+      ]
+    },
+    {
+      repo: "demo/api", number: 88, title: "Bump pg driver to 8.x", url: "#",
+      isDraft: false, reviewDecision: "REVIEW_REQUIRED", outOfSync: true, branchHealth: {}, sortRank: 1, threads: []
+    },
+    {
+      repo: "demo/web", number: 102, title: "Refactor the cart reducer", url: "#",
+      isDraft: false, reviewDecision: "REVIEW_REQUIRED", branchHealth: {}, sortRank: 2,
+      threads: [
+        { threadId: "t2", path: "src/cart.js", line: 88, author: "reviewer", lastAuthor: "reviewer",
+          body: "Can we memoize this selector?", disposition: "notYetReviewed", reason: "Agent hasn't judged this yet." }
+      ]
+    },
+    {
+      repo: "demo/api", number: 90, title: "Add a request rate limiter", url: "#",
+      isDraft: false, reviewDecision: "APPROVED", branchHealth: {}, sortRank: 3,
+      threads: [
+        { threadId: "t3", path: "src/limit.js", line: 12, author: "reviewer", lastAuthor: "agent",
+          body: "Use a token bucket here.", disposition: "agentAutoFixed", reason: "Agent switched to a token bucket and replied." },
+        { threadId: "t4", path: "src/limit.js", line: 30, author: "reviewer", lastAuthor: "reviewer",
+          body: "What about burst traffic?", disposition: "agentError", reason: "The agent could not classify this thread." }
+      ]
+    }
+  ],
+  placements: [
+    { prKey: "demo/web#101", lane: "needs", subjectKind: "thread", subjectId: "t1", disposition: "needsYourApproval", reason: "", sortRank: 0 },
+    { prKey: "demo/web#101", lane: "needs", subjectKind: "jira", subjectId: "jira", disposition: "jiraNeeded", reason: "", sortRank: 1 },
+    { prKey: "demo/api#88", lane: "needs", subjectKind: "branch", subjectId: "branch", disposition: "branchOutOfSync", reason: "The branch diverged from origin/main — last sync 3 days ago.", sortRank: 0 },
+    { prKey: "demo/web#102", lane: "progress", subjectKind: "thread", subjectId: "t2", disposition: "notYetReviewed", reason: "", sortRank: 1 },
+    { prKey: "demo/api#90", lane: "waiting", subjectKind: "thread", subjectId: "t3", disposition: "agentAutoFixed", reason: "", sortRank: 1 },
+    { prKey: "demo/api#90", lane: "waiting", subjectKind: "thread", subjectId: "t4", disposition: "agentError", reason: "", sortRank: 2 }
+  ]
+};
+const _f = window.fetch;
+window.fetch = function (u, o) {
+  if (String(u).indexOf("/state.json") >= 0) {
+    return Promise.resolve(new Response(JSON.stringify(FIX), { status: 200, headers: { "Content-Type": "application/json" } }));
+  }
+  return _f.apply(this, arguments);
+};

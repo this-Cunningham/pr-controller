@@ -1,0 +1,223 @@
+/* ============================================================
+   BASE — resets, body defaults, keyframes used by components.
+   ============================================================ */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 8px;
+}
+
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ws-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+@keyframes ws-fadeup {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+@keyframes ws-appear {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ws-shimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ---- Organic loaders (OrganicLoader) — eight quiet pending glyphs ---- */
+@keyframes ws-enso-draw {
+  0% {
+    stroke-dashoffset: 232;
+  }
+  55% {
+    stroke-dashoffset: 36;
+  }
+  100% {
+    stroke-dashoffset: 36;
+  }
+}
+@keyframes ws-enso-spin {
+  0% {
+    transform: rotate(-20deg);
+  }
+  100% {
+    transform: rotate(340deg);
+  }
+}
+@keyframes ws-ripple {
+  0% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+@keyframes ws-breathe {
+  0%,
+  100% {
+    transform: scale(0.78);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+@keyframes ws-breathe-halo {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.32;
+  }
+  50% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+@keyframes ws-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+@keyframes ws-drift {
+  0%,
+  100% {
+    transform: translateY(7px);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-7px);
+    opacity: 0.9;
+  }
+}
+@keyframes ws-sway {
+  0%,
+  100% {
+    transform: scaleY(0.32);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes ws-seam {
+  0% {
+    stroke-dashoffset: 150;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  85%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes ws-place {
+  0%,
+  70%,
+  100% {
+    transform: scale(0.4) translateY(-3px);
+    opacity: 0.18;
+  }
+  14%,
+  56% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Animation utility classes. Co-located with the keyframes and kept GLOBAL
+   (this file is plain CSS, not a module) so component CSS-module files can
+   apply motion by className without each one re-scoping the keyframe name. */
+.ws-appear {
+  animation: ws-appear var(--dur-card) var(--ease);
+}
+.ws-fadeup {
+  animation: ws-fadeup var(--dur-fast) var(--ease);
+}
+.ws-shimmer {
+  animation: ws-shimmer 1.4s ease-in-out infinite;
+}
+.ws-pulse {
+  animation: ws-pulse var(--pulse) ease-in-out infinite;
+}
+.ws-spin {
+  animation: ws-spin 0.9s linear infinite;
+}
+
+/* Respect the OS "reduce motion" setting: drop ambient loops and shorten
+   one-shot transitions to a near-instant fade. The visible end-state of every
+   component is its base style, so nothing here is load-bearing once motion is
+   removed. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

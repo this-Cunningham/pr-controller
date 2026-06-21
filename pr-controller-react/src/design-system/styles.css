@@ -1,0 +1,11 @@
+/* Design-system style entry — the vendored foundation's global stylesheet.
+   Loaded once at the app root (via ../theme.css). @imports the token layer:
+   webfonts + colors + typography + spacing + effects + base resets/keyframes.
+   Components reference the var(--*) custom properties these define; nothing is
+   redefined here. */
+@import './tokens/fonts.css';
+@import './tokens/colors.css';
+@import './tokens/typography.css';
+@import './tokens/spacing.css';
+@import './tokens/effects.css';
+@import './tokens/base.css';

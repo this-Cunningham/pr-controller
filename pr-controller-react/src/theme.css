@@ -1,17 +1,12 @@
 /* ============================================================
    PR Controller — app stylesheet entry point.
 
-   Design system tokens (from DESIGN_SYSTEM_SOURCE_OF_TRUTH, integrated
-   into the app under ./tokens): webfonts + colors + typography + spacing
-   + effects + base resets/keyframes. Components style themselves with the
+   Loads the vendored Wabi-Sabi design system's global styles once
+   (./design-system/styles.css → webfonts + colors + typography + spacing
+   + effects + base resets/keyframes). Components style themselves with the
    var(--*) custom properties these define; nothing is redefined here.
 
    Theme is selected via <html data-theme="…"> (see index.html);
    the system ships locked to stone · dark.
    ============================================================ */
-@import './tokens/fonts.css';
-@import './tokens/colors.css';
-@import './tokens/typography.css';
-@import './tokens/spacing.css';
-@import './tokens/effects.css';
-@import './tokens/base.css';
+@import './design-system/styles.css';

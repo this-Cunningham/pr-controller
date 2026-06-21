@@ -11,3 +11,6 @@
 - [ ] add my new loading indicators from claude design
 - [ ] can we make the threads clickable that go to the comment/thread in github?
 - [ ] is it hard to surface the diff from the threads in our app?
+- [ ] bug that double renders the agent reasoning on the cards -- the only one that should show up is the one that renders after the user decides to show it.  the static "always rendered" one can be removed
+- [x] `pull-new-designs` skill — small updates now process efficiently: Step 0 `detect-baseline` + `git diff --no-index <baseline> <export>` localizes the delta directly (a one-color update reconciled in ~2 lines, no "big process"), and the verify gate scales its depth to the change. Validated on a real tiny update (the agent-working text color).
+- [ ] `pull-new-designs` skill: on a full design-system-first import, PORT the usage intent into the app instead of leaving it baseline-only — merge the shipped `_adherence.oxlintrc.json` into the repo's lint, vendor the design system's `readme.md` usage guidance into a `design-system/README.md` (or CLAUDE.md), and fold any per-component `*.prompt.md` docs into component JSDoc.

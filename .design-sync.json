@@ -1,0 +1,26 @@
+{
+  "$comment": "Resolved mapping for the /pull-new-designs skill (Step 0). Each upstream Claude Design project maps to its committed sync baseline + the app destinations a run reconciles into, so re-runs resolve deterministically instead of re-guessing. 'styling' is this repo's component styling convention; 'namespace' is the design-system bundle namespace used to detect baselines by content, not folder name.",
+  "policy": {
+    "onUpstreamRemoval": "mirror-when-complete",
+    "note": "Apply an upstream removal (delete the primitive/token locally) when syncing from a COMPLETE design-system import — a kind=design-system project verified complete against its _ds_manifest, where absence reliably means 'removed', so mirror it. From a product/prototype export (a partial slice), NEVER infer removal: absence only means 'not used by these prototypes'. Either way, surface what changed in the report."
+  },
+  "projects": {
+    "wabi-sabi-foundation": {
+      "namespace": "DesignSystem_220c99",
+      "kind": "design-system",
+      "baseline": "design/.upstream/wabi-sabi-foundation",
+      "note": "The complete Wabi-Sabi foundation (verified against _ds_manifest: 83 tokens, 6 themes, all primitives). A future standalone foundation import refreshes it.",
+      "tokens": "pr-controller-react/src/design-system/tokens",
+      "primitives": "pr-controller-react/src/design-system",
+      "styling": "css-modules"
+    },
+    "pr-controller-prototypes": {
+      "namespace": "DesignSystem_220c99",
+      "kind": "product-prototypes",
+      "projectId": "c011d797-77eb-43cb-a9d3-5f323a57bccd",
+      "baseline": "design/.upstream/pr-controller-prototypes",
+      "features": ["pr-controller-react/src/features/dashboard"],
+      "styling": "css-modules"
+    }
+  }
+}

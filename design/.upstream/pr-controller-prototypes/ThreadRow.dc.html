@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+</helmet>
+<div style="{{ previewWrap }}">
+<div style="padding:14px 0;border-top:1px solid var(--line)">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">
+    <x-import component-from-global-scope="DesignSystem_220c99.DispositionTag" tone="{{ tagTone }}" hint-size="auto,22px">{{ tagLabel }}</x-import>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">{{ thread.loc }}</span>
+    <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-2)">{{ thread.author }}</span>
+  </div>
+
+  <sc-if value="{{ bodyClamped }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:9px;font-size:14px;line-height:1.5;color:var(--ink);text-wrap:pretty;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">{{ thread.body }}</div>
+  </sc-if>
+  <sc-if value="{{ bodyFull }}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top:9px;font-size:14px;line-height:1.5;color:var(--ink);text-wrap:pretty">{{ thread.body }}</div>
+  </sc-if>
+  <sc-if value="{{ isLong }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:5px">
+      <x-import component-from-global-scope="DesignSystem_220c99.TextButton" tone="accent" underline="{{ false }}" on-click="{{ toggleBody }}" hint-size="auto,18px">{{ moreLabel }}</x-import>
+    </div>
+  </sc-if>
+
+  <div style="margin-top:9px;font-size:12.5px;color:var(--ink-2);display:flex;gap:7px;align-items:baseline;flex-wrap:wrap">
+    <span style="color:var(--ink-3)">↳</span>
+    <span style="flex:1;min-width:140px">{{ thread.reasonSummary }}</span>
+    <span style="flex:none">
+      <x-import component-from-global-scope="DesignSystem_220c99.TextButton" tone="accent" underline="{{ false }}" on-click="{{ toggleReason }}" hint-size="auto,18px">{{ reasonLabel }}</x-import>
+    </span>
+  </div>
+  <sc-if value="{{ reasonOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:7px;margin-left:14px;font-size:12.5px;line-height:1.55;color:var(--ink-2);font-style:italic;border-left:2px solid var(--line-2);padding-left:11px;animation:ws-appear .3s ease">{{ reasonFull }}</div>
+  </sc-if>
+
+  <sc-if value="{{ isInput }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <sc-if value="{{ showApproach }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-card);padding:12px 13px">
+          <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3);margin-bottom:7px">Suggested approach</div>
+          <div style="font-size:13.5px;line-height:1.5;color:var(--ink);text-wrap:pretty">{{ thread.approach }}</div>
+          <sc-if value="{{ approachStaged }}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="DesignSystem_220c99.Confirmation" text="✓ Approach staged — runs with this PR’s next agent run." fg="var(--auto-fg)" on-undo="{{ onUnstage }}" hint-size="100%,24px"></x-import>
+          </sc-if>
+          <sc-if value="{{ approachUnstaged }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:11px">
+              <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onApprove }}" hint-size="auto,40px">Approve approach</x-import>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ showReply }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <sc-if value="{{ replySent }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="margin-top:11px;background:var(--surface-2);border-left:2px solid var(--line-2);padding:9px 12px;border-radius:0 5px 5px 0;font-size:13px;line-height:1.5;color:var(--ink-2)">You: {{ sentText }}</div>
+              <x-import component-from-global-scope="DesignSystem_220c99.Confirmation" text="✓ Reply sent to the reviewer." fg="var(--auto-fg)" on-undo="{{ onUndoReply }}" hint-size="100%,24px"></x-import>
+            </div>
+          </sc-if>
+          <sc-if value="{{ replyUnsent }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3);margin-top:12px">Suggested reply · editable</div>
+              <textarea value="{{ reply }}" onChange="{{ onReplyChange }}" rows="3" style="margin-top:7px;width:100%;resize:vertical;font:13.5px/1.5 var(--font-sans);padding:10px 12px;border:1px solid var(--line-2);border-radius:var(--radius-card);background:var(--surface);color:var(--ink)"></textarea>
+              <div style="margin-top:9px">
+                <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onSend }}" hint-size="auto,40px">Send reply</x-import>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="outline" on-click="{{ onDiscuss }}" hint-size="auto,40px">Discuss in terminal</x-import>
+        <sc-if value="{{ terminalOpen }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:ws-appear .3s ease"><span style="font-family:var(--font-mono);color:var(--accent)">›_</span>Terminal session opened…</span>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isError }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:11px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="outline" on-click="{{ onDiscuss }}" hint-size="auto,40px">Open in terminal</x-import>
+      <sc-if value="{{ terminalOpen }}" hint-placeholder-val="{{ false }}">
+        <span style="font-size:12.5px;color:var(--ink-2);display:inline-flex;gap:6px;align-items:center;animation:ws-appear .3s ease"><span style="font-family:var(--font-mono);color:var(--accent)">›_</span>Terminal session opened…</span>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isPending }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:10px;font-size:12.5px;color:var(--ink-3);font-style:italic">The agent is reviewing this now…</div>
+  </sc-if>
+
+  <sc-if value="{{ isPlain }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:10px;font-size:12.5px;color:var(--ink-3);font-style:italic">{{ noActionText }}</div>
+  </sc-if>
+</div>
+
+</div></x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:560,&quot;height&quot;:300},&quot;thread&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;controller&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}">
+class Component extends DCLogic {
+  // disposition tag → foundation tone + label
+  TAGS = {
+    input: { tone: "urgent", label: "needs your input" },
+    fixed: { tone: "active", label: "agent fixed · waiting on reviewer" },
+    waiting: { tone: "neutral", label: "waiting on reviewer" },
+    pending: { tone: "pending", label: "no feedback yet" },
+    praise: { tone: "praise", label: "praise" },
+    error: { tone: "error", label: "agent error" },
+  };
+  state = { draft: null, bodyOpen: false, reasonOpen: false };
+
+  // Sample data + a no-op controller so this DC renders on its own when opened
+  // directly (no props). When mounted by PRCard it always receives real props.
+  SAMPLE = { id: "sample", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
+    body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.",
+    reasonSummary: "Reviewer disputes the change — needs your judgment.",
+    reasonFull: "The reviewer is right that the early return powers silent re-auth — that’s a product call, so the agent surfaced the thread with a drafted reply rather than guessing.",
+    reply: "Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it." };
+  // No-op sample controller. The standalone file is a STATIC render (sample
+  // data so it displays; durable actions are inert). The composed view passes
+  // the real controller — that's where state + setters get hooked up.
+  stubController() {
+    const F = () => false, Z = () => 0, N = () => {};
+    return { approachStaged: F, approveApproach: N, unstageApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
+  }
+
+  renderVals() {
+    const t = this.props.thread || this.SAMPLE;
+    const c = this.props.controller || (this._stub || (this._stub = this.stubController()));
+    const id = t.id;
+    const tag = this.TAGS[t.tag] || this.TAGS.waiting;
+    const isLong = (t.body || "").length > 150;
+    const bodyClamped = isLong && !this.state.bodyOpen;
+    const reply = this.state.draft == null ? (t.reply || "") : this.state.draft;
+
+    const isInput = t.tag === "input";
+    const isError = t.tag === "error";
+    const isPending = t.tag === "pending";
+    const isPlain = !isInput && !isError && !isPending;
+    const noActionText =
+      t.tag === "praise" ? "No action needed — positive feedback."
+      : t.tag === "fixed" ? "No action needed — waiting on the reviewer to confirm."
+      : "No action needed — waiting on the reviewer.";
+
+    const showApproach = isInput && !!t.approach;
+    const showReply = isInput && !!t.reply;
+    const approachStaged = isInput && c.approachStaged(id);
+    const replySent = isInput && c.replySent(id);
+
+    return {
+      // preview-only constraint when opened standalone (no real `thread` prop)
+      previewWrap: this.props.thread ? {} : { padding: "40px 20px", maxWidth: "640px", margin: "0 auto", boxSizing: "border-box" },
+      thread: t,
+      tagTone: tag.tone,
+      tagLabel: tag.label,
+      isLong,
+      bodyClamped,
+      bodyFull: !bodyClamped,
+      moreLabel: this.state.bodyOpen ? "Show less" : "Show more",
+      reasonOpen: this.state.reasonOpen,
+      reasonLabel: this.state.reasonOpen ? "Hide agent’s reasoning" : "Show agent’s reasoning",
+      reasonFull: t.reasonFull || t.reasonSummary,
+      isInput, isError, isPending, isPlain, noActionText,
+      showApproach,
+      approachStaged,
+      approachUnstaged: showApproach && !approachStaged,
+      showReply,
+      replySent,
+      replyUnsent: showReply && !replySent,
+      sentText: c ? c.replyText(id) : "",
+      reply,
+      terminalOpen: c ? c.threadTerminalOpen(id) : false,
+      toggleBody: () => this.setState({ bodyOpen: !this.state.bodyOpen }),
+      toggleReason: () => this.setState({ reasonOpen: !this.state.reasonOpen }),
+      onReplyChange: (e) => this.setState({ draft: e.target.value }),
+      onApprove: () => c.approveApproach(id),
+      onUnstage: () => c.unstageApproach(id),
+      onSend: () => c.sendReply(id, reply),
+      onUndoReply: () => c.undoReply(id),
+      onDiscuss: () => c.discuss(id),
+    };
+  }
+}
+</script>
+</body>
+</html>
