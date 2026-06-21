@@ -306,7 +306,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(config.port, async () => {
   const scope = (config.onlyPRs || []).length ? `scoped to ${config.onlyPRs.join(', ')}` : 'all open PRs';
-  console.log(`PR dashboard on http://localhost:${config.port}  (${scope})`);
+  console.log(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
   await poll();
   setInterval(poll, config.pollMinutes * 60 * 1000);
 });
