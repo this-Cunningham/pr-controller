@@ -10,6 +10,7 @@
 - [ ] is it hard to surface the diff from the threads in our app?
 - [ ] bug that double renders the agent reasoning on the cards -- the only one that should show up is the one that renders after the user decides to show it.  the static "always rendered" one can be removed
 - [ ] `pull-new-designs` skill: on a full design-system-first import, PORT the usage intent into the app instead of leaving it baseline-only — merge the shipped `_adherence.oxlintrc.json` into the repo's lint, vendor the design system's `readme.md` usage guidance into a `design-system/README.md` (or CLAUDE.md), and fold any per-component `*.prompt.md` docs into component JSDoc.
+- [ ] Daemon crash: `recordDecision()` in `server.mjs` writes `data/decisions.json` without mkdir-ing `data/` first. When the first poll never succeeds (e.g. GitHub unreachable at startup), `writeState()` never runs, so `data/` is never created — then the first `POST /decision` throws an unhandled ENOENT inside the `req.on('end')` async handler and crashes the whole daemon. Fix: `await mkdir(DATA, { recursive: true })` in `recordDecision` before the writeFile (or guard the write). The normal path masks it because a successful first poll creates `data/`.
 
 ## Ingestion hardening (do before emptying `config.onlyPRs` / going past the 3 sandbox PRs)
 These touch the live `gh` API path — smoke-test against real PRs, not blind.

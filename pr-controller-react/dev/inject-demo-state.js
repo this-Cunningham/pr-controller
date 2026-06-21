@@ -1,17 +1,24 @@
-// Demo fixture for the dashboard — a representative state.json covering every
+// UI-CHECK fixture for the dashboard — a representative state.json covering every
 // disposition tone, the seal/needs treatment, the JIRA banner, the staged-approach
 // flow, the AgentWorking (ripple) treatment, and the "Resolve in terminal" branch
-// label. No daemon / no live GitHub data required.
+// label. Lets you eyeball the React components in every visual state with NO daemon
+// and NO live GitHub data.
 //
-// USAGE (chrome-devtools CLI — visual QA without the real daemon):
-//   cd pr-controller-react && yarn build           # build the dashboard
-//   node ../server.mjs &                           # (or any static serve of dist/)
-//   chrome-devtools navigate_page --type url --url "http://localhost:4317" \
-//     --initScript "$(cat demo/inject-demo-state.js)"
+// SCOPE: this is ONLY for visual/component checks. It does NOT run the app — it
+// stubs the backend client-side. To actually run pr-controller (real daemon + real
+// Claude workers against the sandbox PRs), use the run-pr-controller skill, not
+// this. The action buttons here POST to a backend that isn't really there, so they
+// won't do anything meaningful.
+//
+// USAGE (chrome-devtools CLI — daemon-free, just the Vite dev server):
+//   cd pr-controller-react && yarn dev &           # Vite on http://localhost:5173
+//   chrome-devtools navigate_page --url "http://localhost:5173" \
+//     --initScript "$(cat dev/inject-demo-state.js)"
 //
 // It runs before the app's scripts and intercepts the /state.json fetch, returning
-// FIX below. Switch lanes with the tab buttons. To force the first-load Skeleton
-// (ensō OrganicLoader) instead, change the FIX return to `new Promise(()=>{})`.
+// FIX below — so no backend (and no Vite proxy target) is needed. Switch lanes with
+// the tab buttons. To force the first-load Skeleton (ensō OrganicLoader) instead,
+// change the FIX return to `new Promise(()=>{})`.
 const FIX = {
   updatedAt: "2026-06-21T03:00:00.000Z",
   scope: ["demo/web#101"],
