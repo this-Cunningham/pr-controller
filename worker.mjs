@@ -2,16 +2,19 @@
 // enforced upstream by `config.onlyPRs` (the poller only ever hands us in-scope PRs).
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
 import { validateWorkerResult } from './rules.mjs';
+import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
-const SESSIONS = join(config.baseDir, 'data', 'sessions.json');
+const log = logger('worker');
+const DATA = join(config.baseDir, 'data');
+const SESSIONS = join(DATA, 'sessions.json');
 
 // One durable Claude session per PR. First sight -> mint uuid (--session-id);
 // later diffs -> --resume that uuid, so the worker remembers prior rounds.
@@ -50,7 +53,7 @@ export async function readWorkerResult(outPath) {
   let raw;
   try { raw = JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
   const { result, problems } = validateWorkerResult(raw);
-  if (problems.length) console.warn(`[worker-result] ${outPath}: ${problems.join('; ')}`);
+  if (problems.length) log.warn(`result drift in ${outPath}`, problems.join('; '));
   return result;
 }
 
@@ -72,9 +75,9 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     // carries to every future resume, so we never re-send the full diff again.
     const diff = await fetchDiff(pr.nameWithOwner, pr.number);
     const diffBlock = diff?.diff
-      ? `\n## Familiarize yourself with this PR FIRST\nThis is the PR diff. Read it and open the changed files in the worktree so you understand what this PR does and which choices are deliberate. You will REMEMBER this for future rounds.\n\`\`\`diff\n${diff.diff}\n\`\`\``
+      ? `\n## Familiarize yourself with this PR FIRST\nThis is the PR diff. Read it and open the changed files in the worktree so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\n\`\`\`diff\n${diff.diff}\n\`\`\``
       : diff?.truncated
-        ? `\n## Familiarize yourself with this PR FIRST\nChanged files (diff too large to inline — read them in the worktree):\n${diff.files.join('\n')}`
+        ? `\n## Familiarize yourself with this PR FIRST\nThe diff is too large to inline. Open these changed files in the worktree and read them so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\nChanged files:\n${diff.files.join('\n')}`
         : '';
     head = [rules, diffBlock];
   } else if (opts.applyApproved) {
@@ -83,10 +86,10 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     // normal fix (pick up your own prior analysis); re-ground on volatile state first.
     const since = opts.lastSeenSha;
     head = [
-      'The user APPROVED an approach you previously proposed on the thread(s) below. Carry it out NOW as a normal fix (commit, push, reply `fixed`, resolve) — it is no longer a surface. You already reasoned about these threads; pick up your prior analysis rather than re-deriving it.',
+      'APPLY-APPROVED RUN. The user APPROVED an approach you previously proposed on the thread(s) below — it is no longer a surface. Carry it out NOW as a normal fix (make the change, commit, push, reply `fixed`, leave the thread open). You already reasoned about these threads; pick up that analysis rather than re-deriving it.',
       since
-        ? `First run \`git diff ${since}..HEAD\` in the worktree to re-ground on what changed since you last worked it, then re-read just the files for these threads as they are NOW.`
-        : `First re-read just the files referenced by these threads, as they are NOW (the branch may have moved).`,
+        ? `To re-ground first: run \`git diff ${since}..HEAD\` in the worktree to see what moved since your last run, then re-read the files for these threads as they are NOW.`
+        : `To re-ground first: re-read the files for these threads as they are NOW (the branch may have moved).`,
     ];
   } else {
     // Resume: the session already understands the PR. Send only the delta and
@@ -94,9 +97,9 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     // `git diff <since>..HEAD` shows what moved since you last looked.
     const since = opts.lastSeenSha;
     head = [
-      'New reviewer feedback arrived on this PR. You already understand this PR from earlier rounds — do NOT re-read everything.',
+      'RESUME RUN. New reviewer feedback arrived on this PR. You already understand this PR from earlier rounds — do NOT re-read everything; just re-ground on the delta.',
       since
-        ? `Run \`git diff ${since}..HEAD\` in the worktree to see ONLY what changed since you last worked it, then re-read just the files touched by the new threads.`
+        ? `Run \`git diff ${since}..HEAD\` in the worktree to see ONLY what moved since your last run, then re-read just the files touched by the new threads as they are NOW.`
         : `Re-read just the files referenced by the new threads, as they are NOW (the branch may have moved).`,
     ];
   }
@@ -111,12 +114,12 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
       + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
       + (opts.rebase
-        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git fetch origin ${base}\`, then \`git rebase origin/${base}\` — rebase onto the REMOTE base, NOT a local ref (your local ${base} may be stale and would hide the conflict). Resolve conflicts; if it applies cleanly, push with --force-with-lease. If the conflicts are NOT trivial to resolve safely, STOP and surface it (branchHealth.surfaced) — do not guess through a messy merge.`
-        : `\nREBASE this run: NO — do not rebase; only fix CI if it's caused by your changes.`)
+        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git fetch origin ${base}\`, then \`git rebase origin/${base}\` — onto the REMOTE base, NOT a local ref (your local ${base} may be stale and would hide the conflict). Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
+        : `\nREBASE this run: NO — do not rebase. Fix CI only if it's caused by your changes (see "Branch health" in the house rules).`)
     : '';
   const threadsHeading = opts.applyApproved
-    ? `\n## Approved threads — execute the approach you proposed on each (read each referenced file in the worktree as it is NOW)`
-    : `\n## New/changed unresolved threads (read each referenced file in the worktree as it is NOW)`;
+    ? `\n## Approved threads — execute the approach you proposed on each`
+    : `\n## New/changed unresolved threads`;
   const threadsBlock = newThreads.length
     ? `${threadsHeading}\n${JSON.stringify(newThreads, null, 2)}`
     : `\n## No new review threads this run — you were dispatched for branch health only.`;
@@ -144,12 +147,22 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   if (isNew && config.workerModel) args.push('--model', config.workerModel);
 
   if (isNew) await persistSession(prKey, id);
+  // Full per-run transcript (stdout+stderr) persisted to data/worker-<repo>-<num>.log.
+  // The console only ever kept tail(-500); the full transcript is exactly what's needed
+  // to diagnose a worker that misbehaved (workers run --permission-mode bypassPermissions
+  // against real PRs). Overwritten each run, so it stays bounded to the last run.
+  const logPath = join(DATA, `worker-${pr.repo}-${pr.number}.log`);
   return await new Promise((resolve) => {
     const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
     child.on('close', async (code) => {
       await recordSeenSha(prKey, worktreePath);
+      try {
+        await mkdir(DATA, { recursive: true });
+        await writeFile(logPath, `# ${prKey} session ${id} exit=${code} @ ${new Date().toISOString()}\n${out}`);
+      } catch (e) { log.warn(`could not persist transcript ${logPath}`, String(e).slice(0, 160)); }
       resolve({ spawned: true, sessionId: id, code, tail: out.slice(-500) });
     });
   });
@@ -219,10 +232,10 @@ export async function spawnDiscussTerminal(pr, thread, worktreePath, branchKind 
     let err = '';
     child.stderr.on('data', (d) => { err += d; });
     child.on('close', (code) => {
-      if (code !== 0) console.error(`[discuss] ${prKey}: osascript exited ${code}: ${err.trim()}`);
+      if (code !== 0) log.error(`discuss ${prKey}: osascript exited ${code}`, err.trim());
     });
   } catch (e) {
-    console.error(`[discuss] ${prKey}: failed to stage terminal launch:`, e.message);
+    log.error(`discuss ${prKey}: failed to stage terminal launch`, e.message);
     return { spawned: false, reason: 'could not stage terminal launch' };
   }
   return { spawned: true, resumed: !isNew };

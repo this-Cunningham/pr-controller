@@ -6,7 +6,7 @@
 // groups + renders it faithfully and adds nothing of its own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLanes, adaptThread, adaptPRMeta, DISPOSITION_TO_TAG } from '../pr-controller-react/src/features/dashboard/adapt.js';
+import { buildLanes, adaptThread, adaptPRMeta, adaptState, DISPOSITION_TO_TAG } from '../pr-controller-react/src/features/dashboard/adapt.js';
 import { placementsFor } from '../placements.mjs';
 
 // A backend state.json PR record. `threads` take { id, disposition, error, lastAuthor }.
@@ -61,6 +61,40 @@ test('adaptThread: disposition -> DS tag; a dispatched input reads as pending', 
   assert.equal(adaptThread(t, { dispatched: true }).tag, 'pending');
   assert.equal(adaptThread({ ...t, disposition: 'agentAutoFixed' }).tag, 'fixed');
   assert.equal(adaptThread({ error: 'scan failed', threadId: 'e' }).tag, 'error');
+});
+
+// The worker emits ONE `reason` per thread; adapt.js used to copy it into both
+// reasonSummary and reasonFull, which made the "Show agent's reasoning" toggle reveal
+// identical text. Now reasonSummary is a clamped lead-in and reasonFull is set ONLY
+// when there's genuinely more to read (otherwise undefined, so ThreadRow hides the toggle).
+test('adaptThread: a short reason -> reasonSummary is the reason, reasonFull undefined (no toggle)', () => {
+  const t = { threadId: 'a', disposition: 'needsYourApproval', reason: 'Looks risky.', body: 'b' };
+  const out = adaptThread(t);
+  assert.equal(out.reasonSummary, 'Looks risky.');
+  assert.equal(out.reasonFull, undefined); // nothing extra to expand
+});
+
+test('adaptThread: a long single-sentence reason is clamped on a word boundary; reasonFull is the full text', () => {
+  const reason = 'This change silently swallows the network error and returns an empty array instead, which means a transient failure will look exactly like an empty result set to every downstream caller and mask real outages from on-call';
+  const out = adaptThread({ threadId: 'a', disposition: 'needsYourApproval', reason, body: 'b' });
+  assert.ok(out.reasonSummary.length < reason.length, 'summary is shorter than the full reason');
+  assert.ok(out.reasonSummary.endsWith('…'), 'clamped summary ends with an ellipsis');
+  assert.ok(!out.reasonSummary.slice(0, -1).endsWith(' '), 'clamp lands on a word boundary');
+  assert.equal(out.reasonFull, reason); // the complete reason is available behind the toggle
+  assert.ok(reason.startsWith(out.reasonSummary.slice(0, -1).trimEnd()));
+});
+
+test('adaptThread: a multi-sentence reason -> summary is the first sentence, reasonFull is everything', () => {
+  const reason = 'The diff drops the auth check. That is almost certainly a regression worth a second look before this merges.';
+  const out = adaptThread({ threadId: 'a', disposition: 'needsYourApproval', reason, body: 'b' });
+  assert.equal(out.reasonSummary, 'The diff drops the auth check.');
+  assert.equal(out.reasonFull, reason);
+});
+
+test('adaptThread: an error thread has a fixed caption and no expandable reasoning', () => {
+  const out = adaptThread({ error: 'scan failed', threadId: 'e' });
+  assert.equal(out.reasonSummary, 'Scan error.');
+  assert.equal(out.reasonFull, undefined);
 });
 
 test('a needsYourApproval thread -> one Needs-you card with an input thread item', () => {
@@ -172,4 +206,23 @@ test('cards within a lane are ordered by urgency (surfaced/approval before error
   const b = pr({ number: 2, threads: [{ id: 'b', disposition: 'agentError' }] });        // rank 1
   const l = lanesFrom([b, a]); // intentionally out of order
   assert.deepEqual(cardIds(l.needs), ['site-vdp-remix#1', 'site-vdp-remix#2']);
+});
+
+// Observability surfacing (item 7): the daemon's poll failure rides in state.json as
+// lastPollError so the header can show a scan-failing indicator; adaptState passes it
+// through (defaulting to null when the last scan was healthy).
+test('adaptState: passes lastPollError through, defaulting to null', () => {
+  assert.equal(adaptState({ prs: [], placements: [] }).lastPollError, null);
+  assert.equal(adaptState(null).lastPollError, null);
+  const err = { at: '2026-06-21T00:00:00Z', message: 'API rate limit exceeded' };
+  assert.deepEqual(adaptState({ lastPollError: err }).lastPollError, err);
+});
+
+// A classified scan error surfaces its kind in the inline caption (throttle reads
+// distinctly from a generic error); an unclassified/other error stays a plain caption.
+test('adaptThread: a classified scan error surfaces its kind', () => {
+  assert.equal(adaptThread({ threadId: 'e', error: 'boom', errorKind: 'rateLimit' }).reasonSummary, 'Scan error — rateLimit.');
+  assert.equal(adaptThread({ threadId: 'e', error: 'boom', errorKind: 'auth' }).reasonSummary, 'Scan error — auth.');
+  assert.equal(adaptThread({ threadId: 'e', error: 'boom', errorKind: 'other' }).reasonSummary, 'Scan error.');
+  assert.equal(adaptThread({ threadId: 'e', error: 'boom' }).reasonSummary, 'Scan error.');
 });

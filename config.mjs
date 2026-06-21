@@ -40,6 +40,12 @@ export const config = {
   port: Number(env.PRC_PORT) || 4317,
   pollMinutes: Number(env.PRC_POLL_MINUTES) || 30,
 
+  // The scanner skips re-enriching a PR whose `updatedAt` is unchanged since the
+  // last poll (reusing its cached threads/health). But `updatedAt` is lossy — it
+  // doesn't always bump on a CI flip or a thread resolve — so every Kth scan we
+  // force a full re-enrich of every in-scope PR regardless. K = reenrichFloor.
+  reenrichFloor: Number(env.PRC_REENRICH_FLOOR) || 5,
+
   // Scope allowlist of "repo#number" keys the tool is allowed to touch.
   //  - empty/null  -> ALL of your open PRs (full production; no circuit-breaker).
   //  - a list      -> ONLY those PRs are scanned and worked (everything else is

@@ -18,7 +18,9 @@
 
 import { existsSync } from 'node:fs';
 import { mergePending } from './rules.mjs';
+import { logger } from './log.mjs';
 
+const log = logger('dispatch');
 let deps = null;
 // prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, opts }
 //   rebase: a rebase is pending for the next run — either folded into thread/CI
@@ -38,6 +40,12 @@ export function pendingCount(prKey) {
   const e = state.get(prKey);
   return e ? e.threads.size : 0;
 }
+
+// Drop a PR's dispatch state entirely — called by the server's cleanup when a PR
+// merges/closes, so a vanished PR doesn't leave a stale idle entry in the Map
+// forever. Safe to call after a run completes (the PR has no more work); a PR that
+// is still running gets re-created on its next enqueue if it somehow reappears.
+export function forget(prKey) { state.delete(prKey); }
 
 // Poll-found work: new/changed dispatchable threads, optionally also resolving a
 // merge conflict in the same run (opts.rebaseOnConflict).
@@ -102,7 +110,7 @@ async function maybeDrain(prKey) {
     if (wt.outOfSync) {
       pr.outOfSync = true;
       deps.markOutOfSync?.(prKey, true);
-      console.log(`[dispatch] ${prKey}: branch out of sync, surfacing instead of launching`);
+      log.info(`${prKey}: branch out of sync, surfacing instead of launching`);
     } else {
       deps.markOutOfSync?.(prKey, false);  // synced cleanly — clear any prior flag
       const r = await deps.runWorker(pr, drainedThreads, wt.path, outPath, {
@@ -110,22 +118,23 @@ async function maybeDrain(prKey) {
         branchHealth: opts.branchHealth, rebase,
         applyApproved,
       });
-      console.log(`[dispatch] ${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''}${rebase ? ' +rebase' : ''} ->`,
-        r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason, wt.plan || '');
-      // Surface what the headless worker actually did: its stdout tail, and
-      // whether it wrote the result JSON. A missing file after a "spawned" run =
-      // the worker errored/no-op'd (e.g. phantom --resume).
+      log.info(`${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''}${rebase ? ' +rebase' : ''} -> `
+        + (r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason));
+      // Surface what the headless worker actually did: its stdout tail (debug — the
+      // FULL transcript is now persisted to data/worker-<repo>-<num>.log), and whether
+      // it wrote the result JSON. A missing file after a "spawned" run = the worker
+      // errored/no-op'd (e.g. phantom --resume); the .log says why.
       if (r.spawned) {
-        if (r.tail) console.log(`[worker ${prKey}] tail:`, r.tail.trim());
-        if (!existsSync(outPath)) console.warn(`[worker ${prKey}] WARN: no result JSON at ${outPath} — worker took no action (errored or empty run)`);
+        if (r.tail) log.debug(`worker ${prKey} tail`, r.tail.trim());
+        if (!existsSync(outPath)) log.warn(`worker ${prKey}: no result JSON at ${outPath} — took no action (errored or empty run); see the .log transcript`);
       }
     }
   } catch (err) {
-    console.error(`[dispatch] ${prKey}: worker run failed:`, err.message);
+    log.error(`${prKey}: worker run failed`, err.message);
   } finally {
     e.running = false;
     deps.events.markFinished(prKey);
-    try { await deps.refreshOnePR(prKey); } catch (err) { console.error(`[dispatch] ${prKey}: refresh failed:`, err.message); }
+    try { await deps.refreshOnePR(prKey); } catch (err) { log.error(`${prKey}: refresh failed`, err.message); }
     // Coalesce: drain anything that arrived while we were busy.
     maybeDrain(prKey);
   }

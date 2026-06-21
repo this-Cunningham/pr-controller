@@ -75,24 +75,53 @@ export function adaptPRMeta(pr) {
   };
 }
 
+// The worker emits ONE `reason` string per thread (worker-prompt.md output schema +
+// rules.deriveDisposition) — there is no separately-authored "full" reasoning. So we
+// derive an inline SUMMARY (a clamped first chunk) and only carry a distinct `reasonFull`
+// (the complete text) when the reason is genuinely longer than the summary. When the
+// reason already fits, `reasonFull` is undefined and ThreadRow hides the toggle entirely.
+const REASON_CLAMP = 160;
+function splitReason(reason) {
+  const full = (reason || '').trim();
+  if (!full) return { summary: '', reasonFull: undefined };
+  // Prefer the first sentence if it's a clean, shorter lead-in.
+  const sentenceEnd = full.search(/[.!?](\s|$)/);
+  if (sentenceEnd > 0 && sentenceEnd + 1 < full.length - 1) {
+    const firstSentence = full.slice(0, sentenceEnd + 1);
+    if (firstSentence.length <= REASON_CLAMP)
+      return { summary: firstSentence, reasonFull: full };
+  }
+  if (full.length <= REASON_CLAMP) return { summary: full, reasonFull: undefined };
+  // Clamp to ~REASON_CLAMP chars on a word boundary, with an ellipsis.
+  const slice = full.slice(0, REASON_CLAMP);
+  const lastSpace = slice.lastIndexOf(' ');
+  const summary = (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trimEnd() + '…';
+  return { summary, reasonFull: full };
+}
+
 // One backend thread -> the DS Thread shape. `dispatched` (the user approved + ran
 // this thread, worker not finished) shows it as `pending` so it reads as "agent
 // reviewing now" while it's in flight — the one optimistic, client-only nuance.
 export function adaptThread(t, { dispatched = false } = {}) {
   if (t.error) {
-    return { id: t.threadId || 'err', tag: 'error', loc: '', author: '', body: String(t.error || t.reason || ''), reasonSummary: 'Scan error.' };
+    // The full scan error rides in the body; the inline reason is a fixed caption,
+    // so there's never extra reasoning to expand here. The scanner now classifies the
+    // failure (rateLimit/auth/forbidden/graphql) so a throttle reads distinctly.
+    const kind = t.errorKind && t.errorKind !== 'other' ? ` — ${t.errorKind}` : '';
+    return { id: t.threadId || 'err', tag: 'error', loc: '', author: '', body: String(t.error || t.reason || ''), reasonSummary: `Scan error${kind}.`, reasonFull: undefined };
   }
   const author = t.lastAuthor && t.lastAuthor !== t.author ? t.lastAuthor : t.author;
   let tag = DISPOSITION_TO_TAG[t.disposition] || 'waiting';
   if (tag === 'input' && dispatched) tag = 'pending';
+  const { summary, reasonFull } = splitReason(t.reason);
   return {
     id: t.threadId,
     tag,
     loc: `${t.path || ''}${t.line != null ? ':' + t.line : ''}`,
     author: author ? `@${author}` : '',
     body: t.body || '',
-    reasonSummary: t.reason || '',
-    reasonFull: t.reason || '',
+    reasonSummary: summary,
+    reasonFull,
     approach: t.suggestedApproach || undefined,
     reply: t.suggestedReply || undefined,
   };
@@ -196,5 +225,8 @@ export function adaptState(state) {
     placements: state?.placements || [],
     scope: state?.scope || [],
     updatedAt: state?.updatedAt || null,
+    // null when the last scan succeeded; { at, message } when the daemon's poll failed
+    // (so the dashboard can show a scan-failing indicator instead of a false all-clear).
+    lastPollError: state?.lastPollError || null,
   };
 }

@@ -9,13 +9,17 @@ import { config, ghEnv } from './config.mjs';
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
+import { cleanupPr } from './cleanup.mjs';
 import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale } from './rules.mjs';
 import { deriveRecord } from './derive.mjs';
 import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
+import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
+const log = logger('poll');
+const httpLog = logger('http');
 
 // Prepend "[TICKET]" to the PR title to satisfy the compliance check.
 async function setPrJira(pr, ticket) {
@@ -56,6 +60,10 @@ const seen = new Map();
 // track it here (not on the scanned PR object, which is rebuilt from GitHub and
 // has no worktree knowledge) so it survives refreshOnePR into the dashboard.
 const outOfSyncPRs = new Set();
+// Most recent failed poll, surfaced into state.json so a scan outage is VISIBLE (the
+// dashboard can show "scan failing") instead of silently looking like "no PRs". Set in
+// poll()'s catch, cleared on a successful scan. { at: ISO, message } | null.
+let lastPollError = null;
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
 
@@ -107,6 +115,7 @@ async function writeState(prs) {
     lanes: ['needs', 'progress', 'waiting'],
     prs,
     placements,
+    lastPollError,   // null when the last scan succeeded; { at, message } on failure
   };
   await mkdir(DATA, { recursive: true });
   await writeFile(STATE, JSON.stringify(state, null, 2));
@@ -117,9 +126,17 @@ async function writeState(prs) {
 // dispatcher on every worker exit (the worker may have resolved/replied/pushed).
 async function refreshOnePR(prKey) {
   const pr = await scanOnePr(prKey);
-  if (!pr) {  // no longer open / in scope — drop it from state
+  if (!pr) {  // no longer open / in scope (merged/closed) — drop it + reclaim its leftovers
+    // Grab the outgoing PR's true nameWithOwner BEFORE we filter it out, so cleanup
+    // can resolve the right (possibly cross-org) clone for its worktree.
+    const old = state.prs.find((p) => `${p.repo}#${p.number}` === prKey);
     const prs = state.prs.filter((p) => `${p.repo}#${p.number}` !== prKey);
     if (prs.length !== state.prs.length) { await writeState(prs); events.notifyStateUpdated(); }
+    // Clean up the managed worktree, worker verdict file, and session entry. Robust:
+    // a cleanup failure must not break the refresh. Also forget our per-poll tracking
+    // and the dispatcher's per-PR entry.
+    try { await cleanupPr(prKey, old?.nameWithOwner); } catch (e) { log.error(`refreshOnePR cleanup ${prKey} failed`, e.message); }
+    seen.delete(prKey); outOfSyncPRs.delete(prKey); dispatcher.forget(prKey);
     return;
   }
   await deriveAndSetPrFields(pr);
@@ -138,9 +155,14 @@ dispatcher.init({
 });
 
 async function poll() {
-  if (polling) { console.log('[poll] already running, skipped'); return; }
+  if (polling) { log.info('already running, skipped'); return; }
   polling = true;
   try {
+    // Capture the PREVIOUS state's PRs (keyed) BEFORE writeState below reassigns
+    // `state`, so we can detect which PRs vanished (merged/closed) this poll and reclaim
+    // their leftovers (worktree/worker-file/session). We keep the whole PR object so
+    // cleanup gets its true (cross-org) nameWithOwner. See cleanup loop after writeState.
+    const prevByKey = new Map(state.prs.map((p) => [`${p.repo}#${p.number}`, p]));
     const prs = await scanAll();
     for (const pr of prs) {
       // Derive fields from the EXISTING worker result (the new dispatch below
@@ -174,16 +196,38 @@ async function poll() {
         dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
     }
     await writeState(prs);
+
+    // Reclaim leftovers for PRs that were present last poll but are gone now (merged/
+    // closed -> dropped out of scanAll). Each cleanup is best-effort: a failure must
+    // not break the poll, so we wrap and continue. Also forget our per-poll tracking.
+    const nowKeys = new Set(prs.map((p) => `${p.repo}#${p.number}`));
+    for (const [k, oldPr] of prevByKey) {
+      if (nowKeys.has(k)) continue;
+      try { await cleanupPr(k, oldPr?.nameWithOwner); } catch (e) { log.error(`cleanup ${k} failed`, e.message); }
+      seen.delete(k); outOfSyncPRs.delete(k); dispatcher.forget(k);
+    }
+
+    lastPollError = null;   // scan + derive + write succeeded — clear any prior failure
     const needPrs = new Set(state.placements.filter((p) => p.lane === 'needs').map((p) => p.prKey)).size;
-    console.log(`[poll] ${prs.length} PRs, ${needPrs} need you`);
+    log.info(`${prs.length} PRs, ${needPrs} need you`);
   } catch (e) {
-    console.error('[poll] failed:', e.message);
+    // Do NOT swallow: a scan failure used to log only e.message and otherwise look
+    // exactly like "no PRs need you". Record it (visible in state.json) + log the stack,
+    // then re-persist so the dashboard can show the outage instead of a false all-clear.
+    lastPollError = { at: new Date().toISOString(), message: String(e.message || e) };
+    log.error('poll failed', e.stack || e.message);
+    try { await writeState(state.prs); } catch (e2) { log.error('persist after poll failure failed', e2.message); }
   } finally {
     polling = false;
   }
 }
 
 async function recordDecision(payload) {
+  // Ensure data/ exists before writing: if the very first poll failed (GitHub
+  // unreachable at startup), writeState() never ran and data/ was never created,
+  // so this writeFile would throw ENOENT and crash the daemon from inside the
+  // /decision req.on('end') async handler. mkdir is cheap + idempotent.
+  await mkdir(DATA, { recursive: true });
   let all = [];
   try { all = JSON.parse(await readFile(DECISIONS, 'utf8')); } catch {}
   all.push({ ...payload, at: new Date().toISOString() });
@@ -242,6 +286,7 @@ const server = createServer(async (req, res) => {
     let body = '';
     req.on('data', (c) => (body += c));
     req.on('end', async () => {
+      try {
       const payload = JSON.parse(body || '{}');
       await recordDecision(payload);
       let spawn = { spawned: false, reason: `unknown action: ${payload.action}` };
@@ -298,6 +343,13 @@ const server = createServer(async (req, res) => {
       }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, scope: config.onlyPRs || [], spawn }));
+      } catch (e) {
+        // A throw inside this async req.on('end') handler is otherwise unhandled
+        // and would crash the daemon. Respond 500 instead of dying.
+        httpLog.error('/decision failed', e.message);
+        try { res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: String(e.message || e) })); } catch {}
+      }
     });
     return;
   }
@@ -306,7 +358,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(config.port, async () => {
   const scope = (config.onlyPRs || []).length ? `scoped to ${config.onlyPRs.join(', ')}` : 'all open PRs';
-  console.log(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
+  logger('server').info(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
   await poll();
   setInterval(poll, config.pollMinutes * 60 * 1000);
 });

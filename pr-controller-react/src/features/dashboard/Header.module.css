@@ -38,6 +38,9 @@
 .statNeed {
   color: var(--accent);
 }
+.scanError {
+  color: var(--err-fg);
+}
 
 .controls {
   flex: none;

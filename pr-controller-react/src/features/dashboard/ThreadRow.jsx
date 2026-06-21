@@ -34,6 +34,9 @@ export function ThreadRow({ thread, controller: c }) {
   const [bodyOpen, setBodyOpen] = React.useState(false);
   const [reasonOpen, setReasonOpen] = React.useState(false);
   const isLong = (thread.body || "").length > 150;
+  // The worker emits a single reason; adapt.js only sets reasonFull when it's genuinely
+  // longer than the inline summary. No extra text -> no toggle, no empty expandable div.
+  const hasMoreReason = !!thread.reasonFull && thread.reasonFull !== thread.reasonSummary;
 
   let controls = null;
   if (thread.tag === "input") {
@@ -117,12 +120,14 @@ export function ThreadRow({ thread, controller: c }) {
       <div className={styles.reason}>
         <span className={styles.reasonArrow}>↳</span>
         <span className={styles.reasonSummary}>{thread.reasonSummary}</span>
-        <span className={styles.reasonToggle}>
-          <TextButton tone="accent" underline={false} onClick={() => setReasonOpen((v) => !v)}>{reasonOpen ? "Hide agent’s reasoning" : "Show agent’s reasoning"}</TextButton>
-        </span>
+        {hasMoreReason && (
+          <span className={styles.reasonToggle}>
+            <TextButton tone="accent" underline={false} onClick={() => setReasonOpen((v) => !v)}>{reasonOpen ? "Hide agent’s reasoning" : "Show agent’s reasoning"}</TextButton>
+          </span>
+        )}
       </div>
-      {reasonOpen && (
-        <div className={`${styles.reasonFull} ws-appear`}>{thread.reasonFull || thread.reasonSummary}</div>
+      {hasMoreReason && reasonOpen && (
+        <div className={`${styles.reasonFull} ws-appear`}>{thread.reasonFull}</div>
       )}
       {controls}
     </div>

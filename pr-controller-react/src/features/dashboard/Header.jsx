@@ -6,7 +6,7 @@ import styles from './Header.module.css';
 const THEME_KEY = 'pr-controller-theme';
 
 export default function Header({ dash }) {
-  const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, runPoll } = dash;
+  const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, runPoll, lastPollError } = dash;
   const scoped = (scope || []).length > 0;
 
   return (
@@ -20,6 +20,12 @@ export default function Header({ dash }) {
           {openCount} open&nbsp;&nbsp;·&nbsp;&nbsp;
           <span className={styles.statNeed}>{needCount} need you</span>
           &nbsp;&nbsp;·&nbsp;&nbsp;updated {updated}
+          {lastPollError && (
+            <>
+              &nbsp;&nbsp;·&nbsp;&nbsp;
+              <span className={styles.scanError} title={lastPollError.message || 'scan failed'}>⚠ scan failing</span>
+            </>
+          )}
         </div>
       </div>
 
