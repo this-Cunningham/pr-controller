@@ -1,58 +1,54 @@
 ---
 name: setup-pr-controller
-version: 2.0.0
+version: 3.0.0
 description: >-
-  Help a user configure pr-controller and get it unblocked on first run or a new device.
-  Opens config.mjs (the config surface), helps fill in their PRC_* values into a sourced
-  prc.env, sets up the gh/git/claude dependencies, and verifies with one scan. Use for
-  first-time setup, re-setup on a new machine, an empty / "scan failing" dashboard, or
-  workers that take no action.
+  Help a user configure pr-controller and get it unblocked (first run or new device). Opens
+  config.mjs, collects their non-secret values into a persistent config.local.json, and
+  guides auth (gh / ssh) which the USER runs in their own terminal / GitHub settings — secrets
+  never go through chat. Use for first-time setup, re-setup on a new machine, an empty /
+  "scan failing" dashboard, or workers that take no action.
 ---
 
 # Set up pr-controller
 
-Open [config.mjs](config.mjs) and walk the user through it — each field names its `PRC_*`
-env var and what it needs. Collect their values (ask via AskUserQuestion), write them into a
-`prc.env` at the repo root, set up the external deps, and verify.
+Open [config.mjs](config.mjs) and help the user fill it in. Their values persist in a
+gitignored `config.local.json` (auto-loaded every run — no env sourcing).
 
-```bash
-grep -qxF 'prc.env' .gitignore || echo 'prc.env' >> .gitignore
-```
+**Never put secrets (tokens, SSH keys) in the chat.** Auth is done by the user in their own
+terminal / GitHub settings; the agent collects only non-secret config and writes the file.
 
-## 1. Fill in config (read config.mjs WITH the user) → prc.env
-Collect: `PRC_HOST`, `PRC_LOGIN`, `PRC_OWNER`, `PRC_ONLY_PRS` (the scope — empty = ALL their
-open PRs, so keep it tight), `PRC_CLONE_ROOT`, `PRC_GIT_PROTOCOL` (ssh/https), and optionally
-`PRC_WORKER_MODEL`. Write them:
+## 1. Collect non-secret config → config.local.json
+Read config.mjs with the user and collect: host, login, owner, scope (keep it tight — empty =
+ALL their PRs), cloneRoot (absolute path), gitProtocol. Write it:
 ```bash
-cat > prc.env <<'EOF'
-export PRC_HOST=github.com
-export PRC_LOGIN=<login>
-export PRC_OWNER=<owner>
-export PRC_ONLY_PRS="repo#1,repo#2"
-export PRC_CLONE_ROOT="$HOME/<clones-dir>"
-export PRC_GIT_PROTOCOL=ssh
-# export PRC_WORKER_MODEL=sonnet   PRC_PORT=4317   PRC_POLL_MINUTES=30
+cat > config.local.json <<'EOF'
+{
+  "profile": "dev",
+  "cloneRoot": "/absolute/path/to/your/clones",
+  "gitProtocol": "ssh",
+  "profiles": {
+    "dev": { "host": "github.com", "owner": "<owner>", "login": "<login>",
+             "onlyPRs": ["<repo>#1","<repo>#2"] }
+  }
+}
 EOF
 ```
-Validate each `repo#n` is a real OPEN PR: `GH_HOST=$PRC_HOST gh pr view <n> --repo <owner>/<repo>`.
+Validate each `<repo>#n` is a real OPEN PR: `GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`.
 
-## 2. Prereqs — only the deltas
-Assume git, `gh` (on github.com), and `claude` are already set up. Only do what's missing:
+## 2. Auth — the USER runs these in their terminal (secrets stay local)
+- **gh:** `gh auth status --hostname <host>`. If not authed, tell the user to run `gh auth
+  login --hostname <host>` (interactive; the token never goes through chat). Need a token?
+  They create one at **GitHub → Settings → Developer settings → Personal access tokens** —
+  fine-grained, permissions **Pull requests: read** + **Contents: read/write** — then
+  `gh auth login --with-token` (pasted in their terminal).
+- **https push** (only if gitProtocol=https): the user runs `gh auth setup-git --hostname <host>`.
+- **ssh** (only if gitProtocol=ssh): if they have no key, `ssh-keygen -t ed25519`, then add
+  `~/.ssh/id_ed25519.pub` at **GitHub → Settings → SSH and GPG keys**; verify `ssh -T git@<host>`.
+
+## 3. Build + verify
 ```bash
-gh auth status --hostname <host>      # if <host> is NEW (e.g. an enterprise host): gh auth login --hostname <host>
-gh auth setup-git --hostname <host>   # ONLY if PRC_GIT_PROTOCOL=https (lets workers push over https)
-( cd pr-controller-react && yarn install --silent && yarn build )   # build the dashboard (503 until built)
+( cd pr-controller-react && yarn install --silent && yarn build )
+PRC_POLL_MINUTES=1440 node server.mjs > /tmp/prc.log 2>&1 &
+curl -s localhost:4317/state.json | head -c 200    # expected PRs, not empty / "scan failing"
 ```
-- Root only: if `id -u` is `0`, workers need a non-root user (or `IS_SANDBOX=1` in an ephemeral container).
-
-## 3. Verify
-```bash
-source prc.env && PRC_POLL_MINUTES=1440 node server.mjs > /tmp/prc.log 2>&1 &
-# after "[poll] N PRs":
-curl -s localhost:${PRC_PORT:-4317}/state.json | head -c 200    # expected PRs, not empty / "scan failing"
-grep -L "dangerously-skip-permissions cannot" data/worker-*.log 2>/dev/null  # a dispatched worker acted
-pkill -f 'node server.mjs'
-```
-
-Notes: config is read once → restart on any change. The daemon won't scan until `PRC_LOGIN`
-and a scope are set. For a quick render-only check, use the `run-pr-controller` skill.
+Root only: if `id -u` is `0`, workers need a non-root user (or `IS_SANDBOX=1` in a container).
