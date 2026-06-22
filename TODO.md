@@ -117,3 +117,8 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       personal repos: 21 dummy `e2e2/*` PRs on this-Cunningham/pr-controller drove real volume through
       the full e2e flow and surfaced + fixed 2 concurrency/worker bugs (per-clone git mutex; worker
       stdin stall). workerModel bumped haiku->sonnet. Three follow-up findings recorded above.
+- [ ] Daemon could use a scoped `--allowedTools` list (Write, Edit, Bash(git:*), Bash(gh:*)) instead
+      of blanket `--permission-mode bypassPermissions` for workers — least-privilege, and it sidesteps
+      the claude root-guard on any host without IS_SANDBOX (proven viable: a scoped
+      `--allowedTools 'Bash(gh:*)'` worker ran with permission_denials:[] and no
+      --dangerously-skip-permissions). Worth considering for worker.mjs runWorker.
