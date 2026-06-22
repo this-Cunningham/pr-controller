@@ -51,6 +51,22 @@ async function syncFfOnly(dir) {
   catch (e) { return { path: dir, ready: false, outOfSync: true, error: String(e).slice(0, 200) }; }
 }
 
+// Per-clone serialization. Many PRs of the SAME repo share ONE clone (worktrees are
+// linked off it). When several dispatch at once, their concurrent `git fetch origin`
+// / `git worktree add` race on the clone's shared refs — the loser dies with
+// `cannot lock ref 'refs/remotes/origin/<b>': ... unable to update local ref` and the
+// whole worker run fails (observed live: 7 simultaneous dispatches, all failed). The
+// fix is a per-clone async mutex: worktree SETUP runs one-at-a-time per clone, while
+// the long `claude -p` run still proceeds concurrently after setup returns.
+const cloneLocks = new Map(); // clonePath -> Promise (tail of the serialized chain)
+export function withCloneLock(clonePath, fn) {
+  const prev = cloneLocks.get(clonePath) || Promise.resolve();
+  const run = prev.then(fn, fn); // run fn whether prev resolved or rejected
+  // Keep the chain alive but never let a rejection poison the stored tail.
+  cloneLocks.set(clonePath, run.then(() => {}, () => {}));
+  return run;
+}
+
 // Returns { path, ready, branch, detached?, pushRefspec?, reused?, outOfSync?, plan }.
 // Decision tree (clean reuse > detached worktree > fresh worktree), so we never
 // stash or disturb in-progress work in your clones.
@@ -65,6 +81,11 @@ export async function ensureWorktree(pr) {
   const local = localCloneFor(map, pr);
   const repo = local || fallbackClone(pr.repo);
 
+  // Serialize all git work on this shared clone (see withCloneLock above).
+  return withCloneLock(repo, () => setupWorktree(pr, { path, branch, repo, local }));
+}
+
+async function setupWorktree(pr, { path, branch, repo, local }) {
   // RESUME: our managed worktree already exists -> ff-only to remote head.
   if (existsSync(path)) {
     const bail = await syncFfOnly(path);

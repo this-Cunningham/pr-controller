@@ -153,7 +153,12 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // against real PRs). Overwritten each run, so it stays bounded to the last run.
   const logPath = join(DATA, `worker-${pr.repo}-${pr.number}.log`);
   return await new Promise((resolve) => {
-    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv });
+    // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
+    // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
+    // input it will never get ("no stdin data received in 3s, proceeding without it"),
+    // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
+    // piped so we can capture the full transcript.
+    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });
