@@ -35,19 +35,11 @@ export PRC_GIT_PROTOCOL=ssh
 EOF
 ```
 
-## e2e sandbox PRs (throwaway pressure-test PRs on this-Cunningham/pr-controller)
-~19 dummy PRs covering every disposition/lane + the hard paths (all titled "[e2e] … safe to
-close"). Scope `dev` to these to drive the full pipeline end-to-end:
+## e2e sandbox PRs
 ```bash
 export PRC_HOST=github.com PRC_LOGIN=this-Cunningham PRC_OWNER=this-Cunningham
 export PRC_ONLY_PRS="pr-controller#8,pr-controller#9,pr-controller#10,pr-controller#11,pr-controller#12,pr-controller#13,pr-controller#15,pr-controller#16,pr-controller#18,pr-controller#19,pr-controller#20,pr-controller#21,pr-controller#22,pr-controller#23,pr-controller#24,pr-controller#25,pr-controller#26,pr-controller#27,pr-controller#28"
 ```
-What each exercises:
-- **#8** probe (fix nit) · **#9 #10 #11** CI-red → worker auto-fix · **#12** fix-nit · **#13** fix-suggestion
-- **#15 #16** surface (scope / design-contract) · **#18** praise · **#19 #20** compliance → jiraNeeded
-- **#21** ignore-checks (excluded) · **#22** multi-thread (2 opted-in + 1 not) · **#23** no-dispatch guard
-- **#24** merge-cleanup · **#25** close-cleanup · **#26 #27** trivial conflict · **#28** non-trivial conflict → surface
-- (#14 feat-rgb was MERGED and #17 feat-clone CLOSED during the run to test merge/close cleanup)
 
 ## Or paste my real profiles into config.mjs (local edit, keep it uncommitted)
 config.mjs ships with neutral `PROFILES`; replace them locally with mine, then select with
