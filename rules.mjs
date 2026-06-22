@@ -218,3 +218,15 @@ export function repoSlug(url) {
   const m = (url || '').trim().match(/[:/]([^/:]+\/[^/]+?)(?:\.git)?$/);
   return m ? m[1] : null;
 }
+
+// Build a repo's clone URL WITHOUT hardcoding a transport (the worktree fallback used to
+// assume ssh `git@host:..`, which can't bootstrap a repo on an SSH-less host). Configurable
+// via config.gitProtocol (PRC_GIT_PROTOCOL) + config.host (PRC_HOST):
+//   'https' -> https://<host>/<owner/repo>.git   (auth via a git credential helper)
+//   else    -> git@<host>:<owner/repo>.git        (ssh; the default, prior behavior)
+// Pure so the URL shapes are locked by tests.
+export function cloneUrl(nameWithOwner, { host = config.host, protocol = config.gitProtocol } = {}) {
+  return protocol === 'https'
+    ? `https://${host}/${nameWithOwner}.git`
+    : `git@${host}:${nameWithOwner}.git`;
+}

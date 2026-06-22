@@ -8,6 +8,7 @@ import { mkdir } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { config } from './config.mjs';
 import { loadRepoMap, localCloneFor } from './repo-map.mjs';
+import { cloneUrl } from './rules.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
@@ -15,8 +16,6 @@ const log = logger('cleanup');
 const ROOT = join(config.baseDir, 'worktrees');
 const fallbackClone = (repo) => join(ROOT, `${repo}.git`);   // only if no local clone
 const treeDir = (repo, num) => join(ROOT, `${repo}-pr-${num}`); // worktree per PR
-
-const sshUrl = (nameWithOwner) => `git@${config.host}:${nameWithOwner}.git`;
 
 async function git(cwd, args) {
   const { stdout } = await exec('git', args, { cwd, maxBuffer: 16 * 1024 * 1024 });
@@ -109,7 +108,7 @@ async function setupWorktree(pr, { path, branch, repo, local }) {
   // worker pushes HEAD:branch. Not-checked-out -> normal worktree on the branch.
   const useDetach = !!existingCheckout; // dirty checkout exists
 
-  if (!local && !existsSync(repo)) await git(ROOT, ['clone', sshUrl(pr.nameWithOwner), repo]);
+  if (!local && !existsSync(repo)) await git(ROOT, ['clone', cloneUrl(pr.nameWithOwner), repo]);
   else await git(repo, ['fetch', 'origin']);
 
   if (useDetach) {

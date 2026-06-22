@@ -1,4 +1,4 @@
-// Discover local clones under ~/cargurus and map owner/repo -> clone path.
+// Discover local clones under config.cloneRoot (default ~/cargurus) and map owner/repo -> clone path.
 // Built once on first poll, cached to data/repo-map.json. PR repos that aren't
 // found locally fall back to a clone in worktrees/<repo>.git (see worktree.mjs).
 import { execFile } from 'node:child_process';
@@ -6,12 +6,11 @@ import { promisify } from 'node:util';
 import { readdir, writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { config } from './config.mjs';
 import { repoSlug } from './rules.mjs';
 
 const exec = promisify(execFile);
-const SEARCH_ROOT = join(homedir(), 'cargurus');
+const SEARCH_ROOT = config.cloneRoot;   // default ~/cargurus; override via PRC_CLONE_ROOT
 const CACHE = join(config.baseDir, 'data', 'repo-map.json');
 
 // Recursively find git clones up to `maxDepth` below SEARCH_ROOT.

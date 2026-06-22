@@ -11,8 +11,11 @@
 // Every individual field can still be overridden by its own env var (PRC_*), which
 // beats the profile, so you can point at any GitHub without editing this committed
 // config:
-//   PRC_HOST, PRC_OWNER, PRC_LOGIN, PRC_PORT, PRC_POLL_MINUTES
+//   PRC_HOST, PRC_OWNER, PRC_LOGIN, PRC_PORT, PRC_POLL_MINUTES, PRC_CLONE_ROOT, PRC_GIT_PROTOCOL
 //   PRC_ONLY_PRS="repo#1,repo#2"  (empty string = ALL your open PRs; unset = the profile's scope)
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 const env = process.env;
 const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -49,6 +52,18 @@ export const config = {
   login: env.PRC_LOGIN || base.login,
   port: Number(env.PRC_PORT) || 4317,
   pollMinutes: Number(env.PRC_POLL_MINUTES) || 30,
+
+  // Where to discover your EXISTING local clones to reuse (searched recursively to depth
+  // 2 by repo-map.mjs). Override for any clone layout; the default keeps the conventional
+  // ~/cargurus location but nothing is hardcoded to it.
+  cloneRoot: env.PRC_CLONE_ROOT || join(homedir(), 'cargurus'),
+
+  // Transport for the FALLBACK clone of a repo you don't already have locally:
+  //   'ssh'   -> git@<host>:<owner/repo>.git      (needs an SSH key)
+  //   'https' -> https://<host>/<owner/repo>.git  (needs a git credential helper, e.g.
+  //              `gh auth setup-git`; works on SSH-less hosts like CI / containers)
+  // Default 'ssh' preserves prior behavior; built by rules.cloneUrl (used in worktree.mjs).
+  gitProtocol: (env.PRC_GIT_PROTOCOL || 'ssh').toLowerCase() === 'https' ? 'https' : 'ssh',
 
   // The scanner skips re-enriching a PR whose `updatedAt` is unchanged since the
   // last poll (reusing its cached threads/health). But `updatedAt` is lossy — it
