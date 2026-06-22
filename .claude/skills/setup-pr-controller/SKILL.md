@@ -44,5 +44,5 @@ EOF
 ```
 Validate each PR is open (`GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`), then run:
 ```bash
-( cd pr-controller-react && yarn build ) && node server.mjs   # http://localhost:4317
+( cd pr-controller-react && yarn install && yarn build ) && node server.mjs   # http://localhost:4317
 ```
