@@ -21,7 +21,8 @@ their own terminal (never paste secrets in chat).
   - **(a) SSH** — an SSH key on GitHub, and `gitProtocol: "ssh"`, OR
   - **(b) HTTPS** — `gh auth setup-git --hostname <host>`, and `gitProtocol: "https"`.
 - **Token** — `gh auth login` provisions one. If bringing your own PAT: **fine-grained** with
-  **Pull requests: read** + **Contents: read & write** (worker pushes), or a classic PAT with `repo`.
+  **Pull requests: read & write** (reply / react / resolve threads, edit title) + **Contents:
+  read & write** (worker commits/pushes), or a classic PAT with `repo`.
 - **(optional) Local clones** of the repos you watch, under your `cloneRoot` — else the daemon
   clones them fresh over the transport above.
 
