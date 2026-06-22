@@ -79,3 +79,6 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       App→PRCard→ThreadRow) was NOT refactored — the skill fix only stops FUTURE imports from
       reproducing it. Refactoring the live app to idiomatic hooks/context is a separate,
       larger change if you want it.
+
+## New
+- [ ] pressure test the app across several repos on my personal github using the claude-debug token and bump the model to sonnet. Now that we have hardened the app and added observability, we should try to get some good volume through the system to help find bugs. So we should add a couple personal repos to my whitelisted config and make like 30 dummy prs so we can get lots of data/logging observability and fix lots of bugs
