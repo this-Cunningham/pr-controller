@@ -25,7 +25,17 @@ const PROFILES = {
   },
   dev: {
     host: 'github.com', owner: 'this-Cunningham', login: 'this-Cunningham',
-    onlyPRs: ['pr-controller#1', 'pr-controller#2', 'pr-controller#3'],
+    // Pressure-test sandbox: the throwaway e2e2/* dummy PRs (#8-#28) on
+    // this-Cunningham/pr-controller. This is the circuit-breaker — only these are
+    // ever scanned/worked. (#1-3 are the older [e2e] demos, intentionally out of scope.)
+    onlyPRs: [
+      'pr-controller#8', 'pr-controller#9', 'pr-controller#10', 'pr-controller#11',
+      'pr-controller#12', 'pr-controller#13', 'pr-controller#14', 'pr-controller#15',
+      'pr-controller#16', 'pr-controller#17', 'pr-controller#18', 'pr-controller#19',
+      'pr-controller#20', 'pr-controller#21', 'pr-controller#22', 'pr-controller#23',
+      'pr-controller#24', 'pr-controller#25', 'pr-controller#26', 'pr-controller#27',
+      'pr-controller#28',
+    ],
   },
 };
 const requested = (env.PRC_PROFILE || (env.PRC_DEV ? 'dev' : 'prod')).toLowerCase();
@@ -80,7 +90,7 @@ export const config = {
   // Model the headless workers run as. Fixed at session birth (a --resume keeps the
   // session's original model). `haiku` for fast/cheap testing; switch to `sonnet`
   // for prod. Unset/null -> the `claude` CLI default.
-  workerModel: 'haiku',
+  workerModel: 'sonnet',
 
   baseDir: new URL('.', import.meta.url).pathname,
 };
