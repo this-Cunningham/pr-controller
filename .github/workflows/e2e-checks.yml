@@ -1,0 +1,55 @@
+name: e2e-checks
+
+# Synthesizes the compliance/ignore check CONTEXTS the pressure test needs (the PAT
+# can't write commit statuses, so we model them as named Actions jobs). Each job
+# fails iff its marker file exists in the PR, producing a red check whose NAME matches
+# config.complianceChecks / config.ignoreChecks. Passing jobs are ignored by the scanner.
+on:
+  pull_request:
+    paths:
+      - 'e2e-sandbox/**'
+
+jobs:
+  compliance-sox:
+    name: compliance/sox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if [ -f e2e-sandbox/.checks/compliance-sox ]; then
+            echo "SOX compliance ticket required"; exit 1
+          fi
+          echo "ok"
+
+  compliance-retention:
+    name: compliance/data-retention
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if [ -f e2e-sandbox/.checks/compliance-data-retention ]; then
+            echo "data-retention ticket required"; exit 1
+          fi
+          echo "ok"
+
+  license-cla:
+    name: license/cla
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if [ -f e2e-sandbox/.checks/license-cla ]; then
+            echo "CLA not signed"; exit 1
+          fi
+          echo "ok"
+
+  dco:
+    name: dco
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if [ -f e2e-sandbox/.checks/dco ]; then
+            echo "DCO sign-off missing"; exit 1
+          fi
+          echo "ok"
