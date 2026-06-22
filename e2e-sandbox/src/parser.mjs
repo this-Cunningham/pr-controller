@@ -60,10 +60,12 @@ class Parser {
     return t;
   }
 
-  // expr := term (('+' | '-') term)*
+  // expr := term (('+' | '-') term)*   [hardened against pathological input]
   parseExpr() {
     let left = this.parseTerm();
+    let steps = 0;
     while (this.peek().type === 'op' && (this.peek().value === '+' || this.peek().value === '-')) {
+      if (++steps > 10000) throw new SyntaxError('expression too long');
       const op = this.next().value;
       const right = this.parseTerm();
       left = op === '+' ? left + right : left - right;
@@ -71,10 +73,12 @@ class Parser {
     return left;
   }
 
-  // term := factor (('*' | '/') factor)*
+  // term := factor (('*' | '/') factor)*   [hardened]
   parseTerm() {
     let left = this.parseFactor();
+    let steps = 0;
     while (this.peek().type === 'op' && (this.peek().value === '*' || this.peek().value === '/')) {
+      if (++steps > 10000) throw new SyntaxError('expression too long');
       const op = this.next().value;
       const right = this.parseFactor();
       left = op === '*' ? left * right : left / right;
