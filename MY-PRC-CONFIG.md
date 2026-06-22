@@ -35,6 +35,18 @@ export PRC_GIT_PROTOCOL=ssh
 EOF
 ```
 
+## Or paste my real profiles into config.mjs (local edit, keep it uncommitted)
+config.mjs ships with neutral `PROFILES`; replace them locally with mine, then select with
+`PRC_PROFILE=dev` / `PRC_PROFILE=prod` (or `PRC_DEV=1`):
+```js
+const PROFILES = {
+  prod: { host: 'code.cargurus.com', owner: 'cargurus-eng', login: 'ccunningham',
+          onlyPRs: ['site-vdp-remix#835', 'cargurus-listings-ui#2129', 'site-vdp-remix#717'] },
+  dev:  { host: 'github.com', owner: 'this-Cunningham', login: 'this-Cunningham',
+          onlyPRs: ['pr-controller#1', 'pr-controller#2', 'pr-controller#3'] },
+};
+```
+
 ## deps (once per machine)
 ```bash
 gh auth login --hostname <host>        # code.cargurus.com for prod, github.com for dev

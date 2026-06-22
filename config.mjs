@@ -7,14 +7,24 @@ import { join } from 'node:path';
 const env = process.env;
 const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
-export const config = {
-  // Free-form label for the startup banner only (no behavior), e.g. PRC_PROFILE="sandbox".
-  profile: env.PRC_PROFILE || 'default',
+// Profiles: PRC_PROFILE (or PRC_DEV=1) selects one as the default host/owner/login/scope;
+// individual PRC_* still override it. Ships neutral — fill your own profiles in here (local),
+// or via PRC_* / prc.env. The maintainer's live in MY-PRC-CONFIG.md. Add as many as you like.
+const PROFILES = {
+  prod: { host: 'github.com', owner: '', login: '', onlyPRs: [] },
+  dev:  { host: 'github.com', owner: '', login: '', onlyPRs: [] },
+};
+const requested = (env.PRC_PROFILE || (env.PRC_DEV ? 'dev' : 'prod')).toLowerCase();
+const profile = PROFILES[requested] ? requested : 'prod';   // unknown name -> prod
+const base = PROFILES[profile];
 
-  // --- WHO + WHERE (set these) ---
-  host: env.PRC_HOST || 'github.com',   // PRC_HOST — github.com, or your enterprise host
-  owner: env.PRC_OWNER || '',           // PRC_OWNER — your org/user for bare "repo#n" keys
-  login: env.PRC_LOGIN || '',           // PRC_LOGIN — the account whose open PRs to watch
+export const config = {
+  profile,   // active profile name (shown in the startup banner)
+
+  // --- WHO + WHERE (profile defaults; PRC_* override) ---
+  host: env.PRC_HOST || base.host || 'github.com',   // PRC_HOST — github.com or your enterprise host
+  owner: env.PRC_OWNER || base.owner || '',          // PRC_OWNER — your org/user for bare "repo#n" keys
+  login: env.PRC_LOGIN || base.login || '',          // PRC_LOGIN — the account whose open PRs to watch
 
   port: Number(env.PRC_PORT) || 4317,              // PRC_PORT
   pollMinutes: Number(env.PRC_POLL_MINUTES) || 30, // PRC_POLL_MINUTES
@@ -23,7 +33,7 @@ export const config = {
   // PRC_ONLY_PRS="repo#1,repo#2" restricts the daemon to EXACTLY those PRs (everything else
   // is invisible). Empty = ALL your open PRs (real pushes/comments). The daemon REFUSES to
   // scan an empty scope unless you opt in with PRC_ALL_PRS=1.
-  onlyPRs: 'PRC_ONLY_PRS' in env ? csv(env.PRC_ONLY_PRS) : [],
+  onlyPRs: 'PRC_ONLY_PRS' in env ? csv(env.PRC_ONLY_PRS) : base.onlyPRs,
 
   // --- LOCAL GIT (where your clones live + how to clone one you don't have) ---
   // PRC_CLONE_ROOT — where your existing clones are (searched to depth 2 by repo-map.mjs; a
