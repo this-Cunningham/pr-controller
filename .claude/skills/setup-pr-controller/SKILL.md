@@ -1,30 +1,40 @@
 ---
 name: setup-pr-controller
-version: 3.0.0
+version: 3.1.0
 description: >-
-  Help a user configure pr-controller and get it unblocked (first run or new device). Opens
-  config.mjs, collects their non-secret values into a persistent config.local.json, and
-  guides auth (gh / ssh) which the USER runs in their own terminal / GitHub settings — secrets
-  never go through chat. Use for first-time setup, re-setup on a new machine, an empty /
-  "scan failing" dashboard, or workers that take no action.
+  Help a user configure pr-controller and get it unblocked (first run or new device). Lists
+  the dependencies needed, then points Claude at config.mjs / config.local.json to help the
+  user fill in their non-secret config. Assumes claude + GitHub already work on the machine;
+  auth/tokens are set up by the USER in their terminal, never in chat. Use for first-time
+  setup, re-setup on a new machine, an empty / "scan failing" dashboard, or workers that no-op.
 ---
 
 # Set up pr-controller
 
-Open [config.mjs](config.mjs) and help the user fill it in. Their values persist in a
-gitignored `config.local.json` (auto-loaded every run — no env sourcing).
+Assumes claude and GitHub already work on the machine. `config.mjs` auto-loads a gitignored
+`config.local.json` — Claude helps the user write it. Auth/token setup is done by the user in
+their own terminal (never paste secrets in chat).
 
-**Never put secrets (tokens, SSH keys) in the chat.** Auth is done by the user in their own
-terminal / GitHub settings; the agent collects only non-secret config and writes the file.
+## Dependencies needed for initial setup
+- **Node ≥ 18 + Yarn** — build the dashboard + run the daemon.
+- **gh CLI authed on the host** (`gh auth status --hostname <host>`) with a git transport — either:
+  - **(a) SSH** — an SSH key on GitHub, and `gitProtocol: "ssh"`, OR
+  - **(b) HTTPS** — `gh auth setup-git --hostname <host>`, and `gitProtocol: "https"`.
+- **Token** — `gh auth login` provisions one. If bringing your own PAT: **fine-grained** with
+  **Pull requests: read** + **Contents: read & write** (worker pushes), or a classic PAT with `repo`.
+- **Non-root** — workers run `claude -p` headless; must be a non-root user (or `IS_SANDBOX=1`
+  in an ephemeral container).
+- **(optional) Local clones** of the repos you watch, under your `cloneRoot` — else the daemon
+  clones them fresh over the transport above.
 
-## 1. Collect non-secret config → config.local.json
-Read config.mjs with the user and collect: host, login, owner, scope (keep it tight — empty =
-ALL their PRs), cloneRoot (absolute path), gitProtocol. Write it:
+## Then fill in config.local.json (Claude helps)
+Open [config.mjs](config.mjs) to see every field, then write `config.local.json` with the user's
+non-secret values. `onlyPRs` is the circuit-breaker — empty = ALL their PRs, so keep it tight.
 ```bash
 cat > config.local.json <<'EOF'
 {
   "profile": "dev",
-  "cloneRoot": "/absolute/path/to/your/clones",
+  "cloneRoot": "/absolute/path/to/clones",
   "gitProtocol": "ssh",
   "profiles": {
     "dev": { "host": "github.com", "owner": "<owner>", "login": "<login>",
@@ -33,22 +43,7 @@ cat > config.local.json <<'EOF'
 }
 EOF
 ```
-Validate each `<repo>#n` is a real OPEN PR: `GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`.
-
-## 2. Auth — the USER runs these in their terminal (secrets stay local)
-- **gh:** `gh auth status --hostname <host>`. If not authed, tell the user to run `gh auth
-  login --hostname <host>` (interactive; the token never goes through chat). Need a token?
-  They create one at **GitHub → Settings → Developer settings → Personal access tokens** —
-  fine-grained, permissions **Pull requests: read** + **Contents: read/write** — then
-  `gh auth login --with-token` (pasted in their terminal).
-- **https push** (only if gitProtocol=https): the user runs `gh auth setup-git --hostname <host>`.
-- **ssh** (only if gitProtocol=ssh): if they have no key, `ssh-keygen -t ed25519`, then add
-  `~/.ssh/id_ed25519.pub` at **GitHub → Settings → SSH and GPG keys**; verify `ssh -T git@<host>`.
-
-## 3. Build + verify
+Validate each PR is open (`GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`), then run:
 ```bash
-( cd pr-controller-react && yarn install --silent && yarn build )
-PRC_POLL_MINUTES=1440 node server.mjs > /tmp/prc.log 2>&1 &
-curl -s localhost:4317/state.json | head -c 200    # expected PRs, not empty / "scan failing"
+( cd pr-controller-react && yarn build ) && node server.mjs   # http://localhost:4317
 ```
-Root only: if `id -u` is `0`, workers need a non-root user (or `IS_SANDBOX=1` in a container).
