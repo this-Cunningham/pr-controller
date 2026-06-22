@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
   validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale,
-  cloneUrl,
+  cloneUrl, configProblems,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -370,4 +370,27 @@ test('cloneUrl: ssh (default) vs https, configurable host — no hardcoded trans
 
 test('cloneUrl: defaults to config.host + config.gitProtocol', () => {
   assert.equal(cloneUrl('o/r'), cloneUrl('o/r', { host: config.host, protocol: config.gitProtocol }));
+});
+
+test('configProblems: a fully configured config has no problems', () => {
+  assert.deepEqual(configProblems({ login: 'alice', onlyPRs: ['r#1'] }), []);
+});
+
+test('configProblems: missing login is flagged', () => {
+  const p = configProblems({ login: '', onlyPRs: ['r#1'] });
+  assert.equal(p.length, 1);
+  assert.match(p[0], /PRC_LOGIN/);
+});
+
+test('configProblems: empty scope is flagged UNLESS PRC_ALL_PRS opt-in', () => {
+  // empty scope, no opt-in -> a problem (must not silently work ALL PRs)
+  const p = configProblems({ login: 'alice', onlyPRs: [] }, { optInAllPrs: false });
+  assert.equal(p.length, 1);
+  assert.match(p[0], /scope|PRC_ONLY_PRS/);
+  // explicit opt-in -> allowed
+  assert.deepEqual(configProblems({ login: 'alice', onlyPRs: [] }, { optInAllPrs: true }), []);
+});
+
+test('configProblems: unconfigured config reports both login + scope', () => {
+  assert.equal(configProblems({ login: '', onlyPRs: [] }, { optInAllPrs: false }).length, 2);
 });

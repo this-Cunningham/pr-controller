@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRecord } from '../derive.mjs';
+import { config } from '../config.mjs';
 
 function scannedPr(over = {}) {
   return {
@@ -15,7 +16,7 @@ function scannedPr(over = {}) {
 test('deriveRecord: no worker verdict -> disposition by who-spoke-last', () => {
   const pr = deriveRecord(scannedPr({ threads: [
     { threadId: 'a', lastAuthor: 'reviewer' },
-    { threadId: 'b', lastAuthor: 'ccunningham' },   // default config.login
+    { threadId: 'b', lastAuthor: config.login },   // the configured user spoke last
   ] }), { workerResult: null });
   assert.equal(pr.threads[0].disposition, 'notYetReviewed');   // reviewer spoke last
   assert.equal(pr.threads[1].disposition, 'awaitingReviewer'); // I spoke last

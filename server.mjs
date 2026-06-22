@@ -10,7 +10,7 @@ import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { cleanupPr } from './cleanup.mjs';
-import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale } from './rules.mjs';
+import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale, configProblems } from './rules.mjs';
 import { deriveRecord } from './derive.mjs';
 import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
@@ -357,8 +357,17 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(config.port, async () => {
+  const slog = logger('server');
   const scope = (config.onlyPRs || []).length ? `scoped to ${config.onlyPRs.join(', ')}` : 'all open PRs';
-  logger('server').info(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
+  slog.info(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
+  // Gate scanning on a valid config (the HTTP server above still serves the dashboard) so an
+  // unconfigured daemon never falls back to working ALL your PRs.
+  const problems = configProblems();
+  if (problems.length) {
+    slog.warn(`not configured — ${problems.join('; ')}. Serving the dashboard but NOT scanning. `
+      + `Run the setup-pr-controller skill (or set PRC_* / source prc.env) and restart.`);
+    return;
+  }
   await poll();
   setInterval(poll, config.pollMinutes * 60 * 1000);
 });

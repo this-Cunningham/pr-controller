@@ -11,6 +11,10 @@ description: >-
 
 # Run pr-controller
 
+> **Config note:** config now comes from your `prc.env` (run `/setup-pr-controller` first).
+> The `dev`/`prod` profiles are gone — `PRC_PROFILE=dev` in examples below only sets a banner
+> label now; `source prc.env` (PRC_HOST/OWNER/LOGIN) first or the daemon won't scan.
+
 pr-controller is a local Node daemon (`server.mjs`) that serves a Vite + React
 dashboard from `pr-controller-react/dist/` at **http://localhost:4317**. It polls
 your open GitHub PRs and dispatches headless `claude -p` workers that push to those
