@@ -36,19 +36,14 @@ EOF
 ```
 Validate each `repo#n` is a real OPEN PR: `GH_HOST=$PRC_HOST gh pr view <n> --repo <owner>/<repo>`.
 
-## 2. Dependencies — run these
+## 2. Prereqs — only the deltas
+Assume git, `gh` (on github.com), and `claude` are already set up. Only do what's missing:
 ```bash
-gh auth login --hostname <host>       # if not already authed
-gh auth status --hostname <host>      # confirm the right account is active
-gh auth setup-git --hostname <host>   # so git push authenticates (needed for https)
-git config --global user.name  "<name>"
-git config --global user.email "<email>"
-claude -p "reply ok" --max-turns 1    # claude authed?
-( cd pr-controller-react && yarn install --silent && yarn build )   # dashboard (503 until built)
+gh auth status --hostname <host>      # if <host> is NEW (e.g. an enterprise host): gh auth login --hostname <host>
+gh auth setup-git --hostname <host>   # ONLY if PRC_GIT_PROTOCOL=https (lets workers push over https)
+( cd pr-controller-react && yarn install --silent && yarn build )   # build the dashboard (503 until built)
 ```
-- ssh protocol: confirm a key — `ssh -T git@<host>`.
-- If `id -u` is `0` (root), workers need a **non-root user**, or `IS_SANDBOX=1` only in a
-  genuine ephemeral container.
+- Root only: if `id -u` is `0`, workers need a non-root user (or `IS_SANDBOX=1` in an ephemeral container).
 
 ## 3. Verify
 ```bash
