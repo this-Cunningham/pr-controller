@@ -1,5 +1,5 @@
 // discount helpers
 export function applyDiscount(price, pct) {
-  const c = price - price * (pct / 100);
-  return Math.round(c);
+  const discounted = price - price * (pct / 100);
+  return Math.round(discounted);
 }
