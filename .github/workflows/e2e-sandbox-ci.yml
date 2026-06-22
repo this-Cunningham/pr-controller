@@ -1,0 +1,21 @@
+name: e2e-sandbox CI
+
+# Runs ONLY for PRs that touch the throwaway sandbox, so it can be broken/fixed by
+# the pr-controller pressure-test workers without affecting the real app's history.
+on:
+  pull_request:
+    paths:
+      - 'e2e-sandbox/**'
+
+jobs:
+  test:
+    name: sandbox tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run sandbox tests
+        working-directory: e2e-sandbox
+        run: node --test "test/**/*.test.mjs"
