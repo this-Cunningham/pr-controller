@@ -122,3 +122,23 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       the claude root-guard on any host without IS_SANDBOX (proven viable: a scoped
       `--allowedTools 'Bash(gh:*)'` worker ran with permission_denials:[] and no
       --dangerously-skip-permissions). Worth considering for worker.mjs runWorker.
+- [ ] Explore/design a first-run + settings **config UI panel** ("setup mode"). Feasibility
+      confirmed: serve the React UI while the poll/dispatch loop is GATED on a valid config —
+      the HTTP server and poll loop are already decoupled (poll() only starts in the
+      `server.listen` callback, server.mjs:359-364). Scope to explore:
+      - `validateConfig()` (config.mjs/rules.mjs) + gate the poll() kickoff (server.mjs:362);
+        render a `SetupPanel` vs the lanes (App.jsx:87), reusing the existing `lastPollError`/
+        "⚠ scan failing" plumbing (Header.jsx:23) + EmptyState/Callout/Button DS components
+        (no form components exist in the design system yet).
+      - SAME panel does first-run AND ongoing edits (first-run is just the empty state).
+      - Persist edits via a daemon-owned, gitignored `data/config.local.json` that config.mjs
+        merges UNDER env (env > file > profile) — NOT by rewriting config.mjs in place; maybe an
+        "export to .env/committed" action for durability on ephemeral hosts. New `/config` +
+        per-check preflight endpoints (server-authoritative; React just renders/POSTs).
+      - Live red/green preflight steps for the real first-run blockers: gh auth/host/login,
+        scope (onlyPRs = circuit-breaker; force an explicit choice — empty = ALL prod PRs),
+        clone discovery + ssh/https (cloneRoot/gitProtocol), git identity + push, claude worker
+        readiness incl. root/IS_SANDBOX detection, workerModel, and a "run one test worker"
+        GO/NO-GO gate.
+      - Note hot-swappable fields (onlyPRs, checks, tokens, workerModel-for-new-sessions) vs
+        restart-required (host→ghEnv, port, the pollMinutes interval, cloneRoot→repo-map).
