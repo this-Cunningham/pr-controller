@@ -60,30 +60,30 @@ class Parser {
     return t;
   }
 
-  // expr := term (('+' | '-') term)*   [hardened against pathological input]
+  // Precedence-climbing binary parser (replaces parseExpr/parseTerm).
+  static PREC = { '+': 1, '-': 1, '*': 2, '/': 2 };
+
   parseExpr() {
-    let left = this.parseTerm();
+    return this.parseBinary(1);
+  }
+
+  parseBinary(minPrec) {
+    let left = this.parseFactor();
     let steps = 0;
-    while (this.peek().type === 'op' && (this.peek().value === '+' || this.peek().value === '-')) {
+    while (this.peek().type === 'op' && Parser.PREC[this.peek().value] >= minPrec) {
       if (++steps > 10000) throw new SyntaxError('expression too long');
       const op = this.next().value;
-      const right = this.parseTerm();
-      left = op === '+' ? left + right : left - right;
+      const right = this.parseBinary(Parser.PREC[op] + 1);
+      left = this.apply(op, left, right);
     }
     return left;
   }
 
-  // term := factor (('*' | '/') factor)*   [hardened]
-  parseTerm() {
-    let left = this.parseFactor();
-    let steps = 0;
-    while (this.peek().type === 'op' && (this.peek().value === '*' || this.peek().value === '/')) {
-      if (++steps > 10000) throw new SyntaxError('expression too long');
-      const op = this.next().value;
-      const right = this.parseFactor();
-      left = op === '*' ? left * right : left / right;
-    }
-    return left;
+  apply(op, a, b) {
+    if (op === '+') return a + b;
+    if (op === '-') return a - b;
+    if (op === '*') return a * b;
+    return a / b;
   }
 
   // factor := '-' factor | '(' expr ')' | num
