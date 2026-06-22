@@ -22,8 +22,6 @@ their own terminal (never paste secrets in chat).
   - **(b) HTTPS** — `gh auth setup-git --hostname <host>`, and `gitProtocol: "https"`.
 - **Token** — `gh auth login` provisions one. If bringing your own PAT: **fine-grained** with
   **Pull requests: read** + **Contents: read & write** (worker pushes), or a classic PAT with `repo`.
-- **Non-root** — workers run `claude -p` headless; must be a non-root user (or `IS_SANDBOX=1`
-  in an ephemeral container).
 - **(optional) Local clones** of the repos you watch, under your `cloneRoot` — else the daemon
   clones them fresh over the transport above.
 
