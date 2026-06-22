@@ -75,9 +75,11 @@ Your task's "Branch health" section reports the state and tells you, in one line
 to rebase this run.
 
 - **Rebase** only when it says `REBASE this run: YES` (the branch conflicts with its
-  base). When told to, follow the exact `git fetch` / `git rebase` commands in that
-  section — they rebase onto the REMOTE base (`origin/<base>`), NOT a local ref, because
-  your local base branch may be stale and would hide the real conflict. Resolve the
+  base). When told to, run the exact `git rebase origin/<base>` command in that section —
+  it rebases onto the REMOTE base (`origin/<base>`), NOT a local ref, because your local
+  base branch may be stale and would hide the real conflict. Do NOT run `git fetch`
+  yourself: the daemon already fetched `origin/<base>` for you under a per-clone lock, so a
+  second concurrent fetch on the shared clone would just race on its refs. Resolve the
   conflicts; if it applies cleanly, push with `--force-with-lease`. If the conflicts are
   NOT trivial to resolve safely, STOP and surface it via `branchHealth.surfaced` — do not
   guess your way through a messy merge. When it says `REBASE this run: NO`, do not rebase.
