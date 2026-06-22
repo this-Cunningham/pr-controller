@@ -1,0 +1,10 @@
+{
+  "name": "widget-kit",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "throwaway sandbox library for pr-controller e2e pressure testing",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  }
+}

@@ -1,0 +1,12 @@
+# widget-kit data schema (sandbox demo, not consumed by anything)
+widget:
+  id: string
+  label: string
+  tags:
+    - string
+  price:
+    amount: integer
+    currency: string
+inventory:
+  maxItems: 100
+  defaultCurrency: USD

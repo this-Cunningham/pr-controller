@@ -1,0 +1,13 @@
+{
+  "name": "widget-kit",
+  "version": "1.0.0",
+  "features": {
+    "parser": true,
+    "colors": true,
+    "inventory": true
+  },
+  "limits": {
+    "maxItems": 100,
+    "maxDepth": 32
+  }
+}

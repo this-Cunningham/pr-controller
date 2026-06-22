@@ -1,0 +1,17 @@
+/* widget-kit demo styles (sandbox only) */
+:root {
+  --wk-gap: 8px;
+  --wk-radius: 6px;
+  --wk-fg: #1a1a1a;
+}
+
+.widget {
+  display: flex;
+  gap: var(--wk-gap);
+  border-radius: var(--wk-radius);
+  color: var(--wk-fg);
+}
+
+.widget__price {
+  font-variant-numeric: tabular-nums;
+}
