@@ -31,7 +31,9 @@ export const config = {
   pollMinutes: Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 30,    // PRC_POLL_MINUTES
   reenrichFloor: Number(env.PRC_REENRICH_FLOOR) || local.reenrichFloor || 5,
 
-  // Scope / circuit-breaker. PRC_ONLY_PRS="repo#1,repo#2"; empty = ALL your PRs (gated unless PRC_ALL_PRS=1).
+  // PRs to watch. DEFAULT (normal production): empty = ALL your open, NON-DRAFT PRs. A
+  // whitelist (PRC_ONLY_PRS="repo#1,repo#2", or a profile's onlyPRs) restricts to exactly
+  // those — that's for testing / a dev sandbox, not normal use.
   onlyPRs: 'PRC_ONLY_PRS' in env ? csv(env.PRC_ONLY_PRS) : (local.onlyPRs || base.onlyPRs),
 
   cloneRoot: env.PRC_CLONE_ROOT || local.cloneRoot || join(homedir(), 'src'),  // PRC_CLONE_ROOT

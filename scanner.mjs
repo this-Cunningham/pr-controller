@@ -433,7 +433,10 @@ export async function scanOnePr(prKey) {
 export async function scanAll() {
   // Restrict to the configured scope BEFORE fetching threads — out-of-scope PRs
   // are invisible to the daemon (not scanned, not rendered, never worked).
-  const prs = (await listOpenPRs()).filter((pr) => inScope(`${pr.repo}#${pr.number}`));
+  const discovered = (await listOpenPRs()).filter((pr) => inScope(`${pr.repo}#${pr.number}`));
+  // Default (no whitelist) = all your open NON-DRAFT PRs. A whitelist takes exactly what's
+  // listed (drafts included — you named them).
+  const prs = (config.onlyPRs && config.onlyPRs.length) ? discovered : discovered.filter((pr) => !pr.isDraft);
 
   // TASK 11: floor — every Kth scan re-enrich EVERYTHING regardless of updatedAt
   // (updatedAt misses CI flips / thread resolves). scanCounter increments here.

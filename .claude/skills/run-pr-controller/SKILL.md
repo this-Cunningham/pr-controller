@@ -11,9 +11,9 @@ description: >-
 
 # Run pr-controller
 
-> **Config note:** config now comes from your `prc.env` (run `/setup-pr-controller` first).
-> The `dev`/`prod` profiles are gone — `PRC_PROFILE=dev` in examples below only sets a banner
-> label now; `source prc.env` (PRC_HOST/OWNER/LOGIN) first or the daemon won't scan.
+> **Config note:** config comes from your gitignored `config.local.json` (or `PRC_*`) — run
+> `/setup-pr-controller` first. `PRC_PROFILE=dev` in the examples below selects your `dev`
+> profile; define it in config.local.json (see MY-PRC-CONFIG.md).
 
 pr-controller is a local Node daemon (`server.mjs`) that serves a Vite + React
 dashboard from `pr-controller-react/dist/` at **http://localhost:4317**. It polls

@@ -230,14 +230,3 @@ export function cloneUrl(nameWithOwner, { host = config.host, protocol = config.
     ? `https://${host}/${nameWithOwner}.git`
     : `git@${host}:${nameWithOwner}.git`;
 }
-
-// Is the config complete enough to safely SCAN? Returns human-readable problems ([] = good).
-// A missing scope is a problem UNLESS you opt into all-PRs (PRC_ALL_PRS=1), so the daemon
-// never silently works ALL your PRs. server.mjs gates the poll loop on this. Pure so it's tested.
-export function configProblems(cfg = config, { optInAllPrs = process.env.PRC_ALL_PRS === '1' } = {}) {
-  const problems = [];
-  if (!cfg.login) problems.push('PRC_LOGIN is not set (the account whose PRs to watch)');
-  if ((!cfg.onlyPRs || cfg.onlyPRs.length === 0) && !optInAllPrs)
-    problems.push('no scope — set PRC_ONLY_PRS="repo#n,..." (or PRC_ALL_PRS=1 to watch ALL your open PRs)');
-  return problems;
-}
