@@ -12,8 +12,8 @@ description: >-
 # Run pr-controller
 
 > **Config note:** config comes from your gitignored `config.local.json` (or `PRC_*`) — run
-> `/setup-pr-controller` first. `PRC_PROFILE=dev` in the examples below selects your `dev`
-> profile; define it in config.local.json (see MY-PRC-CONFIG.md).
+> `/configure-pr-controller` first. `PRC_PROFILE=dev` in the examples below selects your `dev`
+> profile; define it in config.local.json.
 
 pr-controller is a local Node daemon (`server.mjs`) that serves a Vite + React
 dashboard from `pr-controller-react/dist/` at **http://localhost:4317**. It polls
@@ -139,12 +139,13 @@ Run the test suite first; only build + launch the app for UI / lane / rendering 
 node server.mjs        # then open http://localhost:4317
 ```
 
-⚠️ With **no env overrides** this is the `prod` profile (the default): the committed
-`config.onlyPRs` (`site-vdp-remix#835`, …) against `your-enterprise-host`, which
-**will spawn real `claude -p` workers that push/comment/rebase on those prod PRs**.
-The startup banner shows `[prod @ your-enterprise-host]`. There is no dry-run mode —
-`config.onlyPRs` is the only circuit-breaker. Only do this with `gh` authed against
-the enterprise host and a scope you intend to act on.
+⚠️ A bare `node server.mjs` (no env overrides) uses your `config.local.json` top-level
+`profile` key — or the built-in `prod` if it's unset. If that resolves to a `prod`-type
+profile with an **empty `config.onlyPRs`**, discovery (`gh search prs --author @me`) means it
+**scans ALL your open PRs and spawns real `claude -p` workers that push/comment/rebase** — the
+circuit-breaker is OFF. The startup banner shows `[<profile> @ <host>]` and the daemon warns when
+it's running unconfigured + unscoped. There is no dry-run mode — `config.onlyPRs` is the only
+circuit-breaker. Only run unscoped with `gh` authed and a scope you intend to act on.
 
 ## Test
 

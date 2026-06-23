@@ -1,5 +1,10 @@
 // pr-controller config. Precedence: PRC_* env > config.local.json (gitignored, persistent) >
-// the selected profile. With no login/scope, server.mjs serves the dashboard but won't scan.
+// the selected profile. NOTE: PR discovery is `gh search prs --author @me` (the gh-authed
+// account), NOT config.login/owner — so with the default prod profile (owner/login='',
+// onlyPRs=[]) and an authed gh, the daemon scans ALL your open non-draft PRs and dispatches
+// real workers that push. `onlyPRs` is the ONLY blast-radius limit (the circuit-breaker);
+// empty = full production. There is no dry-run (see README). server.mjs emits a loud startup
+// warning when it runs unconfigured (no config.local.json) AND unscoped (empty onlyPRs).
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
@@ -11,7 +16,8 @@ const baseDir = new URL('.', import.meta.url).pathname;
 // Persistent local config (config.local.json): { profile?, profiles?: {name:{...}}, + flat overrides }.
 let local = {};
 const localPath = join(baseDir, 'config.local.json');
-if (existsSync(localPath)) {
+const hasLocalConfig = existsSync(localPath);   // exported: lets the daemon warn on an unconfigured run
+if (hasLocalConfig) {
   try { local = JSON.parse(readFileSync(localPath, 'utf8')); }
   catch (e) { console.error(`[config] config.local.json failed to parse — ignoring it (${e.message})`); }
 }
@@ -25,6 +31,11 @@ const PROFILES = {
 const requested = (env.PRC_PROFILE || local.profile || (env.PRC_DEV ? 'dev' : 'prod')).toLowerCase();
 const profile = PROFILES[requested] ? requested : 'prod';
 const base = PROFILES[profile];
+
+// True when cloneRoot fell back to the ~/src default (no env, no local override). The daemon
+// warns if that default dir is missing, since a non-existent cloneRoot silently disables reuse
+// of your local clones (every watched repo gets re-cloned fresh instead).
+const cloneRootDefaulted = !(env.PRC_CLONE_ROOT || local.cloneRoot);
 
 export const config = {
   profile,
@@ -54,3 +65,5 @@ export const config = {
   baseDir,
 };
 export const ghEnv = { ...process.env, GH_HOST: config.host };
+// First-run signals the daemon uses to warn the operator at startup (see server.mjs).
+export { hasLocalConfig, cloneRootDefaulted };

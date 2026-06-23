@@ -41,6 +41,8 @@ function branchPresentation(row) {
     return { tone: 'attention', message: 'Merge conflict — the agent rebases it automatically when the branch changes; resolve it in a terminal if it’s stuck.', details: row.reason || undefined, actions: [{ key: 'terminal', label: 'Open in terminal' }] };
   if (row.disposition === 'branchOutOfSync')
     return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: [{ key: 'terminal', label: 'Resolve in terminal' }] };
+  if (row.disposition === 'workerFailed')
+    return { tone: 'attention', message: row.reason || 'The worker run failed — see the daemon log.' };
   return { tone: 'attention', message: row.reason };
 }
 
@@ -224,6 +226,7 @@ export function adaptState(state) {
     prs: state?.prs || [],
     placements: state?.placements || [],
     scope: state?.scope || [],
+    account: state?.account || null,   // the gh account PR discovery ran as (@me) — scan provenance
     updatedAt: state?.updatedAt || null,
     // null when the last scan succeeded; { at, message } when the daemon's poll failed
     // (so the dashboard can show a scan-failing indicator instead of a false all-clear).

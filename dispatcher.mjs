@@ -17,7 +17,7 @@
 // and we avoid a cycle with server.mjs (which owns refreshOnePR).
 
 import { existsSync } from 'node:fs';
-import { mergePending } from './rules.mjs';
+import { mergePending, classifyWorkerError } from './rules.mjs';
 import { logger } from './log.mjs';
 
 const log = logger('dispatch');
@@ -94,6 +94,9 @@ async function maybeDrain(prKey) {
   if (!e || e.running || (e.threads.size === 0 && !e.rebase)) return;
 
   e.running = true;
+  // Optimistically clear any prior worker-failure surface — this run is a fresh attempt. If it
+  // throws (e.g. a transport/clone failure) the catch re-sets it; if it succeeds it stays clear.
+  deps.markAgentError?.(prKey, null);
   const pr = e.pr;
   const drainedThreads = [...e.threads.values()];
   const applyApproved = e.approved.size > 0;
@@ -130,7 +133,10 @@ async function maybeDrain(prKey) {
       }
     }
   } catch (err) {
+    // A worker-run failure (commonly a git transport/clone/push error) otherwise vanishes into
+    // this log line. Classify it and stash a durable per-PR surface so the dashboard shows it.
     log.error(`${prKey}: worker run failed`, err.message);
+    deps.markAgentError?.(prKey, classifyWorkerError(err.message));
   } finally {
     e.running = false;
     deps.events.markFinished(prKey);

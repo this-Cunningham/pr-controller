@@ -52,6 +52,9 @@ export function useDashboard(seed = null) {
   // Most recent failed daemon poll (from state.json), so the header can show a scan-
   // failing indicator instead of silently rendering a stale/empty board. null = healthy.
   const [lastPollError, setLastPollError] = useState(seed?.lastPollError || null);
+  // The gh account PR discovery ran as (@me), from state.json — shown in the empty state so a
+  // scope/auth mismatch (0 PRs, scanned as the wrong account) reads differently from a true all-clear.
+  const [account, setAccount] = useState(seed?.account || null);
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
   // Branch-health interaction state, keyed by PR id: { status: 'idle'|'discussing' }.
@@ -87,6 +90,7 @@ export function useDashboard(seed = null) {
     setPlacements(adapted.placements);
     setScope(adapted.scope);
     setLastPollError(adapted.lastPollError ?? null);
+    setAccount(adapted.account ?? null);
     // thread id -> prKey, so user actions can address the backend. Built from the
     // raw PRs (every thread is present once here, regardless of which tab it routes
     // to) — a per-lane slice would only see a subset.
@@ -375,6 +379,7 @@ export function useDashboard(seed = null) {
     refreshing,
     updated,
     lastPollError,
+    account,
     toastMsg,
     setTab,
     lanes,

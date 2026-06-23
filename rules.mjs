@@ -230,3 +230,18 @@ export function cloneUrl(nameWithOwner, { host = config.host, protocol = config.
     ? `https://${host}/${nameWithOwner}.git`
     : `git@${host}:${nameWithOwner}.git`;
 }
+
+// Classify a failed worker run's error into a short, actionable reason for the dashboard's
+// durable per-PR "worker failed" surface. Git transport/auth failures only manifest at
+// worker clone/push time and otherwise vanish into the daemon log; turn the common cases
+// into a human hint, else fall back to a truncated message. Pure — locked by tests.
+export function classifyWorkerError(message = '') {
+  const m = String(message || '');
+  if (/permission denied \(publickey\)|host key verification failed/i.test(m))
+    return 'Git SSH auth failed (Permission denied, publickey) — check your SSH key for this host, or set gitProtocol to "https".';
+  if (/could not read username|authentication failed|invalid username or password|fatal: authentication/i.test(m))
+    return 'Git HTTPS auth failed — run `gh auth setup-git` for this host, or set gitProtocol to "ssh".';
+  if (/could not read from remote repository|unable to access|repository not found|fatal: could not read/i.test(m))
+    return 'Could not reach the git remote — check the host, transport (gitProtocol), and repo access.';
+  return `The worker run failed: ${m.slice(0, 200)}`;
+}

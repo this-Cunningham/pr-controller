@@ -7,8 +7,8 @@
 # scan/derive/render pipeline against REAL GitHub data without touching anything else. Set
 # SCOPE to a PR whose threads dispatch a worker to exercise the worker paths.
 #
-# Prereqs: a prc.env at the repo root (PRC_HOST/OWNER/LOGIN — run the setup-pr-controller
-# skill), and `gh` authed on that host.
+# Prereqs: a configured config.local.json with a `dev` profile (run the configure-pr-controller
+# skill), or a prc.env at the repo root exporting PRC_HOST/OWNER/LOGIN; and `gh` authed on that host.
 #
 # Usage:   .claude/skills/run-pr-controller/smoke.sh
 # Env:     SCOPE (default pr-controller#1)   PORT (default 4317)
@@ -19,7 +19,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
-# Config (PRC_HOST/OWNER/LOGIN) comes from your prc.env — run the setup-pr-controller skill.
+# Config comes from config.local.json (dev profile, written by the configure-pr-controller skill)
+# or an optional prc.env exporting PRC_* — whichever you have. prc.env is sourced if present.
 if [ -f prc.env ]; then source prc.env; fi
 
 SCOPE="${SCOPE:-pr-controller#1}"
@@ -32,11 +33,13 @@ if [ ! -f pr-controller-react/dist/index.html ]; then
   ( cd pr-controller-react && yarn install --silent && yarn build )
 fi
 
-# 2. Launch the daemon (config from prc.env) scoped to SCOPE. PRC_POLL_MINUTES=1440 avoids
-#    the 32-bit setInterval overflow that huge values trigger (see SKILL.md Gotchas).
+# 2. Launch the daemon in the dev SANDBOX profile, scoped to SCOPE. PRC_PROFILE=dev is pinned
+#    explicitly so the sandbox is used regardless of your config.local.json `profile` key (else a
+#    user defaulting to prod would launch prod here). PRC_POLL_MINUTES=1440 avoids the 32-bit
+#    setInterval overflow that huge values trigger (see SKILL.md Gotchas).
 pkill -f "node server.mjs" 2>/dev/null || true
 sleep 1
-PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
+PRC_PROFILE=dev PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
   node server.mjs > /tmp/prc-server.log 2>&1 &
 SERVER_PID=$!
 echo "[smoke] server pid $SERVER_PID, profile=dev scope=$SCOPE (sandbox on github.com)"

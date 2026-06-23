@@ -32,7 +32,9 @@ export async function getOrCreateSession(prKey) {
 
 async function persistSession(prKey, id) {
   const map = await loadSessions();
-  if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+  // mkdir data/ first: it's gitignored, so on a fresh clone it may not exist yet and an
+  // unguarded writeFile would throw ENOENT. Mirrors writeState/recordDecision/the transcript write.
+  if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
 }
 
 // Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`.
@@ -40,7 +42,7 @@ async function recordSeenSha(prKey, worktreePath) {
   try {
     const { stdout } = await exec('git', ['-C', worktreePath, 'rev-parse', 'HEAD']);
     const map = await loadSessions();
-    if (map[prKey]) { map[prKey].lastSeenSha = stdout.trim(); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+    if (map[prKey]) { map[prKey].lastSeenSha = stdout.trim(); await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
   } catch {}
 }
 
@@ -138,8 +140,10 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     ? ['--session-id', id, '-p', task]
     : ['--resume', id, '-p', task];
   args.push('--output-format', 'stream-json', '--verbose');
-  // plan mode = enforced read-only (classify/observe trials); bypassPermissions =
-  // full autonomy for unattended go-live. Default to the latter.
+  // bypassPermissions = full autonomy for an unattended go-live (the default). NOTE: do NOT wire a
+  // `plan` / `default` / `acceptEdits` mode here for the headless daemon — in `claude -p` with stdin
+  // closed, plan mode WEDGES waiting for plan-approval that never comes, and the ask-modes abort on
+  // the first permission prompt. `opts.permissionMode` stays as a hook, but no caller sets it.
   args.push('--permission-mode', opts.permissionMode || 'bypassPermissions');
   // Worker model is configurable (config.workerModel): haiku for fast/cheap testing,
   // sonnet for prod. Unset -> the CLI default. Only passed on a NEW session — the

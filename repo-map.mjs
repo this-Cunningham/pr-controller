@@ -3,9 +3,9 @@
 // found locally fall back to a clone in worktrees/<repo>.git (see worktree.mjs).
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readdir, writeFile, readFile } from 'node:fs/promises';
+import { readdir, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { config } from './config.mjs';
 import { repoSlug } from './rules.mjs';
 
@@ -43,6 +43,10 @@ export async function buildRepoMap() {
   for (const f of found.sort((a, b) => a.depth - b.depth)) {
     if (!map[f.slug]) map[f.slug] = { path: f.path, depth: f.depth };
   }
+  // mkdir data/ first: it's gitignored, so a fresh clone may not have it yet and this
+  // writeFile would otherwise throw ENOENT (buildRepoMap is reachable on any cache miss,
+  // including cleanup paths that never go through writeState's mkdir). dirname keeps it single-sourced.
+  await mkdir(dirname(CACHE), { recursive: true });
   await writeFile(CACHE, JSON.stringify(map, null, 2));
   return map;
 }

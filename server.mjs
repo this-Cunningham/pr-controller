@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
-import { config, ghEnv } from './config.mjs';
+import { config, ghEnv, hasLocalConfig, cloneRootDefaulted } from './config.mjs';
 
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
@@ -60,12 +60,21 @@ const seen = new Map();
 // track it here (not on the scanned PR object, which is rebuilt from GitHub and
 // has no worktree knowledge) so it survives refreshOnePR into the dashboard.
 const outOfSyncPRs = new Set();
+// prKey -> short reason for a FAILED worker run (commonly a git transport/clone/push error).
+// Like outOfSyncPRs, it lives here (not on the GitHub-rebuilt PR object) so a worker failure
+// survives refreshOnePR onto the dashboard instead of vanishing into the daemon log. Set by the
+// dispatcher via markAgentError() on a thrown run; cleared on a clean run or when the PR is gone.
+const agentErrorPRs = new Map();
 // Most recent failed poll, surfaced into state.json so a scan outage is VISIBLE (the
 // dashboard can show "scan failing") instead of silently looking like "no PRs". Set in
 // poll()'s catch, cleared on a successful scan. { at: ISO, message } | null.
 let lastPollError = null;
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
+// The gh-authenticated account (`gh api user`), resolved once at startup. PR discovery is
+// `--author @me` = this account (NOT config.login), so we surface it in state.json + logs as
+// scan provenance — an empty board reads very differently once you can see WHO was scanned.
+let account = null;
 
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
 const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
@@ -83,7 +92,8 @@ async function deriveAndSetPrFields(pr) {
   // wrapper supplies the two I/O-backed inputs (the verdict file + the durable
   // diverged-branch flag). Shared by poll() and refreshOnePR() so both derive identically.
   const result = await readWorkerResult(outPathFor(pr));
-  deriveRecord(pr, { workerResult: result, outOfSync: outOfSyncPRs.has(`${pr.repo}#${pr.number}`) });
+  const prKey = `${pr.repo}#${pr.number}`;
+  deriveRecord(pr, { workerResult: result, outOfSync: outOfSyncPRs.has(prKey), agentError: agentErrorPRs.get(prKey) || null });
 
   // Invalidate a stale worker verdict file: once none of its actions match a live
   // (unresolved) thread and the branch is clean, the file is stale — unlink it so a
@@ -112,6 +122,7 @@ async function writeState(prs) {
   state = {
     updatedAt: new Date().toISOString(),
     scope: config.onlyPRs || [],
+    account,         // the gh-authed account PR discovery ran as (@me) — scan provenance for the UI
     lanes: ['needs', 'progress', 'waiting'],
     prs,
     placements,
@@ -136,7 +147,7 @@ async function refreshOnePR(prKey) {
     // a cleanup failure must not break the refresh. Also forget our per-poll tracking
     // and the dispatcher's per-PR entry.
     try { await cleanupPr(prKey, old?.nameWithOwner); } catch (e) { log.error(`refreshOnePR cleanup ${prKey} failed`, e.message); }
-    seen.delete(prKey); outOfSyncPRs.delete(prKey); dispatcher.forget(prKey);
+    seen.delete(prKey); outOfSyncPRs.delete(prKey); agentErrorPRs.delete(prKey); dispatcher.forget(prKey);
     return;
   }
   await deriveAndSetPrFields(pr);
@@ -152,6 +163,7 @@ async function refreshOnePR(prKey) {
 dispatcher.init({
   events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor,
   markOutOfSync: (prKey, v) => { if (v) outOfSyncPRs.add(prKey); else outOfSyncPRs.delete(prKey); },
+  markAgentError: (prKey, reason) => { if (reason) agentErrorPRs.set(prKey, reason); else agentErrorPRs.delete(prKey); },
 });
 
 async function poll() {
@@ -204,12 +216,12 @@ async function poll() {
     for (const [k, oldPr] of prevByKey) {
       if (nowKeys.has(k)) continue;
       try { await cleanupPr(k, oldPr?.nameWithOwner); } catch (e) { log.error(`cleanup ${k} failed`, e.message); }
-      seen.delete(k); outOfSyncPRs.delete(k); dispatcher.forget(k);
+      seen.delete(k); outOfSyncPRs.delete(k); agentErrorPRs.delete(k); dispatcher.forget(k);
     }
 
     lastPollError = null;   // scan + derive + write succeeded — clear any prior failure
     const needPrs = new Set(state.placements.filter((p) => p.lane === 'needs').map((p) => p.prKey)).size;
-    log.info(`${prs.length} PRs, ${needPrs} need you`);
+    log.info(`${prs.length} PRs, ${needPrs} need you${account ? ` (scanned as @${account})` : ''}`);
   } catch (e) {
     // Do NOT swallow: a scan failure used to log only e.message and otherwise look
     // exactly like "no PRs need you". Record it (visible in state.json) + log the stack,
@@ -356,9 +368,32 @@ const server = createServer(async (req, res) => {
   res.writeHead(404); res.end('not found');
 });
 
+// Resolve the gh-authenticated account ONCE, BEFORE we start listening — so config.login (the
+// dispatch-suppression identity) is armed before any request (e.g. a manual /poll) can land.
+// @me is both (a) the identity PR discovery runs as (`gh search prs --author @me`) and (b) the
+// suppression key: dispatchable() skips a thread you spoke last on by comparing lastAuthor to
+// config.login. If login was left empty (the default), adopt @me so the guard agrees with
+// discovery — else workers fire on threads YOU had the last word on. On failure account stays null.
+const srvLog = logger('server');
+try { account = (await exec('gh', ['api', 'user', '--jq', '.login'], { env: ghEnv })).stdout.trim() || null; }
+catch (e) { srvLog.warn('could not resolve gh account (gh api user) — is gh authed for this host?', String(e.message || e).slice(0, 160)); }
+if (account && !config.login) config.login = account;
+
 server.listen(config.port, async () => {
-  const scope = (config.onlyPRs || []).length ? `scoped to ${config.onlyPRs.join(', ')}` : 'all open non-draft PRs';
-  logger('server').info(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}] (${scope})`);
+  const scoped = (config.onlyPRs || []).length;
+  const scope = scoped ? `scoped to ${config.onlyPRs.join(', ')}` : 'ALL open non-draft PRs';
+  srvLog.info(`PR dashboard on http://localhost:${config.port}  [${config.profile} @ ${config.host}]${account ? ` as @${account}` : ''} (${scope})`);
+
+  // First-run safety: an unconfigured (no config.local.json) AND unscoped (empty onlyPRs) run is
+  // FULLY LIVE — it scans every @me PR and dispatches real workers that commit/push/force-push.
+  // onlyPRs is the only circuit-breaker, so surface that loudly instead of letting it look inert.
+  if (!hasLocalConfig && !scoped)
+    srvLog.warn('no config.local.json + empty onlyPRs — will scan ALL your open PRs and dispatch LIVE workers (commit/push/force-push). Set config.onlyPRs to a single sandbox PR to scope the blast radius before going live.');
+  // cloneRoot fell back to ~/src and that dir is missing: clone reuse is silently disabled, so
+  // every watched repo gets re-cloned fresh under worktrees/. Warn so it isn't a worker-time surprise.
+  if (cloneRootDefaulted && !existsSync(config.cloneRoot))
+    srvLog.warn(`cloneRoot ${config.cloneRoot} does not exist (defaulted ~/src) — local clones won't be reused; repos will be re-cloned under worktrees/. Set cloneRoot (or PRC_CLONE_ROOT) to your clones dir.`);
+
   await poll();
   setInterval(poll, config.pollMinutes * 60 * 1000);
 });

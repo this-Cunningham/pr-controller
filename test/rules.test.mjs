@@ -4,12 +4,27 @@ import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
   validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale,
-  cloneUrl,
+  cloneUrl, classifyWorkerError,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
 const ME = 'ccunningham';
 const TOKEN = '@claude-plz-fix';
+
+test('classifyWorkerError: ssh publickey failure -> an SSH transport hint', () => {
+  assert.match(
+    classifyWorkerError('git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.'),
+    /SSH auth failed/,
+  );
+});
+
+test('classifyWorkerError: https auth failure -> a credential-helper hint', () => {
+  assert.match(classifyWorkerError('fatal: Authentication failed for https://github.com/o/r.git'), /HTTPS auth failed/);
+});
+
+test('classifyWorkerError: unknown error -> truncated passthrough', () => {
+  assert.match(classifyWorkerError('some other failure'), /worker run failed: some other failure/);
+});
 
 test('dispatchable: reviewer had the last word -> dispatch', () => {
   assert.equal(dispatchable({ lastAuthor: 'jheipler', lastBody: 'please fix' }, ME, TOKEN), true);

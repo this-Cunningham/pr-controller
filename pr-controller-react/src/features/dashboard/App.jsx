@@ -20,6 +20,18 @@ const EMPTY = {
   waiting: 'Nothing waiting on a reviewer.',
 };
 
+// When the whole board is empty AND the scan didn't error, an empty lane usually means the
+// scope matched nothing (wrong gh account, mistyped owner/onlyPRs) rather than a true all-clear.
+// Say so — with the account PR discovery actually ran as — instead of the calm "nothing needs you".
+function emptyLabel(dash, active) {
+  const boardEmpty = dash.openCount === 0 && !dash.lastPollError;
+  if (!boardEmpty) return EMPTY[active.key];
+  const who = dash.account ? ` — scanned as @${dash.account}` : '';
+  return dash.scope?.length
+    ? `No PRs in scope${who}. Check config.onlyPRs and that those PRs are open.`
+    : `No open PRs found${who}. Check \`gh auth status\` and your config (owner / login).`;
+}
+
 // Attach each thread item's presentational props (data + handlers, bound to this PR +
 // thread) so PRCard/ThreadRow stay pure renderers — they never touch the state hook.
 function wireItems(dash, prId, items) {
@@ -68,7 +80,7 @@ function Dashboard({ dash }) {
                 />
               ))
             ) : (
-              <EmptyState label={EMPTY[active.key]} />
+              <EmptyState label={emptyLabel(dash, active)} />
             )}
           </div>
         </>

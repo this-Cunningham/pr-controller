@@ -14,6 +14,7 @@ function pr(over = {}) {
     workerSurfaced: over.workerSurfaced ?? null,
     outOfSync: over.outOfSync ?? false,
     needsRebase: over.needsRebase ?? false,
+    workerError: over.workerError ?? null,
     liveStatus: over.liveStatus ?? 'idle',
     threads: (over.threads || []).map((t, i) => ({
       threadId: t.id ?? `t${i}`, disposition: t.disposition, reason: t.reason ?? 'r', error: t.error,
@@ -40,6 +41,7 @@ test('LANE_OF_DISPOSITION is total for the thread vocabulary; praise routes nowh
   assert.equal(LANE_OF_DISPOSITION.agentAutoFixed, 'waiting');
   assert.equal(LANE_OF_DISPOSITION.awaitingReviewer, 'waiting');
   assert.equal(LANE_OF_DISPOSITION.agentAcknowledged, null);
+  assert.equal(LANE_OF_DISPOSITION.workerFailed, 'needs');
 });
 
 test('needsYourApproval (input) -> Needs you', () => {
@@ -105,6 +107,14 @@ test('outOfSync -> a Needs-you branch row', () => {
   const l = lanesOf(pr({ outOfSync: true }));
   assert.equal(l.needs.length, 1);
   assert.equal(l.needs[0].disposition, 'branchOutOfSync');
+});
+
+test('a failed worker run -> a Needs-you workerFailed row carrying the reason', () => {
+  const l = lanesOf(pr({ workerError: 'Git SSH auth failed (Permission denied, publickey).' }));
+  assert.equal(l.needs.length, 1);
+  assert.equal(l.needs[0].disposition, 'workerFailed');
+  assert.equal(l.needs[0].reason, 'Git SSH auth failed (Permission denied, publickey).');
+  assert.equal(l.progress.length, 0);
 });
 
 test('a surfaced rebase -> one Needs-you conflict row carrying the agent reason', () => {

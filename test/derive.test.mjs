@@ -60,6 +60,11 @@ test('deriveRecord: outOfSync flows through from the dispatcher flag', () => {
   assert.equal(deriveRecord(scannedPr({}), { outOfSync: false }).outOfSync, false);
 });
 
+test('deriveRecord: agentError flows through to workerError from the dispatcher set', () => {
+  assert.equal(deriveRecord(scannedPr({}), { agentError: 'Git SSH auth failed.' }).workerError, 'Git SSH auth failed.');
+  assert.equal(deriveRecord(scannedPr({}), {}).workerError, null);
+});
+
 test('deriveRecord: readyToMerge follows GitHub mergeState === CLEAN (PR-level badge)', () => {
   const bh = (mergeState) => ({ mergeable: 'MERGEABLE', mergeState, failingChecks: [], complianceChecks: [] });
   assert.equal(deriveRecord(scannedPr({ branchHealth: bh('CLEAN') })).readyToMerge, true);

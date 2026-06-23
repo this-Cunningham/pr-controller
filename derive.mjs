@@ -8,7 +8,7 @@
 // reusable (the e2e scan script runs this same code). Mutates and returns `pr`.
 import { isBehindBase, needsRebase, needsJira, deriveDisposition } from './rules.mjs';
 
-export function deriveRecord(pr, { workerResult = null, outOfSync = false } = {}) {
+export function deriveRecord(pr, { workerResult = null, outOfSync = false, agentError = null } = {}) {
   const h = pr.branchHealth || {};
   pr.behindBase = isBehindBase(h.mergeState, h.mergeable);     // informational pill
   pr.ciFailing = (h.failingChecks || []).length > 0;           // code CI only
@@ -36,5 +36,9 @@ export function deriveRecord(pr, { workerResult = null, outOfSync = false } = {}
   // The branch diverged from the remote and the worktree couldn't fast-forward, so
   // the last dispatch bailed without running. Comes from the dispatcher's durable set.
   pr.outOfSync = outOfSync;
+  // A failed worker run (e.g. a git transport/clone/push failure) — surfaced from the
+  // dispatcher's durable agent-error set so the failure shows on the card instead of
+  // vanishing into the daemon log. A short classified reason, or null when the run was fine.
+  pr.workerError = agentError || null;
   return pr;
 }

@@ -24,6 +24,7 @@ export const LANE_OF_DISPOSITION = {
   agentAcknowledged: null,
   // pseudo-dispositions for non-thread subjects
   jiraNeeded:        'needs',
+  workerFailed:      'needs',   // a worker run errored (e.g. git transport/clone/push) — surface it
   branchOutOfSync:   'needs',   // branch diverged from remote; worker never ran
   branchConflict:    'needs',    // standing merge conflict — YOUR turn to resolve. The
                                  // client overlays 'progress' ONLY while a rebase worker
@@ -36,7 +37,7 @@ export const LANE_OF_DISPOSITION = {
 // Used for both the per-row sortRank and (via prSortRank) per-PR card ordering.
 export const DISPOSITION_RANK = {
   needsYourApproval: 0, jiraNeeded: 0,
-  branchOutOfSync: 1, agentError: 1,
+  branchOutOfSync: 1, agentError: 1, workerFailed: 1,
   branchConflict: 1, agentWorking: 2,
   agentAutoFixed: 3, notYetReviewed: 4, awaitingReviewer: 5,
   agentAcknowledged: 9,
@@ -55,7 +56,7 @@ export function laneOf(disposition) {
 // Compute the flat placement rows for one derived PR record. Each row is one
 // (prKey, lane, subject) the UI renders. `pr` is the server's per-PR record after
 // deriveAndSetPrFields: { repo, number, threads:[{ threadId, disposition, reason, error }],
-// needsJira, workerSurfaced, outOfSync, needsRebase, liveStatus? }.
+// needsJira, workerSurfaced, outOfSync, needsRebase, workerError, liveStatus? }.
 export function placementsFor(pr) {
   const prKey = `${pr.repo}#${pr.number}`;
   const rows = [];
@@ -85,6 +86,12 @@ export function placementsFor(pr) {
     push('branch', 'branch:outofsync', 'branchOutOfSync', 'The branch diverged from the remote and the agent could not fast-forward — resolve it in a terminal.');
   else if (pr.needsRebase)
     push('branch', 'branch:conflict', 'branchConflict', '');
+
+  // A failed worker run (git transport/clone/push error, etc.) — a Needs-you callout so it
+  // isn't a silent no-op buried in the daemon log. subjectKind 'branch' so adapt.js renders it
+  // via the generic BranchStatus; carries the classified reason (rules.classifyWorkerError).
+  if (pr.workerError)
+    push('branch', 'branch:worker-failed', 'workerFailed', typeof pr.workerError === 'string' ? pr.workerError : 'The worker run failed — see the daemon log.');
 
   // Live worker status (ephemeral, from the SSE in-flight set): a working/rebasing
   // PR with no other progress row still shows in In progress.
