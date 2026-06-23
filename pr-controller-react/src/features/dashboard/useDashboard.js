@@ -159,11 +159,13 @@ export function useDashboard(seed = null) {
       es.addEventListener('worker-started', onInflight);
       es.addEventListener('worker-finished', (e) => {
         onInflight(e);
-        // The worker for this PR finished applying — clear its in-flight approvals
-        // so the (now refreshed) thread state drives the UI, not the stale marker.
+        // Clear this PR's in-flight approvals so refreshed thread state drives the UI,
+        // not the stale marker. But ONLY when no batch is queued next (server `pending`):
+        // keeping the overlay there avoids a still-applying approval flickering back to
+        // "Approve" between this run finishing and the queued one starting.
         try {
-          const { prKey } = JSON.parse(e.data);
-          if (prKey) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
+          const { prKey, pending } = JSON.parse(e.data);
+          if (prKey && !pending) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
         } catch {}
       });
       es.addEventListener('state-updated', () => fetchState());
@@ -325,9 +327,19 @@ export function useDashboard(seed = null) {
         showToast('Enter a ticket key, e.g. ABC-123');
         return false;
       }
+      // Show "linked" optimistically, but the daemon re-validates against
+      // config.jiraPattern and can reject. On rejection, roll the optimistic state back
+      // (a plain delete — no prior jira[prId] on a needsJira PR) so the banner doesn't
+      // falsely claim "compliance check cleared" on a key the backend refused.
       setJira((prev) => ({ ...prev, [prId]: { status: 'set', value: v } }));
-      postDecision({ action: 'set-jira', prKey: prId, ticket: v });
-      showToast('Linked to ' + v);
+      showToast('Linking ' + v + '…');
+      postDecision({ action: 'set-jira', prKey: prId, ticket: v }).then((res) => {
+        if (res?.spawn?.spawned) showToast('Linked to ' + v);
+        else {
+          setJira((prev) => { const n = { ...prev }; delete n[prId]; return n; });
+          showToast(res?.spawn?.reason || 'Could not link the ticket');
+        }
+      });
       return true;
     },
     [showToast]
@@ -356,7 +368,7 @@ export function useDashboard(seed = null) {
     });
   }, [refreshing, seeded, fetchState, showToast]);
 
-  // TEMP (debug): trigger a backend poll instead of waiting the 30-min timer.
+  // TEMP (debug): trigger a backend poll instead of waiting for the poll timer.
   // Fire-and-forget on the server; we re-fetch state a few seconds later.
   const runPoll = useCallback(async () => {
     if (seeded) return;

@@ -43,7 +43,7 @@ export const config = {
   owner: env.PRC_OWNER || local.owner || base.owner || '',                 // PRC_OWNER
   login: env.PRC_LOGIN || local.login || base.login || '',                 // PRC_LOGIN
   port: Number(env.PRC_PORT) || local.port || 4317,                        // PRC_PORT
-  pollMinutes: Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 30,    // PRC_POLL_MINUTES
+  pollMinutes: Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 15,    // PRC_POLL_MINUTES
   reenrichFloor: Number(env.PRC_REENRICH_FLOOR) || local.reenrichFloor || 5,
 
   // PRs to watch. DEFAULT (normal production): empty = ALL your open, NON-DRAFT PRs. A

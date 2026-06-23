@@ -85,8 +85,22 @@ export async function ensureWorktree(pr) {
 }
 
 async function setupWorktree(pr, { path, branch, repo, local }) {
-  // RESUME: our managed worktree already exists -> ff-only to remote head.
+  // RESUME: our managed worktree already exists -> re-ground to remote head.
   if (existsSync(path)) {
+    // A worktree we made for a branch checked out DIRTY elsewhere is on a detached HEAD
+    // (see useDetach below). There `--ff-only` has no upstream and always fails, falsely
+    // marking the PR outOfSync on every resume — so ff to origin/<branch> explicitly,
+    // keeping the detached push contract. (symbolic-ref HEAD fails iff detached.)
+    const onBranch = await git(path, ['symbolic-ref', '-q', 'HEAD']).then(() => true).catch(() => false);
+    if (!onBranch) {
+      try {
+        await git(path, ['fetch', 'origin']);
+        await git(path, ['merge', '--ff-only', `origin/${branch}`]);
+        return { path, ready: true, branch, detached: true, pushRefspec: `HEAD:${branch}`, plan: [] };
+      } catch (e) {
+        return { path, ready: false, outOfSync: true, error: String(e).slice(0, 200) };
+      }
+    }
     const bail = await syncFfOnly(path);
     if (bail) return bail;
     return { path, ready: true, branch, plan: [] };

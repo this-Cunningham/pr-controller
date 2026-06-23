@@ -34,7 +34,7 @@ export default function Header({ dash }) {
             writes <html data-theme>, which retints every token. */}
         <ThemeSwitcher onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch {} }} />
 
-        {/* TEMP (debug): trigger a backend poll instead of waiting the 30-min timer. */}
+        {/* TEMP (debug): trigger a backend poll instead of waiting for the poll timer. */}
         <Button variant="ghost" onClick={runPoll}>Run poll</Button>
 
         <Button variant="outline" onClick={refresh}>

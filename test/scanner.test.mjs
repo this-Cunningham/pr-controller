@@ -143,6 +143,23 @@ test('parseBatchedResponse: aligns enriched records to PRs by alias', () => {
   assert.equal(out[1].reviewDecision, 'CHANGES_REQUESTED');
 });
 
+// The single-PR GraphQL query selects `title` so set-jira's refresh observes the edited
+// title (else needsJira recomputes against the stale title and the input box reappears).
+// When the node carries a title it must flow through; when it doesn't, the base meta wins.
+test('parseBatchedResponse: a node title flows through; absent title leaves base meta intact', () => {
+  const prs = [
+    { nameWithOwner: 'orgA/repo1', number: 5, repo: 'repo1', title: 'old base title' },
+    { nameWithOwner: 'orgB/repo2', number: 9, repo: 'repo2', title: 'B' },
+  ];
+  const data = {
+    p0: { pullRequest: prNodeFixture({ title: '[ABC-123] old base title' }) },
+    p1: { pullRequest: prNodeFixture() }, // no title -> base 'B' preserved
+  };
+  const out = parseBatchedResponse(prs, data);
+  assert.equal(out[0].title, '[ABC-123] old base title'); // live title wins
+  assert.equal(out[1].title, 'B');                        // base meta preserved
+});
+
 test('parseBatchedResponse: tolerates a missing/null alias -> null slot', () => {
   const prs = [
     { nameWithOwner: 'orgA/repo1', number: 5, repo: 'repo1' },
@@ -220,6 +237,21 @@ test('shouldReenrich: cold cache (no record) -> refetch', () => {
   const pr = { updatedAt: '2026-06-21T00:00:00Z' };
   assert.equal(shouldReenrich(pr, undefined, false), true);
   assert.equal(shouldReenrich(pr, { record: null, updatedAt: 'x' }, false), true);
+});
+
+// GitHub computes mergeability lazily and does NOT bump updatedAt when it settles, so a
+// record cached with mergeable=UNKNOWN must be re-fetched (not pinned) until the real
+// value (e.g. CONFLICTING) is known — else a merge conflict stays invisible for hours.
+test('shouldReenrich: cached mergeable=UNKNOWN -> refetch even if updatedAt unchanged', () => {
+  const pr = { updatedAt: '2026-06-21T00:00:00Z' };
+  const cached = { record: { branchHealth: { mergeable: 'UNKNOWN' } }, updatedAt: '2026-06-21T00:00:00Z' };
+  assert.equal(shouldReenrich(pr, cached, false), true);
+});
+
+test('shouldReenrich: cached mergeable settled (CONFLICTING) + unchanged updatedAt -> skip', () => {
+  const pr = { updatedAt: '2026-06-21T00:00:00Z' };
+  const cached = { record: { branchHealth: { mergeable: 'CONFLICTING' } }, updatedAt: '2026-06-21T00:00:00Z' };
+  assert.equal(shouldReenrich(pr, cached, false), false);
 });
 
 // isLivePrNode guards scanOnePr's direct-fetch fast-path: GitHub returns the

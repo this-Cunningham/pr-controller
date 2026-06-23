@@ -9,7 +9,7 @@ feedback, fix CI, and rebase — while surfacing anything that needs your judgme
 ```
 node server.mjs (one persistent process on your awake laptop)
 │
-├─ every 30 min: POLL (pure Node + gh, no Claude)
+├─ every 15 min: POLL (pure Node + gh, no Claude)
 │    gh search prs --author @me --state open      → all your open PRs
 │    GraphQL per PR: review threads + mergeable + CI rollup
 │    diff vs last poll → which PRs changed (threads, behind-base, CI)

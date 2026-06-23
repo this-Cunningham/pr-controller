@@ -95,7 +95,9 @@ export function PRCard({
         // (adapt.js is React-free, so it emits keys; the card wires the handlers).
         const actions = (b.actions || []).map((a) => ({
           label: a.label || "Open in terminal",
-          onClick: onBranchTerminal,
+          // Forward a.kind (conflict/outOfSync) so the right terminal opener is picked,
+          // not the default rebase one.
+          onClick: () => onBranchTerminal(a.kind),
           note: branchTerminalOpen ? "Terminal session opened…" : undefined,
         }));
         return (

@@ -123,6 +123,7 @@ export async function listOpenPRs() {
 // block of the batched query share ONE definition (no drift between paths).
 const PR_FIELDS = `
   state
+  title
   reviewDecision
   headRefName
   baseRefName
@@ -210,7 +211,9 @@ export function parsePullRequest(pr) {
     failingChecks,                      // code CI — worker fixes
     complianceChecks,                   // needs your input (e.g. JIRA ticket)
   };
-  return { reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
+  // Only carry `title` when the node has it: this merges OVER the base meta from
+  // listOpenPRs, so an undefined title would wipe the authoritative base title.
+  return { ...(pr.title != null ? { title: pr.title } : {}), reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
 }
 
 // Raw single-PR fetch: returns the GraphQL `pullRequest` NODE (or null) for one
@@ -317,6 +320,16 @@ async function enrichMany(prs) {
     try {
       records = await fetchBatch(chunk);
     } catch (e) {
+      // A rate-limit hits every PR in the chunk, so the per-PR fallback would re-run the
+      // full backoff ladder for each one, hammering an already-throttled endpoint. Stub
+      // the whole chunk instead; the per-PR fallback stays for genuine single-PR failures.
+      if (isRateLimitError(e)) {
+        slog.warn(`batched fetch rate-limited for ${chunk.length} PR(s); not fanning out per-PR`, String(e).slice(0, 160));
+        for (const pr of chunk)
+          out.push({ ...pr, reviewDecision: 'NONE', headRefName: null, baseRefName: null,
+            branchHealth: null, threads: [{ error: String(e).slice(0, 200), errorKind: 'rateLimit' }] });
+        continue;
+      }
       slog.warn(`batched fetch failed for ${chunk.length} PR(s), falling back per-PR`, String(e).slice(0, 160));
       for (const pr of chunk) out.push(await scanOne(pr));
       continue;
@@ -377,6 +390,11 @@ let scanCounter = 0;
 export function shouldReenrich(pr, cached, forceFloor) {
   if (forceFloor) return true;
   if (!cached || !cached.record) return true;
+  // GitHub computes mergeability lazily (first read is UNKNOWN, settles later) but does
+  // NOT bump updatedAt when it settles. So the updatedAt fast-path would pin a cached
+  // UNKNOWN until the floor fires (~hours), silently hiding a conflict (needsRebase/
+  // isBehindBase read UNKNOWN as clean). Re-fetch until mergeability is known.
+  if (cached.record.branchHealth?.mergeable === 'UNKNOWN') return true;
   return pr.updatedAt !== cached.updatedAt;
 }
 
@@ -406,6 +424,9 @@ export async function scanOnePr(prKey) {
         : { number: num, repo: prKey.split('#')[0], nameWithOwner: cached.nameWithOwner };
       const enriched = {
         ...base,
+        // Prefer the freshly-fetched title: otherwise the set-jira refresh recomputes
+        // needsJira against the stale cached title and the JIRA input box reappears.
+        title: r.title ?? base.title,
         reviewDecision: r.reviewDecision || 'NONE',
         headRefName: r.headRefName,
         baseRefName: r.baseRefName,

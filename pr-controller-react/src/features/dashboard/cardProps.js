@@ -13,7 +13,8 @@ export function cardProps(dash, prId) {
     branchDetailsOpen: dash.branchDetailsOpen(prId),
     onToggleBranchDetails: () => dash.toggleBranchDetails(prId),
     branchTerminalOpen: dash.branchHealthStatus(prId) === 'discussing',
-    onBranchTerminal: () => dash.discussRebase(prId),
+    // `kind` (conflict/outOfSync) selects the terminal opener; discussRebase defaults it to 'rebase'.
+    onBranchTerminal: (kind) => dash.discussRebase(prId, kind),
     jiraLinked: dash.jiraState(prId)?.value || null,
     onSetTicket: (value) => dash.setTicket(prId, value),
   };

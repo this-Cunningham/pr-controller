@@ -17,7 +17,7 @@ decide) and decisions.
 ## Architecture
 - One persistent Node daemon (`server.mjs`) on the user's awake laptop. It dies on
   sleep/reboot by design — this is a drive-it-during-work tool, not a service.
-- Every 30 min it polls (pure Node + `gh`, no Claude), diffs against last poll, and
+- Every 15 min it polls (pure Node + `gh`, no Claude), diffs against last poll, and
   dispatches a worker only for PRs that changed.
 - Workers are headless `claude -p`, one durable session per PR (resumed across
   rounds), running in a per-PR git worktree.

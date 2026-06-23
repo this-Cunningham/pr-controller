@@ -37,10 +37,10 @@ function branchPresentation(row) {
     return { tone: 'agent', pulse: true, message: 'Resolving merge conflict — the agent is rebasing this branch.' };
   if (row.disposition === 'branchConflict')
     // One conflict card; the agent's explanation (if it surfaced one) rides along as
-    // "Show details", and is simply absent otherwise.
-    return { tone: 'attention', message: 'Merge conflict — the agent rebases it automatically when the branch changes; resolve it in a terminal if it’s stuck.', details: row.reason || undefined, actions: [{ key: 'terminal', label: 'Open in terminal' }] };
+    // "Show details", and is simply absent otherwise. `kind` picks the terminal opener.
+    return { tone: 'attention', message: 'Merge conflict — the agent rebases it automatically when the branch changes; resolve it in a terminal if it’s stuck.', details: row.reason || undefined, actions: [{ key: 'terminal', kind: 'conflict', label: 'Open in terminal' }] };
   if (row.disposition === 'branchOutOfSync')
-    return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: [{ key: 'terminal', label: 'Resolve in terminal' }] };
+    return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: [{ key: 'terminal', kind: 'outOfSync', label: 'Resolve in terminal' }] };
   if (row.disposition === 'workerFailed')
     return { tone: 'attention', message: row.reason || 'The worker run failed — see the daemon log.' };
   return { tone: 'attention', message: row.reason };

@@ -215,6 +215,10 @@ async function poll() {
     const nowKeys = new Set(prs.map((p) => `${p.repo}#${p.number}`));
     for (const [k, oldPr] of prevByKey) {
       if (nowKeys.has(k)) continue;
+      // Don't cleanup while a worker is in flight: cleanupPr force-removes the worktree
+      // out from under the running `claude -p` and corrupts it. The dispatcher reclaims
+      // it on worker exit (or a later poll does).
+      if (dispatcher.isWorking(k)) continue;
       try { await cleanupPr(k, oldPr?.nameWithOwner); } catch (e) { log.error(`cleanup ${k} failed`, e.message); }
       seen.delete(k); outOfSyncPRs.delete(k); agentErrorPRs.delete(k); dispatcher.forget(k);
     }
@@ -254,16 +258,35 @@ const server = createServer(async (req, res) => {
       res.end('Dashboard not built. Run `cd pr-controller-react && yarn build`, then reload.');
       return;
     }
-    res.writeHead(200, { 'content-type': 'text/html' });
-    res.end(await readFile(join(DIST, 'index.html')));
+    // An unguarded readFile rejection here would crash the daemon (unhandled rejection);
+    // `hasDist` is latched at startup so the 503 guard can't catch a mid-request rebuild.
+    // Read BEFORE writeHead so a rejection leaves the response uncommitted and the catch
+    // can send a clean 500 (writeHead first would already have sent 200 → HEADERS_SENT).
+    try {
+      const html = await readFile(join(DIST, 'index.html'));
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(html);
+    } catch (e) {
+      httpLog.error('serve index failed', e.message);
+      try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
+    }
     return;
   }
   // Static assets from the React build (e.g. /assets/index-*.js, fonts).
   if (req.method === 'GET' && hasDist && url.pathname.startsWith('/assets/')) {
     const file = join(DIST, url.pathname);
     if (existsSync(file)) {
-      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
-      res.end(await readFile(file));
+      // TOCTOU + crash guard: the file can vanish between existsSync and readFile (a
+      // mid-request rebuild), and an unguarded rejection here would crash the daemon.
+      // Read FIRST, then write the head, so the catch can send a clean 500.
+      try {
+        const body = await readFile(file);
+        res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+        res.end(body);
+      } catch (e) {
+        httpLog.error('serve asset failed', e.message);
+        try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
+      }
       return;
     }
   }
@@ -284,7 +307,7 @@ const server = createServer(async (req, res) => {
     events.addSubscriber(req, res);
     return;
   }
-  // TEMP (debug): kick off a poll on demand instead of waiting the 30-min timer.
+  // TEMP (debug): kick off a poll on demand instead of waiting for the poll timer.
   // Fire-and-forget — poll() can take minutes when it dispatches workers, so we
   // don't await it; the client re-fetches /state.json to see the result.
   if (req.method === 'POST' && url.pathname === '/poll') {
@@ -328,12 +351,14 @@ const server = createServer(async (req, res) => {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
         const ticket = (payload.ticket || '').trim();
         const valid = new RegExp(`^${config.jiraPattern}$`).test(ticket);
-        if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
+        // Guard !pr (stale/closed prKey) so setPrJira doesn't deref undefined → 500.
+        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
+        else if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
         else {
           await setPrJira(pr, ticket);
           // Re-scan so state.json reflects the new title and recomputes needsJira
           // (now false — the title has a key). Without this, a reload refetches the
-          // stale state and the input box reappears until the next 30-min poll.
+          // stale state and the input box reappears until the next poll.
           await refreshOnePR(payload.prKey);
           spawn = { spawned: true, action: 'title updated' };
         }

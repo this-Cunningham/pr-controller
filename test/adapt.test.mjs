@@ -140,7 +140,7 @@ test('outOfSync -> a Needs-you branch item (attention, terminal action)', () => 
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
   assert.deepEqual(items.map((i) => i.kind), ['branch']);
   assert.equal(items[0].branch.tone, 'attention');
-  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', label: 'Resolve in terminal' }]);
+  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', kind: 'outOfSync', label: 'Resolve in terminal' }]);
 });
 
 test('surfaced wins over a conflict -> Needs-you branch item, not In progress', () => {
@@ -148,7 +148,7 @@ test('surfaced wins over a conflict -> Needs-you branch item, not In progress', 
   const items = itemsFor(l.needs, 'site-vdp-remix#1');
   assert.equal(items[0].branch.tone, 'attention');
   assert.equal(items[0].branch.details, 'rebase too risky'); // agent's reason behind "Show details"
-  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', label: 'Open in terminal' }]);
+  assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', kind: 'conflict', label: 'Open in terminal' }]);
   assert.equal(cardIds(l.progress).length, 0);
 });
 
@@ -158,7 +158,7 @@ test('a standing conflict (no active rebase) -> Needs you, actionable "resolve i
   assert.equal(cardIds(l.progress).length, 0);
   const branch = itemsFor(l.needs, 'site-vdp-remix#1').find((i) => i.kind === 'branch');
   assert.equal(branch.branch.tone, 'attention');                // actionable, not a fake rebasing pulse
-  assert.deepEqual(branch.branch.actions, [{ key: 'terminal', label: 'Open in terminal' }]); // resolve by hand; the agent auto-rebases or surfaces
+  assert.deepEqual(branch.branch.actions, [{ key: 'terminal', kind: 'conflict', label: 'Open in terminal' }]); // resolve by hand; the agent auto-rebases or surfaces
   assert.match(branch.branch.message, /Merge conflict/);
   assert.equal(branch.branch.details, undefined);               // no agent explanation -> no "Show details"
 });
