@@ -5,6 +5,6 @@ export function widgetLabel(w) {
 export function widgetPrice(w) {
   return w.price == null ? 0 : w.price;
 }
-export function widgetTags(w) {
-  return (w.tags || []).join(', ');
+export function widgetTags(w, sep = ', ') {
+  return (w.tags || []).join(sep);
 }
