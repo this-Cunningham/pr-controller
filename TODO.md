@@ -1,5 +1,36 @@
 # TODO
 
+_Done 2026-06-22 (e2e pressure test against this repo's OWN throwaway sandbox; verify green:
+136 tests + react build + adherence lint): scaffolded `e2e-sandbox/` (a widget-kit mini-library)
++ two CI workflows on `main`, created 21 dummy `e2e2/*` PRs covering every disposition/lane and
+the hard paths (CI-red, reviewer fix/praise/surface, trivial + non-trivial merge conflicts,
+compliance/JIRA, ignore-checks, multi-thread selective dispatch, no-dispatch guard, merge/close
+cleanup), bumped `workerModel` haiku->sonnet + scoped `onlyPRs` to the dummy set. Drove real
+volume through the daemon and FIXED two bugs the dispatch storm surfaced:
+  1. **ensureWorktree concurrency race** — many PRs of one repo share ONE clone, so simultaneous
+     dispatches raced `git fetch` / `git worktree add` on the clone's refs ("cannot lock ref
+     'refs/remotes/origin/<b>': ... unable to update local ref"); 7 concurrent workers all failed.
+     Fixed with a per-clone async mutex (`withCloneLock` in worktree.mjs) + `test/worktree.test.mjs`.
+     Re-ran the storm: 0 races, 12 worktrees created cleanly.
+  2. **Worker stdin stall** — `claude` was spawned with an open, unused stdin pipe, so the CLI
+     waited ~3s ("no stdin data received in 3s") on EVERY dispatch. Close stdin (worker.mjs
+     `stdio: ['ignore','pipe','pipe']`).
+Verified live with real GitHub data: dispatch routing for all 21 PRs; every disposition derived +
+rendered (dashboard screenshots); stale-verdict invalidation/unlink; compliance-vs-ignore
+categorization + `needsJira`; multi-thread selective dispatch (only @claude-debug threads);
+no-dispatch guard; cleanup-on-merge/close reclaiming worktree/session/worker `.json`+`.log`; and the
+`updatedAt` change-filter + `reenrichFloor`. (Worker derivation was driven via injected verdict
+files — see findings (a).)
+Findings, NOT fixed here (out of scope / different layer):
+  (a) Workers can't run as **root** — `claude --dangerously-skip-permissions` (bypassPermissions)
+      refuses under root (the daemon targets a non-root laptop); in a root container every worker
+      exits 1 with no result JSON. Consider detecting root and logging actionable guidance instead
+      of a silent per-worker no-op.
+  (b) The per-clone mutex covers worktree SETUP, but a running worker's OWN in-run `git fetch`/
+      `rebase` still shares the clone's refs — full isolation would need a clone-per-PR (follow-up).
+  (c) Cleanup-on-merge/close is gated on the PR leaving `gh search prs`, whose index lags ~tens of
+      seconds, so reclaim can trail by one poll cycle (self-heals; harmless at a 30-min interval)._
+
 _Done 2026-06-21 (verify green: 133 tests, react build, adherence lint; adversarially
 reviewed; live-smoke-tested end-to-end against the dev sandbox incl. a real worker run):
 worktree/session/worker-file cleanup on PR merge/close (+ safety guard verified live);
@@ -81,4 +112,33 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       larger change if you want it.
 
 ## New
-- [ ] pressure test the app across several repos on my personal github using the claude-debug token and bump the model to sonnet. Now that we have hardened the app and added observability, we should try to get some good volume through the system to help find bugs. So we should add a couple personal repos to my whitelisted config and make like 30 dummy prs so we can get lots of data/logging observability and fix lots of bugs
+- [x] pressure test the app + bump the model to sonnet — DONE 2026-06-22 (see the dated Done entry
+      at the top). Scoped to THIS repo (the only one this session could access) rather than several
+      personal repos: 21 dummy `e2e2/*` PRs on this-Cunningham/pr-controller drove real volume through
+      the full e2e flow and surfaced + fixed 2 concurrency/worker bugs (per-clone git mutex; worker
+      stdin stall). workerModel bumped haiku->sonnet. Three follow-up findings recorded above.
+- [ ] Daemon could use a scoped `--allowedTools` list (Write, Edit, Bash(git:*), Bash(gh:*)) instead
+      of blanket `--permission-mode bypassPermissions` for workers — least-privilege, and it sidesteps
+      the claude root-guard on any host without IS_SANDBOX (proven viable: a scoped
+      `--allowedTools 'Bash(gh:*)'` worker ran with permission_denials:[] and no
+      --dangerously-skip-permissions). Worth considering for worker.mjs runWorker.
+- [ ] Explore/design a first-run + settings **config UI panel** ("setup mode"). Feasibility
+      confirmed: serve the React UI while the poll/dispatch loop is GATED on a valid config —
+      the HTTP server and poll loop are already decoupled (poll() only starts in the
+      `server.listen` callback, server.mjs:359-364). Scope to explore:
+      - `validateConfig()` (config.mjs/rules.mjs) + gate the poll() kickoff (server.mjs:362);
+        render a `SetupPanel` vs the lanes (App.jsx:87), reusing the existing `lastPollError`/
+        "⚠ scan failing" plumbing (Header.jsx:23) + EmptyState/Callout/Button DS components
+        (no form components exist in the design system yet).
+      - SAME panel does first-run AND ongoing edits (first-run is just the empty state).
+      - Persist edits via a daemon-owned, gitignored `data/config.local.json` that config.mjs
+        merges UNDER env (env > file > profile) — NOT by rewriting config.mjs in place; maybe an
+        "export to .env/committed" action for durability on ephemeral hosts. New `/config` +
+        per-check preflight endpoints (server-authoritative; React just renders/POSTs).
+      - Live red/green preflight steps for the real first-run blockers: gh auth/host/login,
+        scope (onlyPRs = circuit-breaker; force an explicit choice — empty = ALL prod PRs),
+        clone discovery + ssh/https (cloneRoot/gitProtocol), git identity + push, claude worker
+        readiness incl. root/IS_SANDBOX detection, workerModel, and a "run one test worker"
+        GO/NO-GO gate.
+      - Note hot-swappable fields (onlyPRs, checks, tokens, workerModel-for-new-sessions) vs
+        restart-required (host→ghEnv, port, the pollMinutes interval, cloneRoot→repo-map).

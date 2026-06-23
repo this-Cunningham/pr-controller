@@ -114,7 +114,7 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
       + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
       + (opts.rebase
-        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git fetch origin ${base}\`, then \`git rebase origin/${base}\` — onto the REMOTE base, NOT a local ref (your local ${base} may be stale and would hide the conflict). Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
+        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git rebase origin/${base}\` — onto the REMOTE base origin/${base}, NOT a local ref (your local ${base} would be stale and hide the conflict). Do NOT run \`git fetch\` yourself: the daemon already fetched origin/${base} for you under a per-clone lock, and a second concurrent fetch on the shared clone would race on its refs. Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
         : `\nREBASE this run: NO — do not rebase. Fix CI only if it's caused by your changes (see "Branch health" in the house rules).`)
     : '';
   const threadsHeading = opts.applyApproved
@@ -153,7 +153,12 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // against real PRs). Overwritten each run, so it stays bounded to the last run.
   const logPath = join(DATA, `worker-${pr.repo}-${pr.number}.log`);
   return await new Promise((resolve) => {
-    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv });
+    // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
+    // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
+    // input it will never get ("no stdin data received in 3s, proceeding without it"),
+    // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
+    // piped so we can capture the full transcript.
+    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });

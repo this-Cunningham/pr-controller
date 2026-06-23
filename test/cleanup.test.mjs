@@ -77,7 +77,7 @@ test('isManagedWorktree accepts ONLY our ROOT/<repo>-pr-<num> paths', () => {
 test('isManagedWorktree REJECTS user clones and anything outside ROOT (SAFETY)', () => {
   const ROOT = join(config.baseDir, 'worktrees');
   // A reused user clone checkout (the CLEAN-reuse path) lives elsewhere — never delete it.
-  assert.equal(isManagedWorktree('/Users/me/cargurus/site-vdp-remix'), false);
+  assert.equal(isManagedWorktree('/Users/me/code/site-vdp-remix'), false);
   // Right name shape but wrong parent dir -> not ours.
   assert.equal(isManagedWorktree('/tmp/site-vdp-remix-pr-835'), false);
   // Under ROOT but not the per-PR naming -> not ours (e.g. the fallback bare clone).

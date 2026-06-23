@@ -11,10 +11,14 @@ description: >-
 
 # Run pr-controller
 
+> **Config note:** config comes from your gitignored `config.local.json` (or `PRC_*`) — run
+> `/setup-pr-controller` first. `PRC_PROFILE=dev` in the examples below selects your `dev`
+> profile; define it in config.local.json (see MY-PRC-CONFIG.md).
+
 pr-controller is a local Node daemon (`server.mjs`) that serves a Vite + React
 dashboard from `pr-controller-react/dist/` at **http://localhost:4317**. It polls
 your open GitHub PRs and dispatches headless `claude -p` workers that push to those
-PRs. By default ([config.mjs](config.mjs)) it targets the **cargurus enterprise**
+PRs. By default ([config.mjs](config.mjs)) it targets the **configured enterprise**
 host and real prod PRs — which you do **not** want for local runs.
 
 The safe way to run it locally is the built-in **`dev` profile** (`PRC_PROFILE=dev`,
@@ -136,9 +140,9 @@ node server.mjs        # then open http://localhost:4317
 ```
 
 ⚠️ With **no env overrides** this is the `prod` profile (the default): the committed
-`config.onlyPRs` (`site-vdp-remix#835`, …) against `code.cargurus.com`, which
+`config.onlyPRs` (`site-vdp-remix#835`, …) against `your-enterprise-host`, which
 **will spawn real `claude -p` workers that push/comment/rebase on those prod PRs**.
-The startup banner shows `[prod @ code.cargurus.com]`. There is no dry-run mode —
+The startup banner shows `[prod @ your-enterprise-host]`. There is no dry-run mode —
 `config.onlyPRs` is the only circuit-breaker. Only do this with `gh` authed against
 the enterprise host and a scope you intend to act on.
 

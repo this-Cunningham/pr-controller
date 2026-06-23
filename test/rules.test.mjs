@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
   validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale,
+  cloneUrl,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -343,8 +344,30 @@ test('inScope: non-empty allowlist restricts to listed PR keys', () => {
 });
 
 test('repoSlug: handles ssh and https, with/without .git', () => {
-  assert.equal(repoSlug('git@code.cargurus.com:cargurus-eng/universal-ai.git'), 'cargurus-eng/universal-ai');
-  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/chassis.git'), 'cargurus-eng/chassis');
-  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/site-vdp-remix'), 'cargurus-eng/site-vdp-remix');
+  assert.equal(repoSlug('git@git.example.com:acme/universal-ai.git'), 'acme/universal-ai');
+  assert.equal(repoSlug('https://git.example.com/acme/chassis.git'), 'acme/chassis');
+  assert.equal(repoSlug('https://git.example.com/acme/site-vdp-remix'), 'acme/site-vdp-remix');
   assert.equal(repoSlug(''), null);
+});
+
+test('cloneUrl: ssh (default) vs https, configurable host — no hardcoded transport', () => {
+  // ssh form (the default / prior behavior)
+  assert.equal(
+    cloneUrl('acme/site-vdp-remix', { host: 'git.example.com', protocol: 'ssh' }),
+    'git@git.example.com:acme/site-vdp-remix.git');
+  // https form (SSH-less hosts: CI / containers) — auth via a git credential helper
+  assert.equal(
+    cloneUrl('this-Cunningham/pr-controller', { host: 'github.com', protocol: 'https' }),
+    'https://github.com/this-Cunningham/pr-controller.git');
+  // anything not 'https' falls back to ssh
+  assert.equal(
+    cloneUrl('o/r', { host: 'h', protocol: 'whatever' }),
+    'git@h:o/r.git');
+  // round-trips: the produced URL still parses back to the same slug
+  assert.equal(repoSlug(cloneUrl('o/r', { host: 'github.com', protocol: 'https' })), 'o/r');
+  assert.equal(repoSlug(cloneUrl('o/r', { host: 'github.com', protocol: 'ssh' })), 'o/r');
+});
+
+test('cloneUrl: defaults to config.host + config.gitProtocol', () => {
+  assert.equal(cloneUrl('o/r'), cloneUrl('o/r', { host: config.host, protocol: config.gitProtocol }));
 });

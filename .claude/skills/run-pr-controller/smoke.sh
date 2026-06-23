@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# One-shot smoke test for pr-controller: build the dashboard, launch the daemon
-# pointed at WHITELISTED dummy PRs on personal github.com, confirm it scans real
-# data and serves a populated dashboard, screenshot it, then stop.
+# One-shot smoke test for pr-controller: build the dashboard, launch the daemon scoped to
+# your SCOPE of disposable PRs, confirm it scans real data and serves a populated dashboard,
+# screenshot it, then stop.
 #
-# Why personal-github whitelist (not the committed cargurus defaults, not a fake
-# fixture): config.onlyPRs is the circuit-breaker — scoping to a few disposable
-# "[e2e] … safe to close" PRs lets the daemon exercise the REAL scan/derive/render
-# pipeline against REAL GitHub data without touching production. The default scope
-# (pr-controller#1) is display-only (its threads are awaitingReviewer), so a plain
-# run dispatches NO worker. Widen SCOPE to also hit #2/#3 to exercise the real
-# feedback/rebase worker paths (the README's "hardening sandbox") — that DOES spawn
-# `claude -p` workers against those disposable PRs.
+# config.onlyPRs is the circuit-breaker — scoping to a few disposable PRs exercises the REAL
+# scan/derive/render pipeline against REAL GitHub data without touching anything else. Set
+# SCOPE to a PR whose threads dispatch a worker to exercise the worker paths.
 #
-# Prereqs: `gh` authed on github.com as this-Cunningham (the `dev` profile's owner).
+# Prereqs: a prc.env at the repo root (PRC_HOST/OWNER/LOGIN — run the setup-pr-controller
+# skill), and `gh` authed on that host.
 #
 # Usage:   .claude/skills/run-pr-controller/smoke.sh
 # Env:     SCOPE (default pr-controller#1)   PORT (default 4317)
@@ -22,6 +18,9 @@ set -euo pipefail
 # Repo root = three levels up from this script (.claude/skills/run-pr-controller/).
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
+
+# Config (PRC_HOST/OWNER/LOGIN) comes from your prc.env — run the setup-pr-controller skill.
+if [ -f prc.env ]; then source prc.env; fi
 
 SCOPE="${SCOPE:-pr-controller#1}"
 PORT="${PORT:-4317}"
@@ -33,13 +32,11 @@ if [ ! -f pr-controller-react/dist/index.html ]; then
   ( cd pr-controller-react && yarn install --silent && yarn build )
 fi
 
-# 2. Launch the daemon in the `dev` profile (config.mjs) — that sets host/owner/
-#    login to the personal-github sandbox; PRC_ONLY_PRS narrows the profile's scope
-#    to the no-dispatch demo PR. PRC_POLL_MINUTES=1440 avoids the 32-bit setInterval
-#    overflow that huge values trigger (see SKILL.md Gotchas).
+# 2. Launch the daemon (config from prc.env) scoped to SCOPE. PRC_POLL_MINUTES=1440 avoids
+#    the 32-bit setInterval overflow that huge values trigger (see SKILL.md Gotchas).
 pkill -f "node server.mjs" 2>/dev/null || true
 sleep 1
-PRC_PROFILE=dev PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
+PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
   node server.mjs > /tmp/prc-server.log 2>&1 &
 SERVER_PID=$!
 echo "[smoke] server pid $SERVER_PID, profile=dev scope=$SCOPE (sandbox on github.com)"

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "config.local.schema.json",
+  "title": "pr-controller config.local.json",
+  "description": "Persistent local config for pr-controller (gitignored). Precedence: PRC_* env > config.local.json > the selected profile. All keys optional; env can supply anything omitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string", "description": "Free-form note; ignored by the app." },
+
+    "profile": {
+      "type": "string",
+      "description": "Profile selected by default (PRC_PROFILE / PRC_DEV override). A key in `profiles`, or a built-in (prod | dev)."
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named profiles. The selected one supplies default host/owner/login/onlyPRs.",
+      "additionalProperties": { "$ref": "#/$defs/profile" }
+    },
+
+    "host": { "type": "string", "description": "GitHub host — github.com or an enterprise host. (PRC_HOST)" },
+    "owner": { "type": "string", "description": "Org/user for bare \"repo#n\" keys. (PRC_OWNER)" },
+    "login": { "type": "string", "description": "Account whose open PRs to watch. (PRC_LOGIN)" },
+    "onlyPRs": {
+      "$ref": "#/$defs/onlyPRs",
+      "description": "Whitelist. Empty/omitted = ALL your open non-draft PRs (normal production). A list = exactly those (testing/dev). (PRC_ONLY_PRS)"
+    },
+
+    "cloneRoot": { "type": "string", "description": "ABSOLUTE path to your local clones (no ~). (PRC_CLONE_ROOT)" },
+    "gitProtocol": { "enum": ["ssh", "https"], "description": "Transport for cloning a repo you don't have locally. (PRC_GIT_PROTOCOL)" },
+    "workerModel": { "type": "string", "description": "Headless worker model, e.g. \"sonnet\" or \"haiku\". (PRC_WORKER_MODEL)" },
+
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "Dashboard port (default 4317). (PRC_PORT)" },
+    "pollMinutes": { "type": "number", "exclusiveMinimum": 0, "description": "Poll interval, minutes (default 30; keep under ~35790). (PRC_POLL_MINUTES)" },
+    "reenrichFloor": { "type": "integer", "minimum": 1, "description": "Force a full re-enrich every Kth scan (default 5). (PRC_REENRICH_FLOOR)" }
+  },
+  "$defs": {
+    "onlyPRs": {
+      "type": "array",
+      "description": "List of \"repo#number\" keys, e.g. \"site-vdp-remix#835\".",
+      "items": { "type": "string", "pattern": "^[^#/]+#[0-9]+$" }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "owner": { "type": "string" },
+        "login": { "type": "string" },
+        "onlyPRs": { "$ref": "#/$defs/onlyPRs" }
+      }
+    }
+  }
+}
