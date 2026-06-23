@@ -317,6 +317,20 @@ async function enrichMany(prs) {
     try {
       records = await fetchBatch(chunk);
     } catch (e) {
+      // A RATE-LIMIT failure here is NOT a "one bad PR in the chunk" situation — every
+      // PR will hit the same throttle. The per-PR fallback below would re-run the FULL
+      // backoff ladder (~15s) for each of up to BATCH_SIZE PRs, sequentially, hammering
+      // an already-throttled endpoint and stretching one scan to minutes (the opposite
+      // of backing off). fetchBatch already exhausted the retry ladder, so short-circuit
+      // the whole chunk to rate-limit error stubs instead. The per-PR fallback stays for
+      // genuine single-PR failures (the case it was designed for).
+      if (isRateLimitError(e)) {
+        slog.warn(`batched fetch rate-limited for ${chunk.length} PR(s); not fanning out per-PR`, String(e).slice(0, 160));
+        for (const pr of chunk)
+          out.push({ ...pr, reviewDecision: 'NONE', headRefName: null, baseRefName: null,
+            branchHealth: null, threads: [{ error: String(e).slice(0, 200), errorKind: 'rateLimit' }] });
+        continue;
+      }
       slog.warn(`batched fetch failed for ${chunk.length} PR(s), falling back per-PR`, String(e).slice(0, 160));
       for (const pr of chunk) out.push(await scanOne(pr));
       continue;
@@ -377,6 +391,16 @@ let scanCounter = 0;
 export function shouldReenrich(pr, cached, forceFloor) {
   if (forceFloor) return true;
   if (!cached || !cached.record) return true;
+  // GitHub computes mergeability LAZILY: the first read of a freshly-pushed PR returns
+  // mergeable=UNKNOWN, and the real value (e.g. CONFLICTING) only settles on a later
+  // read. Crucially, GitHub does NOT bump updatedAt when that background compute
+  // finishes — it isn't a PR "update" event. So a record cached with UNKNOWN would be
+  // pinned by the updatedAt fast-path and never learn the real CONFLICTING until the
+  // floor fires (~hours), silently hiding a merge conflict (needsRebase/isBehindBase
+  // both read UNKNOWN as clean). Treat UNKNOWN as "not yet known" and re-fetch until it
+  // settles. This is most acute right after a worker pushes (a fix/rebase reliably
+  // invalidates mergeability), so the post-run refresh would otherwise re-pin UNKNOWN.
+  if (cached.record.branchHealth?.mergeable === 'UNKNOWN') return true;
   return pr.updatedAt !== cached.updatedAt;
 }
 

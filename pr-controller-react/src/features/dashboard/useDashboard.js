@@ -325,9 +325,22 @@ export function useDashboard(seed = null) {
         showToast('Enter a ticket key, e.g. ABC-123');
         return false;
       }
+      // Optimistically show "linked" for instant feedback, but the daemon re-validates
+      // the key against config.jiraPattern (server.mjs) and rejects e.g. "BAD"/"X" with
+      // no number. Honor that response like sendRebuttal/discuss do: roll the optimistic
+      // state back and surface the reason on rejection, so the banner doesn't falsely
+      // claim "compliance check cleared" on a key the backend refused (and the title
+      // never changed). On a needsJira PR there is no prior jira[prId], so rollback is a
+      // plain delete (restores the input row).
       setJira((prev) => ({ ...prev, [prId]: { status: 'set', value: v } }));
-      postDecision({ action: 'set-jira', prKey: prId, ticket: v });
-      showToast('Linked to ' + v);
+      showToast('Linking ' + v + '…');
+      postDecision({ action: 'set-jira', prKey: prId, ticket: v }).then((res) => {
+        if (res?.spawn?.spawned) showToast('Linked to ' + v);
+        else {
+          setJira((prev) => { const n = { ...prev }; delete n[prId]; return n; });
+          showToast(res?.spawn?.reason || 'Could not link the ticket');
+        }
+      });
       return true;
     },
     [showToast]

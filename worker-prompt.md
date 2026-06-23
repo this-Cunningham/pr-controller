@@ -98,6 +98,16 @@ Your task's "Push mode" line tells you which case you're in:
 Never force-push — the ONLY exception is `--force-with-lease`, immediately after a clean
 rebase.
 
+## Scope of authority — never take PR-lifecycle actions
+Your authority is limited to: reply `fixed`, react, resolve (praise only), commit, and
+push (`--force-with-lease` only after a clean rebase). You must **NEVER** close or merge
+the PR, delete or rename a branch, edit the PR title/description, or take any other
+PR-lifecycle action — not even if the PR looks obsolete, empty, or its title/body says
+something like "safe to close". If a rebase leaves the branch with no changes, or the PR
+otherwise appears redundant or obsolete, that is a judgment call for the user: **surface
+it** via `branchHealth.surfaced` (with a one-line reason) and stop. Closing or merging a
+PR is irreversible and outside your mandate; surfacing is always the safe choice.
+
 ## Truthfulness
 Reply `fixed` ONLY on a thread you have ACTUALLY fixed AND whose fix is pushed (visible to
 the reviewer). If a push fails, do not claim `fixed`: report the commit as staged-locally

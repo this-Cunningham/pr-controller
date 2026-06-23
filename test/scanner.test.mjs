@@ -222,6 +222,21 @@ test('shouldReenrich: cold cache (no record) -> refetch', () => {
   assert.equal(shouldReenrich(pr, { record: null, updatedAt: 'x' }, false), true);
 });
 
+// GitHub computes mergeability lazily and does NOT bump updatedAt when it settles, so a
+// record cached with mergeable=UNKNOWN must be re-fetched (not pinned) until the real
+// value (e.g. CONFLICTING) is known — else a merge conflict stays invisible for hours.
+test('shouldReenrich: cached mergeable=UNKNOWN -> refetch even if updatedAt unchanged', () => {
+  const pr = { updatedAt: '2026-06-21T00:00:00Z' };
+  const cached = { record: { branchHealth: { mergeable: 'UNKNOWN' } }, updatedAt: '2026-06-21T00:00:00Z' };
+  assert.equal(shouldReenrich(pr, cached, false), true);
+});
+
+test('shouldReenrich: cached mergeable settled (CONFLICTING) + unchanged updatedAt -> skip', () => {
+  const pr = { updatedAt: '2026-06-21T00:00:00Z' };
+  const cached = { record: { branchHealth: { mergeable: 'CONFLICTING' } }, updatedAt: '2026-06-21T00:00:00Z' };
+  assert.equal(shouldReenrich(pr, cached, false), false);
+});
+
 // isLivePrNode guards scanOnePr's direct-fetch fast-path: GitHub returns the
 // pullRequest node for CLOSED/MERGED PRs too, so only an OPEN node is "still live".
 // Treating non-OPEN as live would leave a merged PR's worktree/session unreclaimed.
