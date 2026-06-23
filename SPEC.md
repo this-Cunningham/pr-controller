@@ -153,7 +153,7 @@ something as a question is not by itself a reason to surface.
     regardless of review state. Rebasing is driven by the conflict, not approval.
 
 ## Worktrees & git safety
-- Reuse the user's existing local clones, discovered under `~/cargurus` by git
+- Reuse the user's existing local clones, discovered under `config.cloneRoot` by git
   remote (not directory name) [tested: `repoSlug`], recursively to depth 2.
   Duplicate slugs prefer the shallowest (standalone) clone over nested workspace
   copies. Clone into `worktrees/<repo>.git` only if not found locally.

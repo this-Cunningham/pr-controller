@@ -344,17 +344,17 @@ test('inScope: non-empty allowlist restricts to listed PR keys', () => {
 });
 
 test('repoSlug: handles ssh and https, with/without .git', () => {
-  assert.equal(repoSlug('git@code.cargurus.com:cargurus-eng/universal-ai.git'), 'cargurus-eng/universal-ai');
-  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/chassis.git'), 'cargurus-eng/chassis');
-  assert.equal(repoSlug('https://code.cargurus.com/cargurus-eng/site-vdp-remix'), 'cargurus-eng/site-vdp-remix');
+  assert.equal(repoSlug('git@git.example.com:acme/universal-ai.git'), 'acme/universal-ai');
+  assert.equal(repoSlug('https://git.example.com/acme/chassis.git'), 'acme/chassis');
+  assert.equal(repoSlug('https://git.example.com/acme/site-vdp-remix'), 'acme/site-vdp-remix');
   assert.equal(repoSlug(''), null);
 });
 
 test('cloneUrl: ssh (default) vs https, configurable host — no hardcoded transport', () => {
   // ssh form (the default / prior behavior)
   assert.equal(
-    cloneUrl('cargurus-eng/site-vdp-remix', { host: 'code.cargurus.com', protocol: 'ssh' }),
-    'git@code.cargurus.com:cargurus-eng/site-vdp-remix.git');
+    cloneUrl('acme/site-vdp-remix', { host: 'git.example.com', protocol: 'ssh' }),
+    'git@git.example.com:acme/site-vdp-remix.git');
   // https form (SSH-less hosts: CI / containers) — auth via a git credential helper
   assert.equal(
     cloneUrl('this-Cunningham/pr-controller', { host: 'github.com', protocol: 'https' }),

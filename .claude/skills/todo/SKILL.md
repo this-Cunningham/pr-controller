@@ -6,7 +6,7 @@ argument-hint: [the todo item to add]
 
 # Add a TODO item
 
-Append the user's item to `TODO.md` at the repo root (`/Users/ccunningham/cargurus/pr-controller/TODO.md`).
+Append the user's item to `TODO.md` at the repo root (the repo root).
 
 ## Steps
 

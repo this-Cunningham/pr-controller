@@ -32,7 +32,7 @@ node server.mjs (one persistent process on your awake laptop)
 - **Per-PR durable session.** Each PR gets one Claude session, resumed across
   rounds, so it remembers the PR. Volatile state (the branch) is always
   re-grounded via `git pull --ff-only` + `git diff <since>..HEAD`.
-- **Reuses your existing clones.** Discovers clones under `~/cargurus` by git
+- **Reuses your existing clones.** Discovers clones under your `cloneRoot` by git
   remote (not dir name), adds worktrees off them. Clones only if not found.
 - **Never disturbs in-progress work.** If the PR branch is checked out dirty
   somewhere, uses a `--detach` worktree at the branch tip — no stashing.
