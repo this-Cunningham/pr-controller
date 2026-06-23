@@ -1,4 +1,5 @@
 {
+  "$schema": "./config.local.schema.json",
   "_note": "Committed for setup convenience; config.local.json is in .gitignore. On your machine run: git rm --cached config.local.json (so local edits stop being tracked).",
   "profile": "dev",
   "cloneRoot": "/Users/ccunningham/cargurus",
