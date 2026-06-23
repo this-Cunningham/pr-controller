@@ -52,14 +52,22 @@ export function forget(prKey) {
   state.delete(prKey);
 }
 
-// Poll-found work: new/changed dispatchable threads, optionally also resolving a
-// merge conflict in the same run (opts.rebaseOnConflict).
-export function enqueue(pr, newThreads, opts = {}) {
+// Shared prologue for every enqueue path: resolve the PR's entry, fold in opts, and
+// clear the post-failure gate so maybeDrain retries (new work means the prior failure
+// is no longer the last word).
+function enqueueEntry(pr, opts) {
   const prKey = `${pr.repo}#${pr.number}`;
   const e = entry(prKey);
   e.pr = pr;
   e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
+  e.failed = false;
+  return { prKey, e };
+}
+
+// Poll-found work: new/changed dispatchable threads, optionally also resolving a
+// merge conflict in the same run (opts.rebaseOnConflict).
+export function enqueue(pr, newThreads, opts = {}) {
+  const { prKey, e } = enqueueEntry(pr, opts);
   if (opts.rebaseOnConflict) e.rebase = true;
   mergePending(e.threads, newThreads);
   maybeDrain(prKey);
@@ -69,11 +77,7 @@ export function enqueue(pr, newThreads, opts = {}) {
 // resolve the conflict and push. Coalesces like everything else — if a worker is
 // already running for this PR, it joins the next run.
 export function enqueueRebase(pr, opts = {}) {
-  const prKey = `${pr.repo}#${pr.number}`;
-  const e = entry(prKey);
-  e.pr = pr;
-  e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
+  const { prKey, e } = enqueueEntry(pr, opts);
   e.rebase = true;
   maybeDrain(prKey);
 }
@@ -81,11 +85,7 @@ export function enqueueRebase(pr, opts = {}) {
 // User-approved approaches: resolve threadIds against the PR's current
 // threads, stage them as apply-approved, and (auto-)fire on the next free slot.
 export function enqueueApproved(pr, threadIds, opts = {}) {
-  const prKey = `${pr.repo}#${pr.number}`;
-  const e = entry(prKey);
-  e.pr = pr;
-  e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
+  const { prKey, e } = enqueueEntry(pr, opts);
   const byId = new Map((pr.threads || []).map((t) => [t.threadId, t]));
   const approvedThreads = (threadIds || []).map((id) => byId.get(id)).filter(Boolean);
   mergePending(e.threads, approvedThreads);
