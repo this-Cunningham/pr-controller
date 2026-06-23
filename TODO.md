@@ -143,3 +143,4 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       - Note hot-swappable fields (onlyPRs, checks, tokens, workerModel-for-new-sessions) vs
         restart-required (host→ghEnv, port, the pollMinutes interval, cloneRoot→repo-map).
 - [ ] add evals for the claude pr workers
+- [ ] figure out cloud-env startup script changes to accommodate our new config.local.json setup so we can run this in cloud sessions
