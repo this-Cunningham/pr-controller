@@ -43,9 +43,8 @@ export function markStarted(prKey, opts = {}) {
   emit('worker-started', { prKey, inflight: inflightSnapshot(), rebasing: rebasingSnapshot() });
 }
 
-// `opts.pending` (a queued batch will run NEXT for this PR) rides along so the client can
-// retain its optimistic "dispatched" overlay across the gap between this run finishing and
-// the queued run starting — otherwise a still-applying approval briefly reverts to "Approve".
+// `opts.pending` (a queued batch runs NEXT) lets the client keep its "dispatched" overlay
+// across the gap to the next run — else a still-applying approval flickers back to "Approve".
 export function markFinished(prKey, opts = {}) {
   inflight.delete(prKey);
   rebasing.delete(prKey);

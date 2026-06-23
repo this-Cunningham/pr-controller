@@ -215,10 +215,9 @@ async function poll() {
     const nowKeys = new Set(prs.map((p) => `${p.repo}#${p.number}`));
     for (const [k, oldPr] of prevByKey) {
       if (nowKeys.has(k)) continue;
-      // Defer cleanup of a PR whose worker is still in flight: cleanupPr force-removes
-      // its managed worktree (`git worktree remove --force`) out from under the running
-      // `claude -p`, which can corrupt the run. The dispatcher's refreshOnePR-on-exit
-      // reclaims it once the worker finishes (or a later poll does).
+      // Don't cleanup while a worker is in flight: cleanupPr force-removes the worktree
+      // out from under the running `claude -p` and corrupts it. The dispatcher reclaims
+      // it on worker exit (or a later poll does).
       if (dispatcher.isWorking(k)) continue;
       try { await cleanupPr(k, oldPr?.nameWithOwner); } catch (e) { log.error(`cleanup ${k} failed`, e.message); }
       seen.delete(k); outOfSyncPRs.delete(k); agentErrorPRs.delete(k); dispatcher.forget(k);
@@ -259,13 +258,10 @@ const server = createServer(async (req, res) => {
       res.end('Dashboard not built. Run `cd pr-controller-react && yarn build`, then reload.');
       return;
     }
-    // Guard the await: an unguarded readFile rejection inside this async handler is an
-    // unhandled promise rejection that CRASHES the whole daemon (Node v22) — and the
-    // 503 guard above can't protect it because `hasDist` is latched at startup. A
-    // `yarn build` rewriting dist/ mid-request (or any FS hiccup) would otherwise take
-    // the server down. Read FIRST, then write the head — so a rejection leaves the
-    // response uncommitted and the catch can send a clean 500 (writing the head before
-    // the await would already have sent 200, making the 500 an ERR_HTTP_HEADERS_SENT).
+    // An unguarded readFile rejection here would crash the daemon (unhandled rejection);
+    // `hasDist` is latched at startup so the 503 guard can't catch a mid-request rebuild.
+    // Read BEFORE writeHead so a rejection leaves the response uncommitted and the catch
+    // can send a clean 500 (writeHead first would already have sent 200 → HEADERS_SENT).
     try {
       const html = await readFile(join(DIST, 'index.html'));
       res.writeHead(200, { 'content-type': 'text/html' });
@@ -311,7 +307,7 @@ const server = createServer(async (req, res) => {
     events.addSubscriber(req, res);
     return;
   }
-  // TEMP (debug): kick off a poll on demand instead of waiting the 30-min timer.
+  // TEMP (debug): kick off a poll on demand instead of waiting for the poll timer.
   // Fire-and-forget — poll() can take minutes when it dispatches workers, so we
   // don't await it; the client re-fetches /state.json to see the result.
   if (req.method === 'POST' && url.pathname === '/poll') {
@@ -355,16 +351,14 @@ const server = createServer(async (req, res) => {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
         const ticket = (payload.ticket || '').trim();
         const valid = new RegExp(`^${config.jiraPattern}$`).test(ticket);
-        // Guard !pr like the sibling actions do — otherwise setPrJira(pr,...) below
-        // dereferences undefined (pr.number/pr.title) and throws into the 500 path for
-        // a stale/closed prKey.
+        // Guard !pr (stale/closed prKey) so setPrJira doesn't deref undefined → 500.
         if (!pr) spawn = { spawned: false, reason: 'PR not found' };
         else if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
         else {
           await setPrJira(pr, ticket);
           // Re-scan so state.json reflects the new title and recomputes needsJira
           // (now false — the title has a key). Without this, a reload refetches the
-          // stale state and the input box reappears until the next 30-min poll.
+          // stale state and the input box reappears until the next poll.
           await refreshOnePR(payload.prKey);
           spawn = { spawned: true, action: 'title updated' };
         }

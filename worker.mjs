@@ -30,12 +30,10 @@ export async function getOrCreateSession(prKey) {
   return { id: randomUUID(), isNew: true, lastSeenSha: null };
 }
 
-// Serialize every sessions.json read-modify-write. Many PRs share this ONE file, and
-// dispatch is concurrent across PRs (per-PR serialization only guards a single PR's
-// worker). Two unguarded load->mutate->write cycles racing would lost-update each
-// other — the second writer clobbers the first's freshly-minted UUID or lastSeenSha,
-// stranding a session that `--resume` can no longer find. This async mutex makes those
-// cycles strictly one-at-a-time. Mirrors withCloneLock in worktree.mjs.
+// Serialize every sessions.json read-modify-write: all PRs share this one file and
+// dispatch is concurrent across PRs, so racing load->mutate->write cycles would
+// lost-update — clobbering a freshly-minted UUID/lastSeenSha and stranding a session
+// `--resume` can no longer find. Mirrors withCloneLock in worktree.mjs.
 let sessionsTail = Promise.resolve();
 function withSessionsLock(fn) {
   const run = sessionsTail.then(fn, fn);   // run whether the prior link resolved or rejected
@@ -169,12 +167,9 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // model is fixed at session birth; --resume keeps the session's original model.
   if (isNew && config.workerModel) args.push('--model', config.workerModel);
 
-  // MECHANICAL guardrail: a PreToolUse hook that DENIES destructive PR-lifecycle /
-  // branch actions (close/merge a PR, delete a branch, bare force-push). The worker runs
-  // --permission-mode bypassPermissions, which skips the allow/deny system, so
-  // --disallowedTools would NOT be honored — but PreToolUse hooks fire regardless of
-  // permission mode, making this the HARD, mechanical block on destructive PR-lifecycle /
-  // branch actions (a worker once closed an emptied PR whose title said "safe to close").
+  // PreToolUse hook denying destructive PR-lifecycle/branch actions (close/merge a PR,
+  // delete a branch, bare force-push). It must be a hook, not --disallowedTools: under
+  // bypassPermissions the allow/deny system is skipped, but PreToolUse hooks still fire.
   // Headless runs only; the interactive discuss terminal is human-driven.
   const guardPath = join(config.baseDir, 'scripts', 'worker-guard.mjs');
   args.push('--settings', JSON.stringify({
@@ -260,10 +255,9 @@ export async function spawnDiscussTerminal(pr, thread, worktreePath, branchKind 
   // Launcher: with a seed, pass it as the opening prompt via a file (no quoting of
   // prose anywhere); without one, just open the (resumed) session for free input.
   // Either way it self-removes its temp files once Claude exits.
-  // Quote every path for bash with SINGLE quotes — JSON.stringify only double-quotes,
-  // inside which $, $(...) and backticks still expand, so a worktree path containing
-  // any of those would break the launcher (or worse). Single-quoted strings disable all
-  // expansion; the '\'' idiom escapes an embedded single quote.
+  // Single-quote paths for bash, not JSON.stringify's double quotes: inside double quotes
+  // $, $(...) and backticks still expand, so a worktree path containing any would break
+  // (or inject into) the launcher. Single quotes disable expansion; '\'' escapes a quote.
   const sh = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
   const rmTargets = (seed ? `${sh(seedFile)} ` : '') + sh(launchFile);
   const claudeLine = seed ? `${claudeCmd} "$(cat ${sh(seedFile)})"` : claudeCmd;

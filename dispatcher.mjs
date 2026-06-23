@@ -43,11 +43,9 @@ export function pendingCount(prKey) {
 
 // Drop a PR's dispatch state entirely — called by the server's cleanup when a PR
 // merges/closes, so a vanished PR doesn't leave a stale idle entry in the Map
-// forever. If a worker is STILL RUNNING for this PR, deleting the entry would drop the
-// `running` lock: a concurrent enqueue would mint a fresh entry (running=false) and
-// maybeDrain would fire a SECOND worker on the same session UUID + worktree, corrupting
-// both. So tombstone a running entry instead and reap it in maybeDrain's finally once
-// the run is truly done (idle). A PR that reappears later re-creates its entry on enqueue.
+// forever. Deleting while a worker runs would drop the `running` lock — a concurrent
+// enqueue mints a fresh entry and fires a SECOND worker on the same session/worktree.
+// So tombstone a running entry; maybeDrain's finally reaps it once truly idle.
 export function forget(prKey) {
   const e = state.get(prKey);
   if (e?.running) { e.forgotten = true; return; }
@@ -61,7 +59,7 @@ export function enqueue(pr, newThreads, opts = {}) {
   const e = entry(prKey);
   e.pr = pr;
   e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work — clear the post-failure auto-fire gate so it retries
+  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
   if (opts.rebaseOnConflict) e.rebase = true;
   mergePending(e.threads, newThreads);
   maybeDrain(prKey);
@@ -75,7 +73,7 @@ export function enqueueRebase(pr, opts = {}) {
   const e = entry(prKey);
   e.pr = pr;
   e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work — clear the post-failure auto-fire gate so it retries
+  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
   e.rebase = true;
   maybeDrain(prKey);
 }
@@ -87,7 +85,7 @@ export function enqueueApproved(pr, threadIds, opts = {}) {
   const e = entry(prKey);
   e.pr = pr;
   e.opts = { ...e.opts, ...opts };
-  e.failed = false;   // new work — clear the post-failure auto-fire gate so it retries
+  e.failed = false;   // new work clears the post-failure gate so maybeDrain retries
   const byId = new Map((pr.threads || []).map((t) => [t.threadId, t]));
   const approvedThreads = (threadIds || []).map((id) => byId.get(id)).filter(Boolean);
   mergePending(e.threads, approvedThreads);
@@ -101,9 +99,8 @@ async function maybeDrain(prKey) {
   const e = state.get(prKey);
   // Fire when there's ANY pending work: threads OR a pending rebase. (Earlier this
   // bailed on zero threads, which silently dropped health-only/rebase-only runs.)
-  // `e.failed` gates the AUTO re-fire after a run threw: the failed batch was re-staged
-  // (see catch), but refiring it immediately would hot-loop on a hard-repeating failure.
-  // The next genuine enqueue clears the flag and retries the now-merged batch.
+  // `e.failed` blocks only the AUTO re-fire after a throw — refiring the re-staged batch
+  // (see catch) immediately would hot-loop on a hard failure. The next enqueue clears it.
   if (!e || e.running || e.failed || (e.threads.size === 0 && !e.rebase)) return;
 
   e.running = true;
@@ -150,27 +147,23 @@ async function maybeDrain(prKey) {
     // this log line. Classify it and stash a durable per-PR surface so the dashboard shows it.
     log.error(`${prKey}: worker run failed`, err.message);
     deps.markAgentError?.(prKey, classifyWorkerError(err.message));
-    // Re-stage the batch this run consumed so a transient failure doesn't permanently
-    // strand the work (the threads were already marked "seen" by the poller, so they
-    // won't re-enqueue on their own). `e.failed` stops the finally's maybeDrain from
-    // hot-looping on a hard-repeating failure; the next enqueue clears it and retries.
+    // Re-stage the consumed batch — the poller already marked these threads "seen", so a
+    // transient failure would otherwise strand them. `e.failed` gates the auto-retry.
     mergePending(e.threads, drainedThreads);
     if (applyApproved) for (const t of drainedThreads) e.approved.add(t.threadId);
     if (rebase) e.rebase = true;
     e.failed = true;
   } finally {
     e.running = false;
-    // `pending` tells the client whether a queued batch will run NEXT for this PR, so it
-    // keeps an optimistic "dispatched" overlay alive instead of snapping a still-applying
-    // approval back to "Approve". Exclude the failed case: a re-staged-but-gated batch is
-    // NOT actively progressing, so the overlay should clear and reveal the real state.
+    // `pending` = a queued batch runs NEXT, so the client keeps its optimistic "dispatched"
+    // overlay instead of reverting a still-applying approval to "Approve". A re-staged-but-
+    // gated (failed) batch isn't progressing, so exclude it and let the overlay clear.
     deps.events.markFinished(prKey, { pending: (e.threads.size > 0 || e.rebase) && !e.failed });
     try { await deps.refreshOnePR(prKey); } catch (err) { log.error(`${prKey}: refresh failed`, err.message); }
     // Coalesce: drain anything that arrived while we were busy.
     maybeDrain(prKey);
-    // Reap a tombstoned (forgotten-while-running) entry now that the run is done and
-    // nothing re-fired — see forget(). maybeDrain set running=true synchronously if it
-    // re-fired, so this only deletes a truly-idle forgotten entry.
+    // Reap a tombstoned entry (see forget()). The maybeDrain above set running=true
+    // synchronously if it re-fired, so this only deletes a truly-idle forgotten entry.
     if (e.forgotten && !e.running && e.threads.size === 0 && !e.rebase) state.delete(prKey);
   }
 }

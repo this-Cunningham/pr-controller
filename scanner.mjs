@@ -211,10 +211,8 @@ export function parsePullRequest(pr) {
     failingChecks,                      // code CI — worker fixes
     complianceChecks,                   // needs your input (e.g. JIRA ticket)
   };
-  // Only carry `title` when the node actually has it: parseBatchedResponse/scanOne merge
-  // this OVER the base meta from listOpenPRs (`{ ...pr, ...parsed }`), so emitting an
-  // undefined title would wipe the authoritative base title. The single-PR query selects
-  // title (so set-jira's refresh sees the edited title); the test fixtures omit it.
+  // Only carry `title` when the node has it: this merges OVER the base meta from
+  // listOpenPRs, so an undefined title would wipe the authoritative base title.
   return { ...(pr.title != null ? { title: pr.title } : {}), reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
 }
 
@@ -322,13 +320,9 @@ async function enrichMany(prs) {
     try {
       records = await fetchBatch(chunk);
     } catch (e) {
-      // A RATE-LIMIT failure here is NOT a "one bad PR in the chunk" situation — every
-      // PR will hit the same throttle. The per-PR fallback below would re-run the FULL
-      // backoff ladder (~15s) for each of up to BATCH_SIZE PRs, sequentially, hammering
-      // an already-throttled endpoint and stretching one scan to minutes (the opposite
-      // of backing off). fetchBatch already exhausted the retry ladder, so short-circuit
-      // the whole chunk to rate-limit error stubs instead. The per-PR fallback stays for
-      // genuine single-PR failures (the case it was designed for).
+      // A rate-limit hits every PR in the chunk, so the per-PR fallback would re-run the
+      // full backoff ladder for each one, hammering an already-throttled endpoint. Stub
+      // the whole chunk instead; the per-PR fallback stays for genuine single-PR failures.
       if (isRateLimitError(e)) {
         slog.warn(`batched fetch rate-limited for ${chunk.length} PR(s); not fanning out per-PR`, String(e).slice(0, 160));
         for (const pr of chunk)
@@ -396,15 +390,10 @@ let scanCounter = 0;
 export function shouldReenrich(pr, cached, forceFloor) {
   if (forceFloor) return true;
   if (!cached || !cached.record) return true;
-  // GitHub computes mergeability LAZILY: the first read of a freshly-pushed PR returns
-  // mergeable=UNKNOWN, and the real value (e.g. CONFLICTING) only settles on a later
-  // read. Crucially, GitHub does NOT bump updatedAt when that background compute
-  // finishes — it isn't a PR "update" event. So a record cached with UNKNOWN would be
-  // pinned by the updatedAt fast-path and never learn the real CONFLICTING until the
-  // floor fires (~hours), silently hiding a merge conflict (needsRebase/isBehindBase
-  // both read UNKNOWN as clean). Treat UNKNOWN as "not yet known" and re-fetch until it
-  // settles. This is most acute right after a worker pushes (a fix/rebase reliably
-  // invalidates mergeability), so the post-run refresh would otherwise re-pin UNKNOWN.
+  // GitHub computes mergeability lazily (first read is UNKNOWN, settles later) but does
+  // NOT bump updatedAt when it settles. So the updatedAt fast-path would pin a cached
+  // UNKNOWN until the floor fires (~hours), silently hiding a conflict (needsRebase/
+  // isBehindBase read UNKNOWN as clean). Re-fetch until mergeability is known.
   if (cached.record.branchHealth?.mergeable === 'UNKNOWN') return true;
   return pr.updatedAt !== cached.updatedAt;
 }
@@ -435,11 +424,8 @@ export async function scanOnePr(prKey) {
         : { number: num, repo: prKey.split('#')[0], nameWithOwner: cached.nameWithOwner };
       const enriched = {
         ...base,
-        // Prefer the freshly-fetched title over the cached one: a set-jira title edit
-        // is invisible on the cache-HIT path unless the single-PR query carries `title`
-        // (the GraphQL query now selects it). Without this the refresh that set-jira
-        // triggers recomputes needsJira against the STALE title and the input box
-        // reappears — the exact bug refreshOnePR exists to prevent.
+        // Prefer the freshly-fetched title: otherwise the set-jira refresh recomputes
+        // needsJira against the stale cached title and the JIRA input box reappears.
         title: r.title ?? base.title,
         reviewDecision: r.reviewDecision || 'NONE',
         headRefName: r.headRefName,

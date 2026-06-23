@@ -159,12 +159,10 @@ export function useDashboard(seed = null) {
       es.addEventListener('worker-started', onInflight);
       es.addEventListener('worker-finished', (e) => {
         onInflight(e);
-        // The worker for this PR finished applying — clear its in-flight approvals so the
-        // (now refreshed) thread state drives the UI, not the stale marker. But ONLY when
-        // no queued batch will run next (server `pending`): if the user staged + ran more
-        // approvals while this run was busy, they're queued and about to apply, so keep
-        // the overlay — otherwise a still-applying approval flickers back to "Approve"
-        // between this run finishing and the queued one starting.
+        // Clear this PR's in-flight approvals so refreshed thread state drives the UI,
+        // not the stale marker. But ONLY when no batch is queued next (server `pending`):
+        // keeping the overlay there avoids a still-applying approval flickering back to
+        // "Approve" between this run finishing and the queued one starting.
         try {
           const { prKey, pending } = JSON.parse(e.data);
           if (prKey && !pending) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
@@ -329,13 +327,10 @@ export function useDashboard(seed = null) {
         showToast('Enter a ticket key, e.g. ABC-123');
         return false;
       }
-      // Optimistically show "linked" for instant feedback, but the daemon re-validates
-      // the key against config.jiraPattern (server.mjs) and rejects e.g. "BAD"/"X" with
-      // no number. Honor that response like sendRebuttal/discuss do: roll the optimistic
-      // state back and surface the reason on rejection, so the banner doesn't falsely
-      // claim "compliance check cleared" on a key the backend refused (and the title
-      // never changed). On a needsJira PR there is no prior jira[prId], so rollback is a
-      // plain delete (restores the input row).
+      // Show "linked" optimistically, but the daemon re-validates against
+      // config.jiraPattern and can reject. On rejection, roll the optimistic state back
+      // (a plain delete — no prior jira[prId] on a needsJira PR) so the banner doesn't
+      // falsely claim "compliance check cleared" on a key the backend refused.
       setJira((prev) => ({ ...prev, [prId]: { status: 'set', value: v } }));
       showToast('Linking ' + v + '…');
       postDecision({ action: 'set-jira', prKey: prId, ticket: v }).then((res) => {
@@ -373,7 +368,7 @@ export function useDashboard(seed = null) {
     });
   }, [refreshing, seeded, fetchState, showToast]);
 
-  // TEMP (debug): trigger a backend poll instead of waiting the 30-min timer.
+  // TEMP (debug): trigger a backend poll instead of waiting for the poll timer.
   // Fire-and-forget on the server; we re-fetch state a few seconds later.
   const runPoll = useCallback(async () => {
     if (seeded) return;
