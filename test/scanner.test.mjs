@@ -143,6 +143,23 @@ test('parseBatchedResponse: aligns enriched records to PRs by alias', () => {
   assert.equal(out[1].reviewDecision, 'CHANGES_REQUESTED');
 });
 
+// The single-PR GraphQL query selects `title` so set-jira's refresh observes the edited
+// title (else needsJira recomputes against the stale title and the input box reappears).
+// When the node carries a title it must flow through; when it doesn't, the base meta wins.
+test('parseBatchedResponse: a node title flows through; absent title leaves base meta intact', () => {
+  const prs = [
+    { nameWithOwner: 'orgA/repo1', number: 5, repo: 'repo1', title: 'old base title' },
+    { nameWithOwner: 'orgB/repo2', number: 9, repo: 'repo2', title: 'B' },
+  ];
+  const data = {
+    p0: { pullRequest: prNodeFixture({ title: '[ABC-123] old base title' }) },
+    p1: { pullRequest: prNodeFixture() }, // no title -> base 'B' preserved
+  };
+  const out = parseBatchedResponse(prs, data);
+  assert.equal(out[0].title, '[ABC-123] old base title'); // live title wins
+  assert.equal(out[1].title, 'B');                        // base meta preserved
+});
+
 test('parseBatchedResponse: tolerates a missing/null alias -> null slot', () => {
   const prs = [
     { nameWithOwner: 'orgA/repo1', number: 5, repo: 'repo1' },

@@ -215,6 +215,11 @@ async function poll() {
     const nowKeys = new Set(prs.map((p) => `${p.repo}#${p.number}`));
     for (const [k, oldPr] of prevByKey) {
       if (nowKeys.has(k)) continue;
+      // Defer cleanup of a PR whose worker is still in flight: cleanupPr force-removes
+      // its managed worktree (`git worktree remove --force`) out from under the running
+      // `claude -p`, which can corrupt the run. The dispatcher's refreshOnePR-on-exit
+      // reclaims it once the worker finishes (or a later poll does).
+      if (dispatcher.isWorking(k)) continue;
       try { await cleanupPr(k, oldPr?.nameWithOwner); } catch (e) { log.error(`cleanup ${k} failed`, e.message); }
       seen.delete(k); outOfSyncPRs.delete(k); agentErrorPRs.delete(k); dispatcher.forget(k);
     }
@@ -254,16 +259,33 @@ const server = createServer(async (req, res) => {
       res.end('Dashboard not built. Run `cd pr-controller-react && yarn build`, then reload.');
       return;
     }
-    res.writeHead(200, { 'content-type': 'text/html' });
-    res.end(await readFile(join(DIST, 'index.html')));
+    // Guard the await: an unguarded readFile rejection inside this async handler is an
+    // unhandled promise rejection that CRASHES the whole daemon (Node v22) — and the
+    // 503 guard above can't protect it because `hasDist` is latched at startup. A
+    // `yarn build` rewriting dist/ mid-request (or any FS hiccup) would otherwise take
+    // the server down. Respond 500 instead. (Mirrors the /decision handler's hardening.)
+    try {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(await readFile(join(DIST, 'index.html')));
+    } catch (e) {
+      httpLog.error('serve index failed', e.message);
+      try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
+    }
     return;
   }
   // Static assets from the React build (e.g. /assets/index-*.js, fonts).
   if (req.method === 'GET' && hasDist && url.pathname.startsWith('/assets/')) {
     const file = join(DIST, url.pathname);
     if (existsSync(file)) {
-      res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
-      res.end(await readFile(file));
+      // TOCTOU + crash guard: the file can vanish between existsSync and readFile (a
+      // mid-request rebuild), and an unguarded rejection here would crash the daemon.
+      try {
+        res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
+        res.end(await readFile(file));
+      } catch (e) {
+        httpLog.error('serve asset failed', e.message);
+        try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
+      }
       return;
     }
   }
@@ -328,7 +350,11 @@ const server = createServer(async (req, res) => {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
         const ticket = (payload.ticket || '').trim();
         const valid = new RegExp(`^${config.jiraPattern}$`).test(ticket);
-        if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
+        // Guard !pr like the sibling actions do — otherwise setPrJira(pr,...) below
+        // dereferences undefined (pr.number/pr.title) and throws into the 500 path for
+        // a stale/closed prKey.
+        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
+        else if (!valid) spawn = { spawned: false, reason: `"${ticket}" is not a JIRA key like ABC-123` };
         else {
           await setPrJira(pr, ticket);
           // Re-scan so state.json reflects the new title and recomputes needsJira

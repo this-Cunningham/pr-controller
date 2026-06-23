@@ -159,11 +159,15 @@ export function useDashboard(seed = null) {
       es.addEventListener('worker-started', onInflight);
       es.addEventListener('worker-finished', (e) => {
         onInflight(e);
-        // The worker for this PR finished applying — clear its in-flight approvals
-        // so the (now refreshed) thread state drives the UI, not the stale marker.
+        // The worker for this PR finished applying — clear its in-flight approvals so the
+        // (now refreshed) thread state drives the UI, not the stale marker. But ONLY when
+        // no queued batch will run next (server `pending`): if the user staged + ran more
+        // approvals while this run was busy, they're queued and about to apply, so keep
+        // the overlay — otherwise a still-applying approval flickers back to "Approve"
+        // between this run finishing and the queued one starting.
         try {
-          const { prKey } = JSON.parse(e.data);
-          if (prKey) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
+          const { prKey, pending } = JSON.parse(e.data);
+          if (prKey && !pending) setDispatched((prev) => { const n = { ...prev }; delete n[prKey]; return n; });
         } catch {}
       });
       es.addEventListener('state-updated', () => fetchState());

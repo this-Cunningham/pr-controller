@@ -192,3 +192,44 @@ Exercised live through the browser against the e2e sandbox; all behaved per SPEC
 to avoid opening windows on the desktop. The launcher is injection-safe — the seed and
 `cd <worktree>` are written to temp files and only a safe slug path crosses into the
 AppleScript string.
+
+---
+
+# Round 2 — deeper adversarial code audit (12 confirmed, all fixed)
+
+A second pass of the multi-agent audit (find → adversarially refute-or-confirm per
+candidate) confirmed **12 of 17** candidates against the actual code. All 12 are fixed
+in this branch; each carries the verifier's code-cited reasoning. Plus a **mechanical
+guard** answering "can we *mechanically* block the worker from merging/closing PRs?".
+
+## M. 🔒 Mechanical worker guard — a PreToolUse hook that blocks PR-lifecycle/branch destruction
+
+Finding #1's prompt guardrail is *soft* (the model can ignore it). Workers run
+`claude -p --permission-mode bypassPermissions`, which skips the allow/deny system — so
+`--disallowedTools` is **not** honored. But **PreToolUse hooks fire regardless of
+permission mode**. New [`scripts/worker-guard.mjs`](scripts/worker-guard.mjs) is wired
+into every worker spawn via `--settings` (worker.mjs); it denies `gh pr close|merge|ready`,
+`gh api` PR-state mutations / DELETE·PATCH on pulls, `git push --delete`/branch-deletes,
+and bare (non-`--force-with-lease`) force-pushes, while allowing the worker's legitimate
+reply/react/resolve/commit/push/rebase. **Verified end-to-end:** a real `claude -p` under
+`bypassPermissions` told to run `gh pr close` was blocked *before execution* with the
+guard's message. 18/18 guard unit cases pass.
+
+## Fixed in round 2
+
+| # | Sev | File | Bug → fix |
+|---|-----|------|-----------|
+| 1 | 🟠 | server.mjs | Unguarded `await readFile` in `/` and `/assets/` handlers → an FS hiccup or a mid-request `yarn build` crashes the **whole daemon** (no `unhandledRejection` net). Wrapped both in try/catch → 500. |
+| 2 | 🟠 | scanner.mjs | `set-jira`'s `refreshOnePR` used the **stale cached title** (the single-PR GraphQL query never selected `title`), so `needsJira` recomputed true and the input box reappeared. Added `title` to the query + prefer the fresh title (non-clobbering). **(+1 test)** Server-side counterpart to the client fix in PR #30. |
+| 3 | 🟡 | server.mjs | `set-jira` dereferenced `undefined` for a stale/closed prKey (missing `!pr` guard) → 500. Added the guard like its siblings. |
+| 4 | 🔴 | dispatcher.mjs | `forget()` on a **running** PR deleted the entry holding the `running` lock → a concurrent enqueue could double-dispatch on the same session/worktree. Tombstone a running entry; reap when idle. **(+1 test)** |
+| 5 | 🟠 | dispatcher.mjs | A worker-run **throw silently dropped** the drained batch (threads/rebase/approvals) — and the poller had already marked them "seen", so they never re-dispatched → stranded work. Re-stage on throw, gated against hot-looping; retried on next enqueue. **(+1 test)** |
+| 6 | 🟠 | worker.mjs | Concurrent dispatches **lost-update `sessions.json`** (shared file, no lock) → clobbered session UUIDs / `lastSeenSha`, stranding sessions `--resume` can't find. Added a `withSessionsLock` mutex (mirrors `withCloneLock`). Hit live — I ran ~9 concurrent workers. |
+| 7 | 🟡 | worker.mjs | The discuss-terminal launcher interpolated paths with `JSON.stringify` (double-quoted → `$`/backticks still expand). Switched to single-quote shell escaping. |
+| 8 | 🟠 | worktree.mjs | A **detached** managed worktree can't `pull --ff-only` (no upstream) → surfaced `outOfSync` on *every* resume forever. Detect detached HEAD and fast-forward it to `origin/<branch>` instead. |
+| 9 | 🟠 | server.mjs | Poll cleanup `git worktree remove --force`'d a worktree **out from under a running worker**. Skip cleanup while `dispatcher.isWorking(prKey)`. |
+| 10 | 🟠 | useDashboard/events/dispatcher | A **queued** "Run agent" lost its dispatched overlay when the *prior* worker finished — the thread snapped back to Needs-you with "Approve" mid-apply. `worker-finished` now carries `pending`; the client keeps the overlay while a batch is still queued. |
+| 11 | 🟡 | adapt/PRCard/cardProps | The branch "Resolve in terminal" action always sent `kind:'rebase'`, so an `outOfSync` row got the wrong opener (this was the round-1 🚩 flag; now fixed). Carry the branch `kind` through. **(adapt tests updated)** |
+| 12 | 🟡 | useDashboard/events | Same root as #10 — an unrelated worker's finish event cleared a queued approval's overlay. Fixed by the same `pending` signal. |
+
+All pure-layer changes are locked by tests: **148 pass** (143 → 148), lint clean.

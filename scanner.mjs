@@ -123,6 +123,7 @@ export async function listOpenPRs() {
 // block of the batched query share ONE definition (no drift between paths).
 const PR_FIELDS = `
   state
+  title
   reviewDecision
   headRefName
   baseRefName
@@ -210,7 +211,11 @@ export function parsePullRequest(pr) {
     failingChecks,                      // code CI — worker fixes
     complianceChecks,                   // needs your input (e.g. JIRA ticket)
   };
-  return { reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
+  // Only carry `title` when the node actually has it: parseBatchedResponse/scanOne merge
+  // this OVER the base meta from listOpenPRs (`{ ...pr, ...parsed }`), so emitting an
+  // undefined title would wipe the authoritative base title. The single-PR query selects
+  // title (so set-jira's refresh sees the edited title); the test fixtures omit it.
+  return { ...(pr.title != null ? { title: pr.title } : {}), reviewDecision: pr.reviewDecision, headRefName: pr.headRefName, baseRefName: pr.baseRefName, branchHealth, threads };
 }
 
 // Raw single-PR fetch: returns the GraphQL `pullRequest` NODE (or null) for one
@@ -430,6 +435,12 @@ export async function scanOnePr(prKey) {
         : { number: num, repo: prKey.split('#')[0], nameWithOwner: cached.nameWithOwner };
       const enriched = {
         ...base,
+        // Prefer the freshly-fetched title over the cached one: a set-jira title edit
+        // is invisible on the cache-HIT path unless the single-PR query carries `title`
+        // (the GraphQL query now selects it). Without this the refresh that set-jira
+        // triggers recomputes needsJira against the STALE title and the input box
+        // reappears — the exact bug refreshOnePR exists to prevent.
+        title: r.title ?? base.title,
         reviewDecision: r.reviewDecision || 'NONE',
         headRefName: r.headRefName,
         baseRefName: r.baseRefName,

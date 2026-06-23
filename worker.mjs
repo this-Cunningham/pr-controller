@@ -30,19 +30,38 @@ export async function getOrCreateSession(prKey) {
   return { id: randomUUID(), isNew: true, lastSeenSha: null };
 }
 
+// Serialize every sessions.json read-modify-write. Many PRs share this ONE file, and
+// dispatch is concurrent across PRs (per-PR serialization only guards a single PR's
+// worker). Two unguarded load->mutate->write cycles racing would lost-update each
+// other — the second writer clobbers the first's freshly-minted UUID or lastSeenSha,
+// stranding a session that `--resume` can no longer find. This async mutex makes those
+// cycles strictly one-at-a-time. Mirrors withCloneLock in worktree.mjs.
+let sessionsTail = Promise.resolve();
+function withSessionsLock(fn) {
+  const run = sessionsTail.then(fn, fn);   // run whether the prior link resolved or rejected
+  sessionsTail = run.then(() => {}, () => {});   // never let a rejection poison the stored tail
+  return run;
+}
+
 async function persistSession(prKey, id) {
-  const map = await loadSessions();
   // mkdir data/ first: it's gitignored, so on a fresh clone it may not exist yet and an
   // unguarded writeFile would throw ENOENT. Mirrors writeState/recordDecision/the transcript write.
-  if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+  await withSessionsLock(async () => {
+    const map = await loadSessions();
+    if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+  });
 }
 
 // Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`.
 async function recordSeenSha(prKey, worktreePath) {
   try {
+    // The git read stays OUTSIDE the lock (it touches the worktree, not sessions.json);
+    // only the file read-modify-write is serialized.
     const { stdout } = await exec('git', ['-C', worktreePath, 'rev-parse', 'HEAD']);
-    const map = await loadSessions();
-    if (map[prKey]) { map[prKey].lastSeenSha = stdout.trim(); await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+    await withSessionsLock(async () => {
+      const map = await loadSessions();
+      if (map[prKey]) { map[prKey].lastSeenSha = stdout.trim(); await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+    });
   } catch {}
 }
 
@@ -150,6 +169,18 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // model is fixed at session birth; --resume keeps the session's original model.
   if (isNew && config.workerModel) args.push('--model', config.workerModel);
 
+  // MECHANICAL guardrail: a PreToolUse hook that DENIES destructive PR-lifecycle /
+  // branch actions (close/merge a PR, delete a branch, bare force-push). The worker runs
+  // --permission-mode bypassPermissions, which skips the allow/deny system, so
+  // --disallowedTools would NOT be honored — but PreToolUse hooks fire regardless of
+  // permission mode, making this the HARD backstop to the soft worker-prompt "Scope of
+  // authority" rule (a worker once closed an emptied PR whose title said "safe to
+  // close"). Headless runs only; the interactive discuss terminal is human-driven.
+  const guardPath = join(config.baseDir, 'scripts', 'worker-guard.mjs');
+  args.push('--settings', JSON.stringify({
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node ${JSON.stringify(guardPath)}` }] }] },
+  }));
+
   if (isNew) await persistSession(prKey, id);
   // Full per-run transcript (stdout+stderr) persisted to data/worker-<repo>-<num>.log.
   // The console only ever kept tail(-500); the full transcript is exactly what's needed
@@ -229,9 +260,14 @@ export async function spawnDiscussTerminal(pr, thread, worktreePath, branchKind 
   // Launcher: with a seed, pass it as the opening prompt via a file (no quoting of
   // prose anywhere); without one, just open the (resumed) session for free input.
   // Either way it self-removes its temp files once Claude exits.
-  const rmTargets = (seed ? `${JSON.stringify(seedFile)} ` : '') + JSON.stringify(launchFile);
-  const claudeLine = seed ? `${claudeCmd} "$(cat ${JSON.stringify(seedFile)})"` : claudeCmd;
-  const launcher = `#!/bin/bash\ncd ${JSON.stringify(worktreePath)}\n${claudeLine}\nrm -f ${rmTargets}\n`;
+  // Quote every path for bash with SINGLE quotes — JSON.stringify only double-quotes,
+  // inside which $, $(...) and backticks still expand, so a worktree path containing
+  // any of those would break the launcher (or worse). Single-quoted strings disable all
+  // expansion; the '\'' idiom escapes an embedded single quote.
+  const sh = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const rmTargets = (seed ? `${sh(seedFile)} ` : '') + sh(launchFile);
+  const claudeLine = seed ? `${claudeCmd} "$(cat ${sh(seedFile)})"` : claudeCmd;
+  const launcher = `#!/bin/bash\ncd ${sh(worktreePath)}\n${claudeLine}\nrm -f ${rmTargets}\n`;
   try {
     if (seed) await writeFile(seedFile, seed);
     await writeFile(launchFile, launcher);
