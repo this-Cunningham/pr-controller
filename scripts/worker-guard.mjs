@@ -3,16 +3,17 @@
 // via worker.mjs's `--settings` (see runWorker). Workers run with
 // `--permission-mode bypassPermissions` (full autonomy on real PRs), which skips the
 // allow/deny permission system — so `--disallowedTools` would NOT be honored. A
-// PreToolUse hook, by contrast, ALWAYS fires (even under bypassPermissions) and can
-// deny a tool call, which makes it the one mechanical place to block destructive,
-// irreversible, out-of-scope actions the prompt only *asks* the worker to avoid
-// (worker-prompt.md "Scope of authority").
+// PreToolUse hook, by contrast, ALWAYS fires (even under bypassPermissions) and can deny
+// a tool call — so it's the one mechanical place to block destructive, irreversible,
+// out-of-scope actions. (A worker once closed an emptied PR whose title said "safe to
+// close"; this is the hard enforcement of the worker's intended scope.)
 //
 // The worker's legitimate surface is reply/react/resolve/commit/push/rebase. This guard
 // denies the PR-lifecycle + branch-destruction commands that are never part of that:
 // closing/merging a PR, deleting/force-deleting a branch, and bare (non-lease)
-// force-pushes. Everything else is allowed (exit 0, no output) — a false deny would
-// stall a worker, so the patterns are deliberately narrow.
+// force-pushes. The deny reason tells the worker to surface the PR instead. Everything
+// else is allowed (exit 0, no output) — a false deny would stall a worker, so the
+// patterns are deliberately narrow.
 //
 // Protocol: read the PreToolUse JSON on stdin; to BLOCK, print a deny decision and
 // exit 0; to ALLOW, exit 0 with no output. Any parse/IO error -> allow (fail-open: the

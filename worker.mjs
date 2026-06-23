@@ -173,9 +173,9 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // branch actions (close/merge a PR, delete a branch, bare force-push). The worker runs
   // --permission-mode bypassPermissions, which skips the allow/deny system, so
   // --disallowedTools would NOT be honored — but PreToolUse hooks fire regardless of
-  // permission mode, making this the HARD backstop to the soft worker-prompt "Scope of
-  // authority" rule (a worker once closed an emptied PR whose title said "safe to
-  // close"). Headless runs only; the interactive discuss terminal is human-driven.
+  // permission mode, making this the HARD, mechanical block on destructive PR-lifecycle /
+  // branch actions (a worker once closed an emptied PR whose title said "safe to close").
+  // Headless runs only; the interactive discuss terminal is human-driven.
   const guardPath = join(config.baseDir, 'scripts', 'worker-guard.mjs');
   args.push('--settings', JSON.stringify({
     hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node ${JSON.stringify(guardPath)}` }] }] },
