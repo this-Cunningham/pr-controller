@@ -231,4 +231,36 @@ guard's message. 18/18 guard unit cases pass.
 | 11 | 🟡 | adapt/PRCard/cardProps | The branch "Resolve in terminal" action always sent `kind:'rebase'`, so an `outOfSync` row got the wrong opener (this was the round-1 🚩 flag; now fixed). Carry the branch `kind` through. **(adapt tests updated)** |
 | 12 | 🟡 | useDashboard/events | Same root as #10 — an unrelated worker's finish event cleared a queued approval's overlay. Fixed by the same `pending` signal. |
 
-All pure-layer changes are locked by tests: **148 pass** (143 → 148), lint clean.
+All pure-layer changes are locked by tests: **149 pass** (143 → 149), lint clean.
+
+---
+
+# Round 3 — live verification ("live test everything you fixed")
+
+Every fix re-verified by exercising the **real code path with real I/O** (not mocks),
+most as **differential** tests (prove the OLD code was buggy AND the fix is correct).
+Where a real GitHub PR could exercise it, tested against the live `e2e` daemon/PRs.
+
+| Fix | How live-verified | Result |
+|---|---|---|
+| Mechanical guard | red-teamed TWO real workers — weaponized a PR title+desc+`@claude-debug` thread to order `gh pr close`/`merge` | both workers flagged it as **prompt injection** and **surfaced**; PRs stayed OPEN. Plus a direct `claude -p` under bypassPermissions: `gh pr close` **blocked by the hook before execution**. Two independent layers. |
+| JIRA `setTicket` | browser: invalid key + valid key | invalid reverts + shows reason; valid links + title prepends ✓ |
+| readFile crash-guard | live: `mv dist/index.html` away, `GET /` | **caught a real defect in the first fix** (returned `000`); corrected (read-before-head) → clean **500**, daemon stays up ✓ |
+| set-jira `!pr` guard | live: POST bogus prKey | clean `"PR not found"`, no crash ✓ |
+| set-jira stale-title | live e2e: revert title → set ticket → check placements | `jiraNeeded` placement **cleared** (was pinned by stale cached title) ✓ |
+| sessions.json mutex | real-fs differential, 25 concurrent RMW | **old pattern: 1/25 survived; fix: 25/25** (×3 runs) ✓ |
+| rate-limit fan-out | real fake-`gh` binary + real backoff | **old: 16 gh calls / 60s; fix: 4 / 15s** ✓ |
+| bash-injection launcher | real `bash` exec, adversarial `$()`/backtick path | **old launcher fired the injection (files created); fix did not** ✓ |
+| detached-worktree resume | real git repos, detached HEAD | **old `pull --ff-only` fails (exit 1); fix detects detached + `merge --ff-only` fast-forwards** ✓ |
+| forget tombstone (#4) | real-async dispatcher | **old: double-dispatch (2 runs); fix: 1 run** ✓ |
+| re-stage on throw (#5) | real-async dispatcher | **old: batch dropped; fix: re-staged + retried** ✓ |
+| `mergeable=UNKNOWN` | real exported `shouldReenrich` | UNKNOWN→refetch, settled→fast-path ✓ |
+| queued-overlay `pending` (#10/#12) | deterministic dispatcher test (browser timing too flaky) | `markFinished` carries `pending:true` while queued, `false` when drained ✓ |
+| branch-terminal `kind` (#11) | adapt unit tests | `kind` flows conflict/outOfSync through the action ✓ |
+
+**Still NOT live-driven (honest):** the `cleanup isWorking` guard (#9 — a 1-line poll-loop
+guard; needs a PR vanishing mid-worker to drive), the `#11` osascript Terminal opener
+end-to-end (spawns a desktop window), and the `#10/#12` *client* one-line filter
+(`if (prKey && !pending)`) — backend half is tested, client half is code-confirmed only.
+A live test of the readFile guard caught a real bug in that fix, so these residual
+one-liners are flagged rather than asserted as proven.

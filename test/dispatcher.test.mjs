@@ -95,3 +95,32 @@ test('forget() during a running worker keeps the lock (no double-dispatch)', asy
   release();
   await flush();
 });
+
+// #10/#12: markFinished must report whether a queued batch will run NEXT, so the client can
+// keep an optimistic "dispatched" overlay alive instead of snapping a still-applying approval
+// back to "Approve" when the PRIOR run finishes. The first finish (work queued mid-run) must
+// carry pending:true; the follow-up run's finish (nothing left) must carry pending:false.
+test('markFinished carries pending=true while a queued batch remains, false when drained', async () => {
+  const finishes = [];
+  let firstGate, release;
+  firstGate = new Promise((r) => { release = r; });
+  let call = 0;
+  dispatcher.init({
+    events: { markStarted() {}, markFinished(prKey, opts = {}) { finishes.push(!!opts.pending); }, notifyStateUpdated() {} },
+    ensureWorktree: async () => ({ path: '/tmp/wt', outOfSync: false }),
+    runWorker: async () => { call += 1; if (call === 1) await firstGate; return { spawned: true, code: 0 }; },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: () => {},
+  });
+  const pr = { repo: 'pend', number: 1, threads: [{ threadId: 'a' }, { threadId: 'b' }], branchHealth: {} };
+  dispatcher.enqueueApproved(pr, ['a'], {});           // worker A starts (gated)
+  await flush();
+  assert.equal(dispatcher.isWorking('pend#1'), true);
+  dispatcher.enqueueApproved(pr, ['b'], {});           // queue MORE while A runs
+  release();                                            // A finishes -> pending:true (b queued)
+  await flush(); await flush();                         // A's finally, then B runs+finishes
+  assert.deepEqual(finishes, [true, false]);           // A: queued batch pending; B: drained
+  dispatcher.forget('pend#1');
+});
