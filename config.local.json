@@ -1,0 +1,54 @@
+{
+  "_note": "Committed for setup convenience; config.local.json is in .gitignore. On your machine run: git rm --cached config.local.json (so local edits stop being tracked).",
+  "profile": "dev",
+  "cloneRoot": "/Users/ccunningham/cargurus",
+  "gitProtocol": "ssh",
+  "profiles": {
+    "prod": {
+      "host": "code.cargurus.com",
+      "owner": "cargurus-eng",
+      "login": "ccunningham",
+      "onlyPRs": [
+        "site-vdp-remix#835",
+        "cargurus-listings-ui#2129",
+        "site-vdp-remix#717"
+      ]
+    },
+    "dev": {
+      "host": "github.com",
+      "owner": "this-Cunningham",
+      "login": "this-Cunningham",
+      "onlyPRs": [
+        "pr-controller#1",
+        "pr-controller#2",
+        "pr-controller#3"
+      ]
+    },
+    "e2e": {
+      "host": "github.com",
+      "owner": "this-Cunningham",
+      "login": "this-Cunningham",
+      "onlyPRs": [
+        "pr-controller#8",
+        "pr-controller#9",
+        "pr-controller#10",
+        "pr-controller#11",
+        "pr-controller#12",
+        "pr-controller#13",
+        "pr-controller#15",
+        "pr-controller#16",
+        "pr-controller#18",
+        "pr-controller#19",
+        "pr-controller#20",
+        "pr-controller#21",
+        "pr-controller#22",
+        "pr-controller#23",
+        "pr-controller#24",
+        "pr-controller#25",
+        "pr-controller#26",
+        "pr-controller#27",
+        "pr-controller#28"
+      ]
+    }
+  }
+}
