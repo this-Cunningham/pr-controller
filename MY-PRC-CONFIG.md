@@ -33,3 +33,13 @@ gh auth status --hostname github.com        || gh auth login --hostname github.c
 ```bash
 PRC_PROFILE=prod node server.mjs    # or dev / e2e (default: the "profile" key above)
 ```
+
+## gotchas (hit while setting this up)
+- config.local.json is **gitignored** — `git add -f` to commit it. Once committed it's tracked, so
+  edits then show in `git status` (gitignore only hides *untracked* files); `git rm --cached config.local.json` to untrack.
+- **JSON only, no comments.** A parse error is logged (`[config] config.local.json failed to parse`)
+  and the file ignored — if your config seems to do nothing, check for a JSON typo.
+- **cloneRoot must be an absolute path** (no `~`). A wrong cloneRoot only bites at WORKER time
+  (clone/worktree), not at scan time — so scanning can look fine while workers can't clone.
+- The `profile` key picks the profile for a bare `node server.mjs`; `PRC_PROFILE=prod` switches it.
+- You can only test a profile whose host you're authed on / can reach (prod=cargurus won't scan from elsewhere).

@@ -2,15 +2,19 @@
 // the selected profile. With no login/scope, server.mjs serves the dashboard but won't scan.
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 const env = process.env;
 const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 const baseDir = new URL('.', import.meta.url).pathname;
 
-// Persistent local config: { profile?, profiles?: {name:{...}}, + flat field overrides }.
+// Persistent local config (config.local.json): { profile?, profiles?: {name:{...}}, + flat overrides }.
 let local = {};
-try { local = JSON.parse(readFileSync(join(baseDir, 'config.local.json'), 'utf8')); } catch {}
+const localPath = join(baseDir, 'config.local.json');
+if (existsSync(localPath)) {
+  try { local = JSON.parse(readFileSync(localPath, 'utf8')); }
+  catch (e) { console.error(`[config] config.local.json failed to parse — ignoring it (${e.message})`); }
+}
 
 // PRC_PROFILE (or PRC_DEV=1) selects a profile. Built-ins ship neutral; extend in config.local.json.profiles.
 const PROFILES = {
