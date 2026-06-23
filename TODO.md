@@ -144,4 +144,3 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
         restart-required (host→ghEnv, port, the pollMinutes interval, cloneRoot→repo-map).
 - [ ] add evals for the claude pr workers
 - [ ] figure out cloud-env startup script changes to accommodate our new config.local.json setup so we can run this in cloud sessions
-- [ ] cleanup the very thick comments or at least make them more concise. Run in ultracode and fan out and see if making the code more readable is an alternative, or maybe the code is already readable/clear in intent, and so we don't need a code comment. It just seems like we added code comments on literally every surface we touched in our e2e bug bash. Can also remove the prompt instructing the worker not to close/merge PRs since we have the PreToolUse hook block.
