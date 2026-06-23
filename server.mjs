@@ -263,10 +263,13 @@ const server = createServer(async (req, res) => {
     // unhandled promise rejection that CRASHES the whole daemon (Node v22) — and the
     // 503 guard above can't protect it because `hasDist` is latched at startup. A
     // `yarn build` rewriting dist/ mid-request (or any FS hiccup) would otherwise take
-    // the server down. Respond 500 instead. (Mirrors the /decision handler's hardening.)
+    // the server down. Read FIRST, then write the head — so a rejection leaves the
+    // response uncommitted and the catch can send a clean 500 (writing the head before
+    // the await would already have sent 200, making the 500 an ERR_HTTP_HEADERS_SENT).
     try {
+      const html = await readFile(join(DIST, 'index.html'));
       res.writeHead(200, { 'content-type': 'text/html' });
-      res.end(await readFile(join(DIST, 'index.html')));
+      res.end(html);
     } catch (e) {
       httpLog.error('serve index failed', e.message);
       try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
@@ -279,9 +282,11 @@ const server = createServer(async (req, res) => {
     if (existsSync(file)) {
       // TOCTOU + crash guard: the file can vanish between existsSync and readFile (a
       // mid-request rebuild), and an unguarded rejection here would crash the daemon.
+      // Read FIRST, then write the head, so the catch can send a clean 500.
       try {
+        const body = await readFile(file);
         res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' });
-        res.end(await readFile(file));
+        res.end(body);
       } catch (e) {
         httpLog.error('serve asset failed', e.message);
         try { res.writeHead(500, { 'content-type': 'text/plain' }); res.end('error'); } catch {}
