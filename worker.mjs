@@ -34,7 +34,7 @@ export async function getOrCreateSession(prKey) {
 // dispatch is concurrent across PRs, so racing load->mutate->write cycles would
 // lost-update — clobbering a freshly-minted UUID/lastSeenSha and stranding a session
 // `--resume` can no longer find. Mirrors withCloneLock in worktree.mjs.
-const swallow = () => {};   // ignore a settled promise's value/error
+const swallow = () => {};
 let sessionsTail = Promise.resolve();
 function withSessionsLock(fn) {
   const run = sessionsTail.then(fn, fn);   // run after the prior holder, resolved or not

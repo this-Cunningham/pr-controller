@@ -52,9 +52,8 @@ export function forget(prKey) {
   state.delete(prKey);
 }
 
-// Shared prologue for every enqueue path: resolve the PR's entry, fold in opts, and
-// clear the post-failure gate so maybeDrain retries (new work means the prior failure
-// is no longer the last word).
+// Shared prologue for every enqueue path. Clearing e.failed is the non-obvious bit:
+// new work means the prior failure isn't the last word, so let maybeDrain retry.
 function enqueueEntry(pr, opts) {
   const prKey = `${pr.repo}#${pr.number}`;
   const e = entry(prKey);
