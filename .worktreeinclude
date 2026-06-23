@@ -1,0 +1,5 @@
+# Files Claude Code copies into each new worktree (.gitignore syntax).
+# Only patterns that are ALSO gitignored get copied — tracked files are never duplicated.
+# This carries our local, machine-specific config into every worktree so the app runs there.
+# Docs: https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees
+config.local.json
