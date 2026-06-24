@@ -124,9 +124,17 @@ decide.
   not spacing alone.
 - **Shadows** — almost none; depth is tonal. Only the toast and the active segmented item
   carry a shadow.
-- **Motion** — minimal and soft: `ws-appear` (cards/confirmations), `ws-fadeup` (toast),
-  `ws-shimmer` (skeletons). Keyframes ship globally in `tokens/base.css`. Plain `ease`;
-  nothing springs.
+- **Motion** — minimal, soft, and fully tokenized (`tokens/effects.css`); nothing springs.
+  Easings by job: `--ease` (one-shot UI), `--ease-out` (entrances), `--ease-in-out` (symmetric
+  loops — pulse/breathe/shimmer), `--ease-linear` (rotation). Durations: `--dur-fast` (.28s,
+  fades), `--dur-card` (.3s, entrances), `--dur-slow` (.6s — the ceiling for any UI transition),
+  `--pulse` (1.6s, the live-dot period). One-shot keyframes ship globally in `tokens/base.css`
+  (`ws-appear` cards/confirmations, `ws-fadeup` toast, `ws-shimmer` skeletons, `ws-spin` while
+  refreshing); the ambient working/pending vocabulary is the **OrganicLoader** (show one, never
+  racing). A `prefers-reduced-motion: reduce` block collapses it all to near-instant — every
+  component's end-state is its base style. **Reach for motion only when an element arrives,
+  leaves, or is live**, and pick the token by its job, not its number; anything longer than
+  `--dur-slow` is ambient, not a transition — use OrganicLoader.
 - **Iconography** — no icon font. A tiny vocabulary of Unicode glyphs in the type
   (`⟳` refresh, `↳` annotation, `◆` marker, `✓` done) plus CSS shapes for status (a filled
   `--accent` dot = urgent, a sage dot = active, an open ensō = empty). No emoji.
