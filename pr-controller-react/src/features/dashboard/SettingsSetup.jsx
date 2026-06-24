@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Button } from '../../design-system/core/Button.jsx';
 import { Confirmation } from '../../design-system/feedback/Confirmation.jsx';
+import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import styles from './SettingsSetup.module.css';
+
+const THEME_KEY = 'pr-controller-theme';
 
 /**
  * Agent setup (Settings). Renders the daemon's server-authoritative `settings` and edits
@@ -145,6 +148,17 @@ export default function SettingsSetup({ settings, saveConfig }) {
           </div>
         </div>
         <span className={styles.connNote}>The agent skips your own comments.</span>
+      </section>
+
+      {/* APPEARANCE (theme — applies instantly, not part of Save) */}
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <span className={styles.eyebrow}>Appearance</span>
+        </div>
+        <p className={styles.sectionDesc}>The dashboard theme — applies instantly.</p>
+        <div className={styles.themeRow}>
+          <ThemeSwitcher onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ } }} />
+        </div>
       </section>
 
       {/* WHICH PRs TO WATCH (editable → onlyPRs) */}

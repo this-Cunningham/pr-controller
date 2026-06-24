@@ -24,7 +24,7 @@ export default function PollingToggle({ on, winding, workingCount = 0, onToggle 
           {state === 'on' && <span className={styles.dot} />}
           {state === 'winding' && <OrganicLoader variant="stones" size={30} />}
         </span>
-        <Toggle checked={on} onChange={() => onToggle()} ariaLabel={`Actively working — ${on ? 'on' : 'off'}`} />
+        <Toggle checked={on} disabled={winding} onChange={() => onToggle()} ariaLabel={`Actively working — ${on ? 'on' : 'off'}`} />
       </span>
       <span className={styles.secondary} data-state={state}>{secondary}</span>
     </div>

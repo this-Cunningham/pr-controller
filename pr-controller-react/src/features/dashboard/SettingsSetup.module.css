@@ -397,3 +397,8 @@
   font-size: var(--text-caption);
   color: var(--ink-3);
 }
+
+/* theme picker row (relocated from the header) */
+.themeRow {
+  margin-top: var(--space-3);
+}
