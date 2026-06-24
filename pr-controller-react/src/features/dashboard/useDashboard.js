@@ -55,6 +55,9 @@ export function useDashboard(seed = null) {
   // The gh account PR discovery ran as (@me), from state.json — shown in the empty state so a
   // scope/auth mismatch (0 PRs, scanned as the wrong account) reads differently from a true all-clear.
   const [account, setAccount] = useState(seed?.account || null);
+  // The daemon's arm switch (from state.json). false until a human turns polling on, and
+  // false again after every daemon restart. The header renders this + flips it via /polling.
+  const [pollingEnabled, setPollingEnabled] = useState(seed?.pollingEnabled ?? false);
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
   // Branch-health interaction state, keyed by PR id: { status: 'idle'|'discussing' }.
@@ -91,6 +94,7 @@ export function useDashboard(seed = null) {
     setScope(adapted.scope);
     setLastPollError(adapted.lastPollError ?? null);
     setAccount(adapted.account ?? null);
+    setPollingEnabled(adapted.pollingEnabled ?? false);
     // thread id -> prKey, so user actions can address the backend. Built from the
     // raw PRs (every thread is present once here, regardless of which tab it routes
     // to) — a per-lane slice would only see a subset.
@@ -383,6 +387,31 @@ export function useDashboard(seed = null) {
     }
   }, [seeded, fetchState, showToast]);
 
+  // Arm switch: turn the daemon's poll/dispatch loop on (first scan now + interval) or
+  // off (stop the interval; in-flight workers finish). Server-authoritative — we POST
+  // the desired state and reconcile pollingEnabled from the response (the server also
+  // nudges an SSE state-updated + we refetch). Optimistic flip so the button responds
+  // instantly; reverted if the backend is unreachable.
+  const togglePolling = useCallback(async () => {
+    if (seeded) return;
+    const next = !pollingEnabled;
+    setPollingEnabled(next);
+    showToast(next ? 'Polling on — scanning now…' : 'Polling off');
+    try {
+      const res = await fetch('/polling', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ on: next }),
+      });
+      const r = await res.json();
+      setPollingEnabled(!!r?.pollingEnabled);
+      setTimeout(fetchState, next ? 4000 : 500);
+    } catch {
+      setPollingEnabled(!next);
+      showToast('Could not reach the agent backend');
+    }
+  }, [seeded, pollingEnabled, fetchState, showToast]);
+
   return {
     // scope badge: [] = live on all PRs, a list = restricted to those PR keys
     scope,
@@ -392,6 +421,8 @@ export function useDashboard(seed = null) {
     updated,
     lastPollError,
     account,
+    pollingEnabled,
+    togglePolling,
     toastMsg,
     setTab,
     lanes,

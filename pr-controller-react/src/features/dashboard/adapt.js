@@ -231,5 +231,8 @@ export function adaptState(state) {
     // null when the last scan succeeded; { at, message } when the daemon's poll failed
     // (so the dashboard can show a scan-failing indicator instead of a false all-clear).
     lastPollError: state?.lastPollError || null,
+    // The daemon's arm switch — false until a human turns polling on (and false again
+    // after every restart). The header renders this and POSTs /polling to flip it.
+    pollingEnabled: state?.pollingEnabled ?? false,
   };
 }
