@@ -66,3 +66,9 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
         restart-required (host→ghEnv, port, the pollMinutes interval, cloneRoot→repo-map).
 - [ ] add evals for the claude pr workers
 - [ ] figure out cloud-env startup script changes to accommodate our new config.local.json setup so we can run this in cloud sessions
+- [ ] ability to restart the daemon via the ui?
+      The daemon serves its own UI, so it can't restart itself unsupervised — it needs a supervisor
+      that relaunches on exit (launchd on macOS, or pm2), a `POST /restart` endpoint (write
+      config.local.json → `process.exit(0)`), and a reconnect-after-restart UX (the React app
+      already has SSE auto-reconnect + /state.json polling). This is the blocker for the
+      restart-required settings-panel fields (host, port, clone folder, ssh/https) — see TODO_UX.md.
