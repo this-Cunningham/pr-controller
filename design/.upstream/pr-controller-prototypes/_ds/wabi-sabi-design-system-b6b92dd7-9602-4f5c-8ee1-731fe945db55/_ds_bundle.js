@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":3,"namespace":"DesignSystem_220c99","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Callout","sourcePath":"components/core/Callout.jsx"},{"name":"DispositionTag","sourcePath":"components/core/DispositionTag.jsx"},{"name":"TextButton","sourcePath":"components/core/TextButton.jsx"},{"name":"ThemeSwitcher","sourcePath":"components/core/ThemeSwitcher.jsx"},{"name":"Confirmation","sourcePath":"components/feedback/Confirmation.jsx"},{"name":"EmptyState","sourcePath":"components/feedback/EmptyState.jsx"},{"name":"OrganicLoader","sourcePath":"components/feedback/OrganicLoader.jsx"},{"name":"ORGANIC_LOADER_VARIANTS","sourcePath":"components/feedback/OrganicLoader.jsx"},{"name":"Skeleton","sourcePath":"components/feedback/Skeleton.jsx"},{"name":"Toast","sourcePath":"components/feedback/Toast.jsx"},{"name":"ScopeBadge","sourcePath":"components/navigation/ScopeBadge.jsx"},{"name":"Tabs","sourcePath":"components/navigation/Tabs.jsx"}],"sourceHashes":{"components/core/Badge.jsx":"cf9123c92f9f","components/core/Button.jsx":"9133a55abe22","components/core/Callout.jsx":"5cf5c0ee27ff","components/core/DispositionTag.jsx":"253f5312dd69","components/core/TextButton.jsx":"6da76c4579a2","components/core/ThemeSwitcher.jsx":"c19d5289dd65","components/feedback/Confirmation.jsx":"9c81dd82ed06","components/feedback/EmptyState.jsx":"ee1bbe09729e","components/feedback/OrganicLoader.jsx":"1228cfeae5f2","components/feedback/Skeleton.jsx":"22537c52e63c","components/feedback/Toast.jsx":"dcafec14413a","components/navigation/ScopeBadge.jsx":"dccad81e40e0","components/navigation/Tabs.jsx":"2162b64f8691"},"inlinedExternals":[],"unexposedExports":[]} */
+/* @ds-bundle: {"format":3,"namespace":"DesignSystem_220c99","components":[{"name":"Badge","sourcePath":"components/core/Badge.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Callout","sourcePath":"components/core/Callout.jsx"},{"name":"DispositionTag","sourcePath":"components/core/DispositionTag.jsx"},{"name":"TextButton","sourcePath":"components/core/TextButton.jsx"},{"name":"ThemeSwitcher","sourcePath":"components/core/ThemeSwitcher.jsx"},{"name":"Toggle","sourcePath":"components/core/Toggle.jsx"},{"name":"Confirmation","sourcePath":"components/feedback/Confirmation.jsx"},{"name":"EmptyState","sourcePath":"components/feedback/EmptyState.jsx"},{"name":"OrganicLoader","sourcePath":"components/feedback/OrganicLoader.jsx"},{"name":"ORGANIC_LOADER_VARIANTS","sourcePath":"components/feedback/OrganicLoader.jsx"},{"name":"Skeleton","sourcePath":"components/feedback/Skeleton.jsx"},{"name":"Toast","sourcePath":"components/feedback/Toast.jsx"},{"name":"ScopeBadge","sourcePath":"components/navigation/ScopeBadge.jsx"},{"name":"Tabs","sourcePath":"components/navigation/Tabs.jsx"}],"sourceHashes":{"components/core/Badge.jsx":"cf9123c92f9f","components/core/Button.jsx":"9133a55abe22","components/core/Callout.jsx":"5cf5c0ee27ff","components/core/DispositionTag.jsx":"253f5312dd69","components/core/TextButton.jsx":"6da76c4579a2","components/core/ThemeSwitcher.jsx":"c19d5289dd65","components/core/Toggle.jsx":"323769b914fe","components/feedback/Confirmation.jsx":"9c81dd82ed06","components/feedback/EmptyState.jsx":"ee1bbe09729e","components/feedback/OrganicLoader.jsx":"1228cfeae5f2","components/feedback/Skeleton.jsx":"22537c52e63c","components/feedback/Toast.jsx":"dcafec14413a","components/navigation/ScopeBadge.jsx":"dccad81e40e0","components/navigation/Tabs.jsx":"2162b64f8691"},"inlinedExternals":[],"unexposedExports":[]} */
 
 (() => {
 
@@ -386,6 +386,109 @@ function ThemeSwitcher({
 }
 Object.assign(__ds_scope, { ThemeSwitcher });
 })(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/ThemeSwitcher.jsx", error: String((e && e.message) || e) }); }
+
+// components/core/Toggle.jsx
+try { (() => {
+/**
+ * Binary on/off switch. Controlled via `checked` + `onChange`, or
+ * left uncontrolled (manages its own state). `disabled` renders a
+ * de-emphasized dashed track that ignores input. The "on" track uses
+ * the sage auto-fg; "off" is a quiet filled surface with a hairline.
+ */
+function Toggle({
+  checked,
+  defaultChecked = false,
+  onChange,
+  disabled = false,
+  label,
+  id
+}) {
+  const isControlled = checked !== undefined;
+  const [internal, setInternal] = React.useState(defaultChecked);
+  const on = isControlled ? checked : internal;
+  const toggle = () => {
+    if (disabled) return;
+    const next = !on;
+    if (!isControlled) setInternal(next);
+    onChange && onChange(next);
+  };
+  const state = disabled ? "disabled" : on ? "on" : "off";
+  const track = {
+    on: {
+      background: "var(--auto-fg)",
+      border: "1px solid var(--auto-fg)"
+    },
+    off: {
+      background: "var(--surface-2)",
+      border: "1px solid var(--line-2)"
+    },
+    disabled: {
+      background: "transparent",
+      border: "1px dashed var(--line-2)"
+    }
+  }[state];
+  const knob = {
+    on: {
+      left: 19,
+      background: "var(--bg)",
+      boxShadow: "var(--shadow-1, 0 1px 2px rgba(0,0,0,.18))"
+    },
+    off: {
+      left: 3,
+      background: "var(--ink-3)",
+      boxShadow: "var(--shadow-1, 0 1px 2px rgba(0,0,0,.18))"
+    },
+    disabled: {
+      left: 3,
+      background: "var(--line-2)",
+      boxShadow: "none"
+    }
+  }[state];
+  const sw = /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "switch",
+    id: id,
+    "aria-checked": on,
+    "aria-disabled": disabled || undefined,
+    onClick: toggle,
+    style: {
+      position: "relative",
+      width: 38,
+      height: 22,
+      flex: "none",
+      padding: 0,
+      borderRadius: 999,
+      cursor: disabled ? "not-allowed" : "pointer",
+      opacity: disabled ? 0.55 : 1,
+      transition: "background .18s ease, border-color .18s ease",
+      ...track
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "absolute",
+      top: 2,
+      width: 16,
+      height: 16,
+      borderRadius: "50%",
+      transition: "left .18s ease",
+      ...knob
+    }
+  }));
+  if (!label) return sw;
+  return /*#__PURE__*/React.createElement("label", {
+    htmlFor: id,
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 10,
+      cursor: disabled ? "not-allowed" : "pointer",
+      font: "500 13px var(--font-sans)",
+      color: disabled ? "var(--ink-3)" : "var(--ink-2)"
+    }
+  }, sw, label);
+}
+Object.assign(__ds_scope, { Toggle });
+})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Toggle.jsx", error: String((e && e.message) || e) }); }
 
 // components/feedback/Confirmation.jsx
 try { (() => {
@@ -1020,6 +1123,8 @@ __ds_ns.DispositionTag = __ds_scope.DispositionTag;
 __ds_ns.TextButton = __ds_scope.TextButton;
 
 __ds_ns.ThemeSwitcher = __ds_scope.ThemeSwitcher;
+
+__ds_ns.Toggle = __ds_scope.Toggle;
 
 __ds_ns.Confirmation = __ds_scope.Confirmation;
 
