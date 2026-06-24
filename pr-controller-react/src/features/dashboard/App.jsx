@@ -2,6 +2,7 @@ import { useDashboard } from './useDashboard.js';
 import { cardProps, threadProps } from './cardProps.js';
 import GrainOverlay from './GrainOverlay.jsx';
 import Header from './Header.jsx';
+import Settings from './Settings.jsx';
 import { Tabs } from '../../design-system/navigation/Tabs.jsx';
 import { PRCard } from './PRCard.jsx';
 import { Skeleton } from '../../design-system/feedback/Skeleton.jsx';
@@ -99,6 +100,14 @@ export default function App() {
         <Dashboard dash={dash} />
       </div>
       <Toast message={dash.toastMsg} />
+      {dash.settingsOpen && (
+        <Settings
+          settings={dash.settings}
+          sensitivityLevels={dash.sensitivityLevels}
+          saveConfig={dash.saveConfig}
+          onClose={dash.closeSettings}
+        />
+      )}
     </div>
   );
 }

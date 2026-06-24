@@ -54,3 +54,24 @@
   display: inline-block;
   margin-right: 8px; /* off-scale */
 }
+
+/* Settings gear — square icon button matching the control row. */
+.gear {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; /* off-scale */
+  height: 36px; /* off-scale */
+  font-size: 15px; /* off-scale */
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.gear:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}

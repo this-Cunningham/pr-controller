@@ -58,6 +58,11 @@ export function useDashboard(seed = null) {
   // The daemon's arm switch (from state.json). false until a human turns polling on, and
   // false again after every daemon restart. The header renders this + flips it via /polling.
   const [pollingEnabled, setPollingEnabled] = useState(seed?.pollingEnabled ?? false);
+  // Server-authoritative config + worker-sensitivity levels (state.json). The Settings
+  // overlay renders these and POSTs /config to edit. settingsOpen is local UI state only.
+  const [settings, setSettings] = useState(seed?.settings || null);
+  const [sensitivityLevels, setSensitivityLevels] = useState(seed?.sensitivityLevels || []);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
   // Branch-health interaction state, keyed by PR id: { status: 'idle'|'discussing' }.
@@ -95,6 +100,8 @@ export function useDashboard(seed = null) {
     setLastPollError(adapted.lastPollError ?? null);
     setAccount(adapted.account ?? null);
     setPollingEnabled(adapted.pollingEnabled ?? false);
+    if (adapted.settings) setSettings(adapted.settings);
+    if (adapted.sensitivityLevels?.length) setSensitivityLevels(adapted.sensitivityLevels);
     // thread id -> prKey, so user actions can address the backend. Built from the
     // raw PRs (every thread is present once here, regardless of which tab it routes
     // to) — a per-lane slice would only see a subset.
@@ -412,6 +419,29 @@ export function useDashboard(seed = null) {
     }
   }, [seeded, pollingEnabled, fetchState, showToast]);
 
+  // Settings overlay open/close (local UI state — the config it edits is server-authoritative).
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
+  // Save Settings edits: POST the changed fields to /config; the daemon applies them live +
+  // persists them, and echoes the authoritative settings back (which we adopt). Returns the
+  // response so the caller can show a saved/again confirmation.
+  const saveConfig = useCallback(async (edits) => {
+    if (seeded) return { ok: false };
+    try {
+      const res = await fetch('/config', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(edits),
+      });
+      const r = await res.json();
+      if (r?.settings) setSettings(r.settings);
+      setTimeout(fetchState, 600);
+      return r;
+    } catch {
+      showToast('Could not reach the agent backend');
+      return { ok: false };
+    }
+  }, [seeded, fetchState, showToast]);
+
   return {
     // scope badge: [] = live on all PRs, a list = restricted to those PR keys
     scope,
@@ -423,6 +453,14 @@ export function useDashboard(seed = null) {
     account,
     pollingEnabled,
     togglePolling,
+    // how many workers are still running — drives the toggle's "winding down" state when off
+    workingCount: workingPRs.size,
+    settings,
+    sensitivityLevels,
+    settingsOpen,
+    openSettings,
+    closeSettings,
+    saveConfig,
     toastMsg,
     setTab,
     lanes,

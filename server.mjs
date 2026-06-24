@@ -15,6 +15,7 @@ import { deriveRecord } from './derive.mjs';
 import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
+import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
@@ -111,6 +112,28 @@ async function deriveAndSetPrFields(pr) {
   }
 }
 
+// The config the Settings panel renders (server-authoritative): the editable fields it
+// writes back via POST /config, plus read-only context it displays. Shipped in state.json
+// so the React app just renders + POSTs — it derives no config. NO secrets: only the
+// non-secret trigger PHRASES and check categorization, never auth tokens.
+function buildSettings() {
+  return {
+    // editable (POST /config)
+    onlyPRs: config.onlyPRs || [],
+    pollMinutes: config.pollMinutes,
+    workerModel: config.workerModel,
+    workerSensitivity: config.workerSensitivity,
+    // display-only context
+    account,
+    login: config.login,
+    host: config.host,
+    triggerToken: config.triggerToken,
+    debugToken: config.debugToken,
+    complianceChecks: config.complianceChecks,
+    ignoreChecks: config.ignoreChecks,
+  };
+}
+
 async function writeState(prs) {
   // Server-authoritative tab routing: the daemon owns which lane each item of a PR
   // belongs to and ships a flat list of (prKey, lane, subject) rows — a PR in
@@ -134,6 +157,8 @@ async function writeState(prs) {
     placements,
     lastPollError,   // null when the last scan succeeded; { at, message } on failure
     pollingEnabled,  // the arm switch — the dashboard renders/flips it (off until a human turns it on)
+    settings: buildSettings(),       // editable + display config for the Settings panel
+    sensitivityLevels: SENSITIVITY_LEVELS,  // static; the Worker-sensitivity slider renders these
   };
   await mkdir(DATA, { recursive: true });
   await writeFile(STATE, JSON.stringify(state, null, 2));
@@ -271,6 +296,56 @@ async function stopPolling() {
   events.notifyStateUpdated();
 }
 
+// Models the Settings panel offers (Fast/Balanced/Deep map to these). Anything else is rejected.
+const VALID_WORKER_MODELS = new Set(['haiku', 'sonnet', 'opus']);
+
+// Apply Settings-panel edits server-authoritatively: validate, mutate the in-memory config
+// so they take effect LIVE (onlyPRs is read each poll; pollMinutes re-arms the interval;
+// workerModel/workerSensitivity are read at the next dispatch — existing sessions keep their
+// model, new ones pick it up), and persist to config.local.json so a restart keeps them.
+// Host/port/clone settings are NOT editable here — those bind at startup (see TODO_UX).
+async function applyConfigEdits(edits) {
+  const changed = [];
+  if (Array.isArray(edits.onlyPRs)) {
+    // Keep only well-formed "repo#number" keys; [] = watch ALL open PRs (the circuit-breaker off).
+    config.onlyPRs = edits.onlyPRs.map((s) => String(s).trim()).filter((s) => /^[^#\s]+#\d+$/.test(s));
+    changed.push('onlyPRs');
+  }
+  let pollChanged = false;
+  if (edits.pollMinutes != null && Number.isFinite(Number(edits.pollMinutes))) {
+    const m = Math.max(1, Math.min(1440, Math.round(Number(edits.pollMinutes))));
+    if (m !== config.pollMinutes) { config.pollMinutes = m; pollChanged = true; }
+    changed.push('pollMinutes');
+  }
+  if (typeof edits.workerModel === 'string' && VALID_WORKER_MODELS.has(edits.workerModel)) {
+    config.workerModel = edits.workerModel; changed.push('workerModel');
+  }
+  if (edits.workerSensitivity != null) {
+    config.workerSensitivity = clampSensitivity(edits.workerSensitivity); changed.push('workerSensitivity');
+  }
+  // Re-arm the interval so a new cadence applies immediately — but ONLY while polling is on
+  // (pollTimer set). If off, startPolling() reads the new value when the user next arms it.
+  if (pollChanged && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(poll, config.pollMinutes * 60 * 1000);
+  }
+  await persistConfigLocal({
+    onlyPRs: config.onlyPRs, pollMinutes: config.pollMinutes,
+    workerModel: config.workerModel, workerSensitivity: config.workerSensitivity,
+  });
+  return changed;
+}
+
+// Merge the edited flat keys into config.local.json, PRESERVING everything else (profile,
+// profiles, and any other top-level keys). config.mjs reads these flat keys ABOVE the
+// profile (env > file > profile), so the edits survive a restart.
+async function persistConfigLocal(flat) {
+  const path = join(config.baseDir, 'config.local.json');
+  let existing = {};
+  try { existing = JSON.parse(await readFile(path, 'utf8')); } catch {}
+  await writeFile(path, JSON.stringify({ ...existing, ...flat }, null, 2) + '\n');
+}
+
 async function recordDecision(payload) {
   // Ensure data/ exists before writing: if the very first poll failed (GitHub
   // unreachable at startup), writeState() never ran and data/ was never created,
@@ -365,6 +440,27 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true, pollingEnabled }));
       } catch (e) {
         httpLog.error('/polling failed', e.message);
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e.message || e) }));
+      }
+    });
+    return;
+  }
+  // Settings panel save: edit the daemon's config (scope / cadence / model / sensitivity).
+  // Server-authoritative — applies live in-memory + persists to config.local.json. The
+  // dashboard renders current values from state.json's `settings` and POSTs the desired ones.
+  if (req.method === 'POST' && url.pathname === '/config') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const changed = await applyConfigEdits(JSON.parse(body || '{}'));
+        await writeState(state.prs);
+        events.notifyStateUpdated();
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, changed, settings: buildSettings() }));
+      } catch (e) {
+        httpLog.error('/config failed', e.message);
         res.writeHead(500, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: String(e.message || e) }));
       }

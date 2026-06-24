@@ -1,13 +1,17 @@
 import { ScopeBadge } from '../../design-system/navigation/ScopeBadge.jsx';
 import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import { Button } from '../../design-system/core/Button.jsx';
+import PollingToggle from './PollingToggle.jsx';
 import styles from './Header.module.css';
 
 const THEME_KEY = 'pr-controller-theme';
 
 export default function Header({ dash }) {
-  const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, runPoll, lastPollError, pollingEnabled, togglePolling } = dash;
+  const { scope, explainScope, refresh, refreshing, updated, openCount, needCount, lastPollError,
+    pollingEnabled, togglePolling, workingCount, openSettings } = dash;
   const scoped = (scope || []).length > 0;
+  // "Winding down": switched off but workers are still finishing (the let-in-flight-finish state).
+  const winding = !pollingEnabled && workingCount > 0;
 
   return (
     <header className={styles.header}>
@@ -30,25 +34,23 @@ export default function Header({ dash }) {
       </div>
 
       <div className={styles.controls}>
-        {/* Arm switch: the daemon does NOT scan or dispatch workers until this is on,
-            and it's off again after every restart. Server-authoritative — togglePolling
-            POSTs /polling; pollingEnabled comes back from state.json. (A plain Button for
-            now; the polished toggle visual will come from the design-system pass.) */}
-        <Button variant={pollingEnabled ? 'outline' : 'primary'} onClick={togglePolling}>
-          {pollingEnabled ? 'Stop polling' : 'Start polling'}
-        </Button>
+        {/* Arm switch (server-authoritative): the daemon doesn't scan or dispatch until this
+            is on, and it's off again after every restart. togglePolling POSTs /polling;
+            pollingEnabled comes back from state.json. Switching off lets in-flight workers
+            finish (the "winding down" state). */}
+        <PollingToggle on={pollingEnabled} winding={winding} workingCount={workingCount} onToggle={togglePolling} />
 
         {/* 6-theme picker; persists the choice so a reload keeps it. ThemeSwitcher
             writes <html data-theme>, which retints every token. */}
         <ThemeSwitcher onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch {} }} />
 
-        {/* TEMP (debug): trigger a backend poll instead of waiting for the poll timer. */}
-        <Button variant="ghost" onClick={runPoll}>Run poll</Button>
-
         <Button variant="outline" onClick={refresh}>
           <span className={`${styles.refreshIcon}${refreshing ? ' ws-spin' : ''}`}>⟳</span>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </Button>
+
+        {/* Settings overlay (scope / cadence / model / worker sensitivity). */}
+        <button type="button" className={styles.gear} onClick={openSettings} aria-label="Settings" title="Settings">⚙</button>
       </div>
     </header>
   );

@@ -8,6 +8,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
+import { DEFAULT_SENSITIVITY, clampSensitivity } from './sensitivity.mjs';
 
 const env = process.env;
 const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
@@ -61,6 +62,12 @@ export const config = {
   triggerToken: '@claude-plz-fix',
   debugToken: '@claude-debug',
   workerModel: env.PRC_WORKER_MODEL || local.workerModel || 'sonnet',       // PRC_WORKER_MODEL
+
+  // Worker sensitivity dial (0=surface everything … 4=fully autonomous; default 2).
+  // Tunes the instruction injected into every worker run (see sensitivity.mjs). Editable
+  // live from the dashboard (Settings → Worker sensitivity, POST /config). 0 is a valid
+  // (falsy) level, so resolve with ?? not || — and clamp so a bad value can't wedge dispatch.
+  workerSensitivity: clampSensitivity(env.PRC_WORKER_SENSITIVITY ?? local.workerSensitivity ?? DEFAULT_SENSITIVITY),
 
   baseDir,
 };

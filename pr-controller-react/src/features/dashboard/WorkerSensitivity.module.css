@@ -1,0 +1,243 @@
+/* Worker-sensitivity dial. Embeddable (no centering / min-height — a parent overlay
+   provides the frame). Control-specific dimensions (slider track/thumb/notch sizes) live
+   here as raw px; every color/font resolves through a design-system var() token. Dynamic
+   state rides on the JSX as data-attrs / the one allowed inline % (fill width, thumb left). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+.headingText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-section);
+  line-height: var(--leading-title);
+  color: var(--ink);
+}
+.desc {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  max-width: 56ch;
+}
+
+/* SLIDER */
+.sliderBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.track {
+  position: relative;
+  height: 34px;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.track:focus-visible {
+  border-radius: var(--radius-control);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+/* base rail — centered vertically in the 34px track */
+.rail {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: var(--line-2);
+}
+.fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: var(--auto-fg);
+  transition: width 0.18s var(--ease);
+}
+/* tick notch at each level position — centered on its % via translateX(-50%) */
+.tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 9px;
+  margin-top: -4.5px;
+  background: var(--ink-3);
+  opacity: 0.5;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+/* round seal thumb — sits on the rail, centered on its % */
+.thumb {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--line-2);
+  transform: translateX(-50%);
+  transition: left 0.18s var(--ease);
+  pointer-events: none;
+}
+.railLabels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-tag);
+  color: var(--ink-3);
+}
+
+/* CURRENT SELECTION */
+.current {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line);
+}
+.currentHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.levelName {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-section);
+  color: var(--ink);
+}
+.tagline {
+  font-size: 13.5px;
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+}
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.colEyebrowHandles,
+.colEyebrowSurfaces {
+  font-family: var(--font-mono);
+  font-size: var(--text-tag);
+  letter-spacing: var(--tracking-tag);
+  text-transform: uppercase;
+}
+.colEyebrowHandles {
+  color: var(--auto-fg);
+}
+.colEyebrowSurfaces {
+  color: var(--accent);
+}
+.itemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.markHandles {
+  flex: none;
+  color: var(--auto-fg);
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+}
+.markSurfaces {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+}
+.itemText {
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  color: var(--ink);
+}
+
+/* PROMPT PREVIEW */
+.promptBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.promptBox {
+  margin: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 13px 15px;
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
+/* HARD-FLOOR NOTE */
+.floorNote {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-body);
+  color: var(--ink-3);
+}
+.floorMark {
+  flex: none;
+  color: var(--accent);
+}
+
+/* ACTIONS */
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.dirtyHint {
+  font-style: italic;
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+}

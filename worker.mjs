@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
 import { validateWorkerResult } from './rules.mjs';
+import { sensitivityPrompt } from './sensitivity.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
@@ -143,6 +144,11 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   const threadsBlock = newThreads.length
     ? `${threadsHeading}\n${JSON.stringify(newThreads, null, 2)}`
     : `\n## No new review threads this run — you were dispatched for branch health only.`;
+  // Worker-sensitivity dial (config.workerSensitivity, set live from Settings): tunes how
+  // much this run resolves itself vs. surfaces. Injected EVERY run (new + resume) so a
+  // changed level takes effect on the next dispatch; the level's own text restates the
+  // rebase floor so a high level can't read as "ignore the floor". See sensitivity.mjs.
+  const sensBlock = `\n## How much to surface vs. handle yourself\n${sensitivityPrompt(config.workerSensitivity)}`;
   const task = [
     ...head,
     `\n## This task`,
@@ -150,6 +156,7 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     `Worktree: ${worktreePath}`,
     pushNote.trimStart(),
     `Write your result JSON to: ${outPath}`,
+    sensBlock,
     healthBlock,
     threadsBlock,
   ].join('\n');

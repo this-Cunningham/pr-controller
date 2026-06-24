@@ -1,0 +1,90 @@
+/* The header arm switch. Dimensions are control-specific (not on the spacing scale), so
+   they live here as raw px — the design-system token rule covers colors/fonts, which all
+   resolve through var(). State is carried on data-state so the JSX stays style-free. */
+.toggle {
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  flex: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+}
+
+/* fixed-width slot so the track doesn't shift when the dot / loader appears */
+.indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+}
+
+/* the breathing "alive" dot, shown only when on */
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--auto-fg);
+  animation: ws-breathe var(--pulse) var(--ease-in-out) infinite;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  box-sizing: border-box;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.track[data-state='on'] {
+  background: var(--auto-fg);
+  border: 1px solid var(--auto-fg);
+}
+.track[data-state='off'],
+.track[data-state='winding'] {
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  transition: left var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.knob[data-state='on'] {
+  left: 23px;
+  border-color: transparent;
+}
+
+.secondary {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-pill);
+  text-align: right;
+  transition: color var(--dur-fast) var(--ease);
+}
+.secondary[data-state='on'],
+.secondary[data-state='winding'] {
+  color: var(--ink-2);
+}
+.secondary[data-state='off'] {
+  color: var(--ink-3);
+}
