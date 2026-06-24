@@ -1,0 +1,67 @@
+/* Binary on/off switch. Control-specific dimensions (38×22 track, 16px knob) live here
+   as raw px; all colors/motion resolve through tokens. State rides on data-state so the
+   JSX stays style-free. Matches the design-system Toggle spec (on/off/disabled). */
+.track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.track[data-state='on'] {
+  background: var(--auto-fg);
+  border: 1px solid var(--auto-fg);
+}
+.track[data-state='off'] {
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+}
+.track[data-state='disabled'] {
+  background: transparent;
+  border: 1px dashed var(--line-2);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-seg);
+  transition: left var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.knob[data-state='on'] {
+  left: 19px;
+  background: var(--bg);
+}
+.knob[data-state='off'] {
+  left: 3px;
+  background: var(--ink-3);
+}
+.knob[data-state='disabled'] {
+  left: 3px;
+  background: var(--line-2);
+  box-shadow: none;
+}
+
+/* switch-plus-text row (when `label` is passed) */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+}
+.label[data-disabled] {
+  cursor: not-allowed;
+  color: var(--ink-3);
+}

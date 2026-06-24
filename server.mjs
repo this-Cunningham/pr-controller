@@ -15,6 +15,7 @@ import { deriveRecord } from './derive.mjs';
 import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
+import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
@@ -51,7 +52,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2',
   '.png': 'image/png', '.ico': 'image/x-icon' };
 
-let state = { updatedAt: null, scope: config.onlyPRs || [], prs: [] };
+let state = { updatedAt: null, scope: config.onlyPRs || [], prs: [], pollingEnabled: false };
 // prKey -> Set of "threadId:lastCommentId" seen last poll, for diff detection.
 const seen = new Map();
 // prKeys whose worktree could not fast-forward on the last dispatch (the branch
@@ -71,6 +72,12 @@ const agentErrorPRs = new Map();
 let lastPollError = null;
 // Guard so the interval timer and a manual /poll can't run poll() concurrently.
 let polling = false;
+// Server-authoritative arm switch. The daemon does NOT poll/dispatch until a human
+// turns this on from the dashboard; it ALWAYS starts false (never persisted) so a
+// restart can't silently resume acting on PRs. `pollTimer` holds the setInterval
+// handle so stopPolling() can clear it. See startPolling()/stopPolling().
+let pollingEnabled = false;
+let pollTimer = null;
 // The gh-authenticated account (`gh api user`), resolved once at startup. PR discovery is
 // `--author @me` = this account (NOT config.login), so we surface it in state.json + logs as
 // scan provenance — an empty board reads very differently once you can see WHO was scanned.
@@ -105,6 +112,28 @@ async function deriveAndSetPrFields(pr) {
   }
 }
 
+// The config the Settings panel renders (server-authoritative): the editable fields it
+// writes back via POST /config, plus read-only context it displays. Shipped in state.json
+// so the React app just renders + POSTs — it derives no config. NO secrets: only the
+// non-secret trigger PHRASES and check categorization, never auth tokens.
+function buildSettings() {
+  return {
+    // editable (POST /config)
+    onlyPRs: config.onlyPRs || [],
+    pollMinutes: config.pollMinutes,
+    workerModel: config.workerModel,
+    workerSensitivity: config.workerSensitivity,
+    // display-only context
+    account,
+    login: config.login,
+    host: config.host,
+    triggerToken: config.triggerToken,
+    debugToken: config.debugToken,
+    complianceChecks: config.complianceChecks,
+    ignoreChecks: config.ignoreChecks,
+  };
+}
+
 async function writeState(prs) {
   // Server-authoritative tab routing: the daemon owns which lane each item of a PR
   // belongs to and ships a flat list of (prKey, lane, subject) rows — a PR in
@@ -127,6 +156,9 @@ async function writeState(prs) {
     prs,
     placements,
     lastPollError,   // null when the last scan succeeded; { at, message } on failure
+    pollingEnabled,  // the arm switch — the dashboard renders/flips it (off until a human turns it on)
+    settings: buildSettings(),       // editable + display config for the Settings panel
+    sensitivityLevels: SENSITIVITY_LEVELS,  // static; the Worker-sensitivity slider renders these
   };
   await mkdir(DATA, { recursive: true });
   await writeFile(STATE, JSON.stringify(state, null, 2));
@@ -238,6 +270,82 @@ async function poll() {
   }
 }
 
+// Arm the daemon: run the first cycle now and then on the interval. Idempotent — a
+// second arm while already running is a no-op (so a double-click can't stack timers).
+// poll() is fire-and-forget here: it can take minutes when it dispatches workers, and
+// the caller (the HTTP handler) must respond immediately. persist() + notify so the
+// dashboard reflects the new state right away (not only after the first scan lands).
+async function startPolling() {
+  if (pollTimer) return;
+  pollingEnabled = true;
+  try { await writeState(state.prs); } catch (e) { log.error('persist on start failed', e.message); }
+  events.notifyStateUpdated();
+  poll();
+  pollTimer = setInterval(poll, config.pollMinutes * 60 * 1000);
+}
+
+// Disarm: stop the interval so no NEW scans/dispatches happen. A worker already
+// mid-run is intentionally left to finish (aborting it would corrupt its worktree/
+// session); it refreshes its card on exit as usual. Idempotent.
+async function stopPolling() {
+  if (!pollTimer) { pollingEnabled = false; return; }
+  clearInterval(pollTimer);
+  pollTimer = null;
+  pollingEnabled = false;
+  try { await writeState(state.prs); } catch (e) { log.error('persist on stop failed', e.message); }
+  events.notifyStateUpdated();
+}
+
+// Models the Settings panel offers (Fast/Balanced/Deep map to these). Anything else is rejected.
+const VALID_WORKER_MODELS = new Set(['haiku', 'sonnet', 'opus']);
+
+// Apply Settings-panel edits server-authoritatively: validate, mutate the in-memory config
+// so they take effect LIVE (onlyPRs is read each poll; pollMinutes re-arms the interval;
+// workerModel/workerSensitivity are read at the next dispatch — existing sessions keep their
+// model, new ones pick it up), and persist to config.local.json so a restart keeps them.
+// Host/port/clone settings are NOT editable here — those bind at startup (see TODO_UX).
+async function applyConfigEdits(edits) {
+  const changed = [];
+  if (Array.isArray(edits.onlyPRs)) {
+    // Keep only well-formed "repo#number" keys; [] = watch ALL open PRs (the circuit-breaker off).
+    config.onlyPRs = edits.onlyPRs.map((s) => String(s).trim()).filter((s) => /^[^#\s]+#\d+$/.test(s));
+    changed.push('onlyPRs');
+  }
+  let pollChanged = false;
+  if (edits.pollMinutes != null && Number.isFinite(Number(edits.pollMinutes))) {
+    const m = Math.max(1, Math.min(1440, Math.round(Number(edits.pollMinutes))));
+    if (m !== config.pollMinutes) { config.pollMinutes = m; pollChanged = true; }
+    changed.push('pollMinutes');
+  }
+  if (typeof edits.workerModel === 'string' && VALID_WORKER_MODELS.has(edits.workerModel)) {
+    config.workerModel = edits.workerModel; changed.push('workerModel');
+  }
+  if (edits.workerSensitivity != null) {
+    config.workerSensitivity = clampSensitivity(edits.workerSensitivity); changed.push('workerSensitivity');
+  }
+  // Re-arm the interval so a new cadence applies immediately — but ONLY while polling is on
+  // (pollTimer set). If off, startPolling() reads the new value when the user next arms it.
+  if (pollChanged && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = setInterval(poll, config.pollMinutes * 60 * 1000);
+  }
+  await persistConfigLocal({
+    onlyPRs: config.onlyPRs, pollMinutes: config.pollMinutes,
+    workerModel: config.workerModel, workerSensitivity: config.workerSensitivity,
+  });
+  return changed;
+}
+
+// Merge the edited flat keys into config.local.json, PRESERVING everything else (profile,
+// profiles, and any other top-level keys). config.mjs reads these flat keys ABOVE the
+// profile (env > file > profile), so the edits survive a restart.
+async function persistConfigLocal(flat) {
+  const path = join(config.baseDir, 'config.local.json');
+  let existing = {};
+  try { existing = JSON.parse(await readFile(path, 'utf8')); } catch {}
+  await writeFile(path, JSON.stringify({ ...existing, ...flat }, null, 2) + '\n');
+}
+
 async function recordDecision(payload) {
   // Ensure data/ exists before writing: if the very first poll failed (GitHub
   // unreachable at startup), writeState() never ran and data/ was never created,
@@ -315,6 +423,48 @@ const server = createServer(async (req, res) => {
     if (started) poll();
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: true, started, reason: started ? 'poll started' : 'poll already running' }));
+    return;
+  }
+  // Arm switch: turn the poll/dispatch loop on (first cycle now + interval) or off
+  // (stop the interval; in-flight workers finish). Server-authoritative — the dashboard
+  // renders pollingEnabled from /state.json and POSTs { on } here to flip it. Both
+  // start/stop are idempotent, so a double-click can't stack or strand timers.
+  if (req.method === 'POST' && url.pathname === '/polling') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const { on } = JSON.parse(body || '{}');
+        if (on) await startPolling(); else await stopPolling();
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, pollingEnabled }));
+      } catch (e) {
+        httpLog.error('/polling failed', e.message);
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e.message || e) }));
+      }
+    });
+    return;
+  }
+  // Settings panel save: edit the daemon's config (scope / cadence / model / sensitivity).
+  // Server-authoritative — applies live in-memory + persists to config.local.json. The
+  // dashboard renders current values from state.json's `settings` and POSTs the desired ones.
+  if (req.method === 'POST' && url.pathname === '/config') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', async () => {
+      try {
+        const changed = await applyConfigEdits(JSON.parse(body || '{}'));
+        await writeState(state.prs);
+        events.notifyStateUpdated();
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, changed, settings: buildSettings() }));
+      } catch (e) {
+        httpLog.error('/config failed', e.message);
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: String(e.message || e) }));
+      }
+    });
     return;
   }
   if (req.method === 'POST' && url.pathname === '/decision') {
@@ -419,6 +569,11 @@ server.listen(config.port, async () => {
   if (cloneRootDefaulted && !existsSync(config.cloneRoot))
     srvLog.warn(`cloneRoot ${config.cloneRoot} does not exist (defaulted ~/src) — local clones won't be reused; repos will be re-cloned under worktrees/. Set cloneRoot (or PRC_CLONE_ROOT) to your clones dir.`);
 
-  await poll();
-  setInterval(poll, config.pollMinutes * 60 * 1000);
+  // Polling is OFF by default and never auto-starts: arming the daemon (scan + dispatch
+  // real workers) is an explicit, visible decision made from the dashboard, not a
+  // side-effect of launching the process. Seed an empty idle state so /state.json has
+  // the full shape (incl. pollingEnabled:false) before the first scan. Flip it on via
+  // POST /polling (startPolling()).
+  try { await writeState([]); } catch (e) { srvLog.error('initial writeState failed', e.message); }
+  srvLog.info('polling is OFF by default — turn it on from the dashboard to start scanning + dispatching');
 });

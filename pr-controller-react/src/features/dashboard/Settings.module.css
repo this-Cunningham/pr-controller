@@ -1,0 +1,62 @@
+/* Settings overlay shell — a centered modal over a scrim. The two tab editors bring their
+   own section styling; this file is only the dialog chrome. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 20px; /* off-scale — modal gutter */
+  z-index: 50;
+  overflow-y: auto;
+  animation: ws-appear var(--dur-fast) var(--ease-out);
+}
+
+.panel {
+  width: 100%;
+  max-width: 660px; /* off-scale */
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-toast);
+  overflow: hidden;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.close {
+  flex: none;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 22px; /* off-scale */
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-chip);
+  transition: color var(--dur-fast) var(--ease);
+}
+.close:hover {
+  color: var(--ink);
+}
+
+.body {
+  padding: var(--space-6);
+  max-height: 78vh;
+  overflow-y: auto;
+}
+
+.loading {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  padding: var(--space-6);
+}

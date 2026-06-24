@@ -20,7 +20,8 @@
       "projectId": "c011d797-77eb-43cb-a9d3-5f323a57bccd",
       "baseline": "design/.upstream/pr-controller-prototypes",
       "features": ["pr-controller-react/src/features/dashboard"],
-      "styling": "css-modules"
+      "styling": "css-modules",
+      "note": "2026-06-24 pull: integrated 3 new prototypes — Header (polished polling toggle), Settings (config panel), Worker Sensitivity (worker-sensitivity dial) — into features/dashboard. BASELINE REFRESHED this run to a verbatim mirror of the export (78 files), EXCLUDING binary image noise (screenshots/, uploads/ sketches, .thumbnail) which add nothing to a text diff. Upstream delta vs the prior baseline: the 2 net-new prototypes + Header rework, a richer _ds/ format (now ships per-component .jsx/.d.ts/.prompt.md + guidelines + fonts + SKILL.md as reference), and one tiny DS change — _adherence.oxlintrc.json added the already-existing motion tokens --dur-slow/--ease-out/--ease-in-out/--ease-linear to its token allowlist. Tokens (colors/spacing/base/effects/typography) + the compiled component bundle are UNCHANGED. The adherence tweak needs NO app port: the app's ESLint translation has no token-allowlist rule, and those tokens already resolve in the app."
     }
   }
 }

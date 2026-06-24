@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+  <style>html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}</style>
+</helmet>
+<div style="min-height:100vh;background:var(--bg);padding:40px 28px 80px">
+  <div style="max-width:980px;margin:0 auto">
+
+    <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Trust &amp; safety control</div>
+    <h1 style="margin:8px 0 0;font-family:var(--font-serif);font-weight:500;font-size:27px;letter-spacing:-.01em;color:var(--ink)">Actively working — On / Off</h1>
+    <div style="margin-top:8px;font-size:13.5px;line-height:1.55;color:var(--ink-2);max-width:62ch;text-wrap:pretty">A single header control that tells you, at a glance, whether the assistant is watching your PRs and working — or paused. It opens <span style="color:var(--ink)">Off</span> every session.</div>
+
+    <!-- ============ HEADER IN CONTEXT (interactive) ============ -->
+    <div style="margin-top:30px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">In the header</div>
+    <div style="margin-top:11px;border:1px solid var(--line);border-radius:var(--radius-card);overflow:hidden;background:var(--surface)">
+      <header style="display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px 26px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:18px;min-width:0">
+          <h2 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:24px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h2>
+          <span title="The agent always acts for real — this only changes which PRs it watches." style="flex:none">
+            <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="scoped" count="{{ 3 }}" all-label="Watching all PRs" scoped-label="Scoped · 3 PRs" on-toggle="{{ noop }}" hint-size="120px,24px"></x-import>
+          </span>
+          <div style="flex:none;width:1px;height:30px;background:var(--line-2)"></div>
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);white-space:nowrap">updated just now</span>
+        </div>
+
+        <div style="display:flex;gap:14px;align-items:center;flex:none">
+          <!-- the control -->
+          <div style="{{ ctlStyle }}">
+            <span style="display:flex;align-items:center;gap:10px;height:26px">
+              <span style="display:flex;align-items:center;justify-content:center;height:26px">
+                <sc-if value="{{ showLiveDot }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-breathe var(--pulse) var(--ease-in-out) infinite"></span>
+                </sc-if>
+                <sc-if value="{{ showStones }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;justify-content:center;height:26px;overflow:visible">
+                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="stones" size="{{ 30 }}" hint-size="30px,26px"></x-import>
+                  </span>
+                </sc-if>
+              </span>
+              <x-import component-from-global-scope="DesignSystem_220c99.Toggle" checked="{{ on }}" disabled="{{ winding }}" on-change="{{ onToggle }}" hint-size="38px,22px"></x-import>
+            </span>
+            <span style="{{ secondaryStyle }}">{{ secondaryLabel }}</span>
+          </div>
+          <div style="flex:none;width:1px;height:30px;background:var(--line-2)"></div>
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink-2);opacity:.5">⚙</span>
+        </div>
+      </header>
+    </div>
+
+    <!-- scenario hint -->
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button onClick="{{ onToggleScenario }}" style="{{ scenarioStyle }}" style-hover="border-color:var(--ink-3)">
+        <span style="{{ scenarioBoxStyle }}">{{ scenarioCheck }}</span>
+        Assistant is mid-task right now
+      </button>
+      <span style="font-size:12px;color:var(--ink-3);font-style:italic;text-wrap:pretty">{{ scenarioHint }}</span>
+    </div>
+
+    <!-- ============ STATE SPECIMENS ============ -->
+    <div style="margin-top:40px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">The states</div>
+    <div style="margin-top:13px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+
+      <!-- OFF -->
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:22px 20px">
+        <div style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span style="display:flex;align-items:center;gap:10px;height:26px">
+            <span style="position:relative;flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--line-2);background:var(--surface-2)">
+              <span style="position:absolute;top:2px;left:3px;width:20px;height:20px;border-radius:10px;background:var(--surface);border:1px solid var(--line-2)"></span>
+            </span>
+          </span>
+          <span style="font:400 11px var(--font-sans);color:var(--ink-3);text-align:right">Paused · resting</span>
+        </div>
+        <div style="margin-top:16px;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Default</div>
+        <div style="margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty">Not checking anything, making no changes. Every session opens here — a safe resting state, never an error.</div>
+      </div>
+
+      <!-- ON -->
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:22px 20px">
+        <div style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span style="display:flex;align-items:center;gap:10px;height:26px">
+            <span style="flex:none;width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-breathe var(--pulse) var(--ease-in-out) infinite"></span>
+            <span style="position:relative;flex:none;width:46px;height:26px;border-radius:13px;background:var(--auto-fg)">
+              <span style="position:absolute;top:2px;left:23px;width:20px;height:20px;border-radius:10px;background:var(--surface)"></span>
+            </span>
+          </span>
+          <span style="font:400 11px var(--font-sans);color:var(--ink-2);text-align:right">Watching your PRs</span>
+        </div>
+        <div style="margin-top:16px;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--auto-fg)">Live</div>
+        <div style="margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty">Watching your PRs; the assistant may be working in the background. The breathing sage dot reads as alive — energized, not alarming.</div>
+      </div>
+
+      <!-- WINDING DOWN -->
+      <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:22px 20px">
+        <div style="display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span style="display:flex;align-items:center;gap:10px;height:26px">
+            <span style="display:flex;align-items:center;justify-content:center;height:26px;overflow:visible">
+              <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="stones" size="{{ 30 }}" hint-size="30px,26px"></x-import>
+            </span>
+            <span style="position:relative;flex:none;width:46px;height:26px;border-radius:13px;border:1px solid var(--line-2);background:var(--surface-2)">
+              <span style="position:absolute;top:2px;left:3px;width:20px;height:20px;border-radius:10px;background:var(--surface);border:1px solid var(--line-2)"></span>
+            </span>
+          </span>
+          <span style="font:400 11px var(--font-sans);color:var(--ink-2);text-align:right">finishing 1 task</span>
+        </div>
+        <div style="margin-top:16px;font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">Winding down</div>
+        <div style="margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty">Switched Off mid-task. The control is already Off; the one in-flight task is allowed to finish gracefully, then it settles to rest.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { on: false, winding: false, midTask: false };
+
+  componentWillUnmount() { clearTimeout(this._w); }
+
+  toggle() {
+    if (this.state.winding) return; // mid wind-down: ignore, let it settle
+    if (this.state.on) {
+      // turning OFF
+      if (this.state.midTask) {
+        this.setState({ on: false, winding: true });
+        clearTimeout(this._w);
+        this._w = setTimeout(() => this.setState({ winding: false }), 3600);
+      } else {
+        this.setState({ on: false });
+      }
+    } else {
+      // turning ON
+      this.setState({ on: true, winding: false });
+    }
+  }
+
+  renderVals() {
+    const s = this.state;
+    const mode = s.on ? "on" : (s.winding ? "winding" : "off");
+
+    const ctlStyle = {
+      display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flex: "none",
+    };
+
+    let primaryLabel, secondaryLabel, primaryColor, secondaryStyle;
+    if (mode === "on") {
+      primaryLabel = "On"; secondaryLabel = "Watching your PRs"; primaryColor = "var(--ink)";
+      secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
+    } else if (mode === "winding") {
+      primaryLabel = "Off"; secondaryLabel = "finishing 1 task"; primaryColor = "var(--ink-2)";
+      secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
+    } else {
+      primaryLabel = "Off"; secondaryLabel = "Paused · resting"; primaryColor = "var(--ink-2)";
+      secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-3)" };
+    }
+
+    const scenarioBoxBase = {
+      flex: "none", width: "15px", height: "15px", borderRadius: "4px",
+      border: "1px solid var(--line-2)", display: "inline-flex", alignItems: "center",
+      justifyContent: "center", fontSize: "10px", lineHeight: "1",
+      background: s.midTask ? "var(--auto-fg)" : "var(--surface)",
+      borderColor: s.midTask ? "var(--auto-fg)" : "var(--line-2)",
+      color: "var(--surface)",
+    };
+
+    return {
+      onToggle: () => this.toggle(),
+      noop: () => {},
+      on: s.on, winding: s.winding,
+      ctlStyle,
+      primaryLabel, secondaryLabel,
+      primaryStyle: { font: "600 14px var(--font-sans)", color: primaryColor, transition: "color var(--dur-fast) var(--ease)" },
+      secondaryStyle: { ...secondaryStyle, textAlign: "right" },
+      showLiveDot: mode === "on",
+      showStones: mode === "winding",
+      showPrimaryText: mode !== "winding",
+
+      onToggleScenario: () => this.setState({ midTask: !s.midTask }),
+      scenarioStyle: {
+        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "8px",
+        font: "500 12px var(--font-sans)", color: "var(--ink-2)",
+        padding: "7px 12px", border: "1px solid var(--line-2)", borderRadius: "6px",
+        background: "var(--surface)", transition: "border-color var(--dur-fast) var(--ease)",
+      },
+      scenarioBoxStyle: scenarioBoxBase,
+      scenarioCheck: s.midTask ? "✓" : "",
+      scenarioHint: s.midTask
+        ? "Now switch On, then Off — it will wind down before resting."
+        : "Toggle on to demo the live state. Check this to demo the wind-down.",
+    };
+  }
+}
+</script>
+</body>
+</html>

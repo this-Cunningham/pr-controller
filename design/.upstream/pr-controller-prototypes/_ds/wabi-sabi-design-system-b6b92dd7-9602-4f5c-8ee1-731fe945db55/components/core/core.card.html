@@ -1,0 +1,61 @@
+<!-- @dsCard group="Components" viewport="700x310" subtitle="Button · Badge · Tag · Toggle" name="Core" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      body { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+      .row { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+      .eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); width: 92px; }
+      .btn { cursor: default; font: 500 13px var(--font-sans); padding: 8px 14px; border-radius: var(--radius-card); }
+      .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-chip); }
+      .pillmono { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; padding: 4px 9px; border-radius: var(--radius-chip); }
+      .tag { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--radius-chip); }
+      .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+      .toggle { width: 38px; height: 22px; border-radius: 999px; position: relative; flex: none; transition: background .18s ease, border-color .18s ease; }
+      .toggle .knob { position: absolute; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: left .18s ease; box-shadow: var(--shadow-1, 0 1px 2px rgba(0,0,0,.18)); }
+      .toggle.on { background: var(--auto-fg); }
+      .toggle.on .knob { left: 19px; }
+      .toggle.off { background: var(--surface-2); border: 1px solid var(--line-2); }
+      .toggle.off .knob { left: 4px; top: 2px; background: var(--ink-3); }
+      .toggle.disabled { background: transparent; border: 1px dashed var(--line-2); opacity: .55; }
+      .toggle.disabled .knob { left: 4px; top: 2px; background: var(--line-2); box-shadow: none; }
+      .tlab { font-size: 11.5px; color: var(--ink-2); }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <span class="eyebrow">Button</span>
+      <span class="btn" style="background:var(--ink);color:var(--bg);border:1px solid var(--ink)">Save</span>
+      <span class="btn" style="background:transparent;color:var(--ink);border:1px solid var(--line-2)">Reply</span>
+      <span class="btn" style="background:transparent;color:var(--ink-2);border:1px solid transparent">Skip</span>
+    </div>
+    <div class="row">
+      <span class="eyebrow">Badge</span>
+      <span class="pillmono" style="background:var(--auto-bg);color:var(--auto-fg)">Done</span>
+      <span class="pillmono" style="background:var(--surface-2);color:var(--ink-2)">Active</span>
+      <span class="pillmono" style="background:transparent;color:var(--ink-3);border:1px solid var(--line-2)">Draft</span>
+      <span class="badge" style="background:var(--surface-2);color:var(--ink-2)">3 updates</span>
+      <span class="badge" style="background:var(--accent-bg);color:var(--accent)">overdue</span>
+    </div>
+    <div class="row">
+      <span class="eyebrow">Tag</span>
+      <span class="tag" style="background:var(--accent-bg);color:var(--accent)">needs attention</span>
+      <span class="tag" style="background:var(--auto-bg);color:var(--auto-fg)">in progress</span>
+      <span class="tag" style="background:var(--surface-2);color:var(--ink-2)">waiting</span>
+      <span class="tag" style="background:transparent;color:var(--ink-3);border:1px dashed var(--line-2);padding:2px 7px">not started</span>
+      <span class="tag" style="background:var(--praise-bg);color:var(--praise-fg)">praise</span>
+      <span class="tag" style="background:var(--err-bg);color:var(--err-fg)">failed</span>
+    </div>
+    <div class="row">
+      <span class="eyebrow">Toggle</span>
+      <span class="toggle on"><span class="knob"></span></span>
+      <span class="tlab">on</span>
+      <span class="toggle off" style="margin-left:14px"><span class="knob"></span></span>
+      <span class="tlab">off</span>
+      <span class="toggle disabled" style="margin-left:14px"><span class="knob"></span></span>
+      <span class="tlab" style="color:var(--ink-3)">disabled</span>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,404 @@
+/* Agent setup panel. Embeddable (no centering / min-height — a parent overlay frames it).
+   Control-specific dimensions (avatar, stepper, segmented control) live here as raw px;
+   every color/font resolves through a design-system var() token. Active/disabled state
+   rides on data-attrs + :disabled, not inline styles. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* shared bits */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* HEADER */
+.headingText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-section);
+  line-height: var(--leading-title);
+  color: var(--ink);
+}
+.desc {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+
+/* CONNECTION (read-only) */
+.connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-5) var(--space-6);
+}
+.connLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  text-transform: uppercase;
+}
+.connText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.connLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body);
+  color: var(--ink);
+}
+.breathDot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--auto-fg);
+  animation: ws-breathe var(--pulse) var(--ease-in-out) infinite;
+}
+.connHandle {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-2);
+}
+.connNote {
+  flex: none;
+  font-style: italic;
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+}
+
+/* GENERIC SECTION */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.count {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+}
+.sectionDesc {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+
+/* WHICH PRs TO WATCH */
+.emptyPRs {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-control);
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+}
+.prList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.prRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+.prMark {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--text-meta);
+}
+.prKey {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink);
+}
+.prRemove {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  font-size: var(--text-card-title);
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.prRemove:hover {
+  color: var(--accent);
+}
+.prAdd {
+  display: flex;
+  gap: var(--space-3);
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--pad-input);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+}
+.input::placeholder {
+  color: var(--ink-3);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.fieldError {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--err-fg);
+}
+
+/* CADENCE + MODEL */
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* stepper */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  overflow: hidden;
+}
+.stepBtn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-section);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.stepBtn:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.stepBtn:disabled {
+  color: var(--ink-3);
+  opacity: 0.5;
+  cursor: default;
+}
+.stepReadout {
+  min-width: 64px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  color: var(--ink);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 0 var(--space-3);
+  line-height: 34px;
+}
+.hint {
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+}
+
+/* segmented control */
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-seg);
+}
+.segment {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.segment:hover {
+  color: var(--ink);
+}
+.segment[data-active='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-seg);
+}
+.modelId {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-2);
+}
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--leading-body);
+  color: var(--ink-3);
+}
+.noteMark {
+  flex: none;
+  color: var(--accent);
+}
+
+/* TRIGGER PHRASES */
+.triggerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.triggerRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+.triggerHandle {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--accent);
+}
+.triggerDesc {
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+}
+
+/* CHECK RULES */
+.checkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.checkRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+.checkName {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink);
+}
+.pillNeeds,
+.pillIgnore {
+  flex: none;
+  font-size: var(--text-pill);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-chip);
+}
+.pillNeeds {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.pillIgnore {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line-2);
+}
+
+/* ACTIONS */
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.dirtyHint {
+  font-style: italic;
+  font-size: var(--text-caption);
+  color: var(--ink-3);
+}
+
+/* theme picker row (relocated from the header) */
+.themeRow {
+  margin-top: var(--space-3);
+}

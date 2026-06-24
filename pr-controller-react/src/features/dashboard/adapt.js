@@ -231,5 +231,12 @@ export function adaptState(state) {
     // null when the last scan succeeded; { at, message } when the daemon's poll failed
     // (so the dashboard can show a scan-failing indicator instead of a false all-clear).
     lastPollError: state?.lastPollError || null,
+    // The daemon's arm switch — false until a human turns polling on (and false again
+    // after every restart). The header renders this and POSTs /polling to flip it.
+    pollingEnabled: state?.pollingEnabled ?? false,
+    // Server-authoritative config for the Settings panel + the worker-sensitivity levels.
+    // The app renders these and POSTs /config to edit; it derives no config of its own.
+    settings: state?.settings || null,
+    sensitivityLevels: state?.sensitivityLevels || [],
   };
 }

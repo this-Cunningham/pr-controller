@@ -1,0 +1,51 @@
+/* Header arm switch surround. The track/knob now come from the design-system <Toggle>;
+   this file is only the column layout + the status indicator (breathing dot / stones loader)
+   and the secondary label. Colors/motion via tokens; the indicator slot reserves height so
+   the switch doesn't shift between states. */
+.wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 26px;
+}
+
+/* fixed-height slot so the switch doesn't jump when the dot / loader appears */
+.indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+}
+
+/* the breathing "alive" dot, shown only when on */
+.dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--auto-fg);
+  animation: ws-breathe var(--pulse) var(--ease-in-out) infinite;
+}
+
+.secondary {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-pill);
+  text-align: right;
+  transition: color var(--dur-fast) var(--ease);
+}
+.secondary[data-state='on'],
+.secondary[data-state='winding'] {
+  color: var(--ink-2);
+}
+.secondary[data-state='off'] {
+  color: var(--ink-3);
+}
