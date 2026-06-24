@@ -82,6 +82,10 @@ decide.
   action, `outline` for secondary, `ghost` for low-stakes / dismiss.
 - **TextButton** — a quiet inline affordance inside dense copy or rows (Undo, Show more,
   Show reasoning). Anything decisive should be a Button.
+- **Toggle** — a binary on/off switch for a single, **immediate self-applying** setting
+  (sage track when on; `disabled` renders a dashed, locked track). Controlled (`checked` +
+  `onChange`) or uncontrolled (`defaultChecked`); pass `label` for the switch-plus-text row.
+  For a choice the user must confirm, use a Button pair instead — one toggle = one setting.
 
 **State & labels** (`core/`)
 - **Badge** — an object's overall state or a small signal pill (`mono` for tracked status

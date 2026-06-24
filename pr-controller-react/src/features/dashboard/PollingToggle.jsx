@@ -1,13 +1,14 @@
+import { Toggle } from '../../design-system/core/Toggle.jsx';
 import { OrganicLoader } from '../../design-system/feedback/OrganicLoader.jsx';
 import styles from './PollingToggle.module.css';
 
 /**
- * The header arm switch — a sliding toggle with three states, server-authoritative:
- *   - on        → daemon is watching + may be dispatching (sage track, breathing dot)
- *   - winding   → switched off but workers are still finishing (off track + stones loader)
- *   - off       → idle/resting (off track, no indicator)
- * Pure renderer: it shows `on`/`winding` and calls `onToggle`; the daemon owns the truth.
- * No new design-system primitive — composed from tokens + the DS OrganicLoader.
+ * The header arm switch — the design-system <Toggle> plus polling-specific status:
+ *   - on        → daemon is watching / may be dispatching (Toggle on + breathing dot)
+ *   - winding   → switched off but workers are still finishing (Toggle off + stones loader)
+ *   - off       → idle/resting (Toggle off, no indicator)
+ * Composes the frozen DS Toggle for the switch itself; the indicator + secondary label are
+ * the feature-specific surround. Pure renderer — the daemon owns the truth; this calls onToggle.
  */
 export default function PollingToggle({ on, winding, workingCount = 0, onToggle }) {
   const state = on ? 'on' : winding ? 'winding' : 'off';
@@ -17,24 +18,15 @@ export default function PollingToggle({ on, winding, workingCount = 0, onToggle 
     : 'Paused · resting';
 
   return (
-    <button
-      type="button"
-      className={styles.toggle}
-      onClick={onToggle}
-      aria-label={`Actively working — ${on ? 'on' : 'off'}`}
-      aria-pressed={on}
-      title="Turns the agent on or off. It opens off every session; switching off lets any in-flight task finish."
-    >
+    <div className={styles.wrap}>
       <span className={styles.row}>
         <span className={styles.indicator}>
           {state === 'on' && <span className={styles.dot} />}
           {state === 'winding' && <OrganicLoader variant="stones" size={30} />}
         </span>
-        <span className={styles.track} data-state={state}>
-          <span className={styles.knob} data-state={state} />
-        </span>
+        <Toggle checked={on} onChange={() => onToggle()} ariaLabel={`Actively working — ${on ? 'on' : 'off'}`} />
       </span>
       <span className={styles.secondary} data-state={state}>{secondary}</span>
-    </button>
+    </div>
   );
 }
