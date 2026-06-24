@@ -40,7 +40,7 @@
 
         <div style="display:flex;gap:14px;align-items:center;flex:none">
           <!-- the control -->
-          <button onClick="{{ onToggle }}" aria-label="Toggle actively working" style="{{ ctlStyle }}">
+          <div style="{{ ctlStyle }}">
             <span style="display:flex;align-items:center;gap:10px;height:26px">
               <span style="display:flex;align-items:center;justify-content:center;height:26px">
                 <sc-if value="{{ showLiveDot }}" hint-placeholder-val="{{ false }}">
@@ -52,12 +52,10 @@
                   </span>
                 </sc-if>
               </span>
-              <span style="{{ trackStyle }}">
-                <span style="{{ knobStyle }}"></span>
-              </span>
+              <x-import component-from-global-scope="DesignSystem_220c99.Toggle" checked="{{ on }}" disabled="{{ winding }}" on-change="{{ onToggle }}" hint-size="38px,22px"></x-import>
             </span>
             <span style="{{ secondaryStyle }}">{{ secondaryLabel }}</span>
-          </button>
+          </div>
           <div style="flex:none;width:1px;height:30px;background:var(--line-2)"></div>
           <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink-2);opacity:.5">⚙</span>
         </div>
@@ -155,33 +153,17 @@ class Component extends DCLogic {
     const mode = s.on ? "on" : (s.winding ? "winding" : "off");
 
     const ctlStyle = {
-      cursor: "pointer", display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: "4px",
-      padding: "0", border: "none", background: "transparent", flex: "none",
+      display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flex: "none",
     };
 
-    const trackBase = {
-      position: "relative", flex: "none", width: "46px", height: "26px", borderRadius: "13px",
-      boxSizing: "border-box",
-    };
-    const knobBase = {
-      position: "absolute", top: "2px", left: "3px", width: "20px", height: "20px", borderRadius: "10px",
-      boxSizing: "border-box",
-    };
-
-    let trackStyle, knobStyle, primaryLabel, secondaryLabel, primaryColor, secondaryStyle;
+    let primaryLabel, secondaryLabel, primaryColor, secondaryStyle;
     if (mode === "on") {
-      trackStyle = { ...trackBase, background: "var(--auto-fg)", border: "1px solid var(--auto-fg)" };
-      knobStyle = { ...knobBase, left: "23px", background: "var(--surface)", border: "1px solid transparent" };
       primaryLabel = "On"; secondaryLabel = "Watching your PRs"; primaryColor = "var(--ink)";
       secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
     } else if (mode === "winding") {
-      trackStyle = { ...trackBase, background: "var(--surface-2)", border: "1px solid var(--line-2)" };
-      knobStyle = { ...knobBase, left: "3px", background: "var(--surface)", border: "1px solid var(--line-2)" };
       primaryLabel = "Off"; secondaryLabel = "finishing 1 task"; primaryColor = "var(--ink-2)";
       secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
     } else {
-      trackStyle = { ...trackBase, background: "var(--surface-2)", border: "1px solid var(--line-2)" };
-      knobStyle = { ...knobBase, left: "3px", background: "var(--surface)", border: "1px solid var(--line-2)" };
       primaryLabel = "Off"; secondaryLabel = "Paused · resting"; primaryColor = "var(--ink-2)";
       secondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-3)" };
     }
@@ -198,7 +180,8 @@ class Component extends DCLogic {
     return {
       onToggle: () => this.toggle(),
       noop: () => {},
-      ctlStyle, trackStyle, knobStyle,
+      on: s.on, winding: s.winding,
+      ctlStyle,
       primaryLabel, secondaryLabel,
       primaryStyle: { font: "600 14px var(--font-sans)", color: primaryColor, transition: "color var(--dur-fast) var(--ease)" },
       secondaryStyle: { ...secondaryStyle, textAlign: "right" },
