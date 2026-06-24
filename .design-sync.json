@@ -20,7 +20,8 @@
       "projectId": "c011d797-77eb-43cb-a9d3-5f323a57bccd",
       "baseline": "design/.upstream/pr-controller-prototypes",
       "features": ["pr-controller-react/src/features/dashboard"],
-      "styling": "css-modules"
+      "styling": "css-modules",
+      "note": "2026-06-24 pull: integrated 3 new prototypes — Header (polished polling toggle), Settings (config panel), Worker Sensitivity (worker-sensitivity dial) — into features/dashboard. Tokens + DS components verified UNCHANGED vs the app (colors/spacing/base/effects/typography all match; manifest inventory identical). BASELINE MIRROR NOT REFRESHED this run: the committed baseline still reflects the prior export (it predates the 3 new prototypes + the export's now-richer _ds/ component-source format), so the next pull will re-surface these prototypes as a diff. To refresh cleanly, drop a fresh FULL export into design/.upstream/pr-controller-prototypes (the file-by-file MCP re-pull of the compiled _ds bundle was skipped here as wasteful + transcription-risky)."
     }
   }
 }
