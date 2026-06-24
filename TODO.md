@@ -1,44 +1,5 @@
 # TODO
 
-_Done 2026-06-22 (e2e pressure test against this repo's OWN throwaway sandbox; verify green:
-136 tests + react build + adherence lint): scaffolded `e2e-sandbox/` (a widget-kit mini-library)
-+ two CI workflows on `main`, created 21 dummy `e2e2/*` PRs covering every disposition/lane and
-the hard paths (CI-red, reviewer fix/praise/surface, trivial + non-trivial merge conflicts,
-compliance/JIRA, ignore-checks, multi-thread selective dispatch, no-dispatch guard, merge/close
-cleanup), bumped `workerModel` haiku->sonnet + scoped `onlyPRs` to the dummy set. Drove real
-volume through the daemon and FIXED two bugs the dispatch storm surfaced:
-  1. **ensureWorktree concurrency race** — many PRs of one repo share ONE clone, so simultaneous
-     dispatches raced `git fetch` / `git worktree add` on the clone's refs ("cannot lock ref
-     'refs/remotes/origin/<b>': ... unable to update local ref"); 7 concurrent workers all failed.
-     Fixed with a per-clone async mutex (`withCloneLock` in worktree.mjs) + `test/worktree.test.mjs`.
-     Re-ran the storm: 0 races, 12 worktrees created cleanly.
-  2. **Worker stdin stall** — `claude` was spawned with an open, unused stdin pipe, so the CLI
-     waited ~3s ("no stdin data received in 3s") on EVERY dispatch. Close stdin (worker.mjs
-     `stdio: ['ignore','pipe','pipe']`).
-Verified live with real GitHub data: dispatch routing for all 21 PRs; every disposition derived +
-rendered (dashboard screenshots); stale-verdict invalidation/unlink; compliance-vs-ignore
-categorization + `needsJira`; multi-thread selective dispatch (only @claude-debug threads);
-no-dispatch guard; cleanup-on-merge/close reclaiming worktree/session/worker `.json`+`.log`; and the
-`updatedAt` change-filter + `reenrichFloor`. (Worker derivation was driven via injected verdict
-files — see findings (a).)
-Findings, NOT fixed here (out of scope / different layer):
-  (a) Workers can't run as **root** — `claude --dangerously-skip-permissions` (bypassPermissions)
-      refuses under root (the daemon targets a non-root laptop); in a root container every worker
-      exits 1 with no result JSON. Consider detecting root and logging actionable guidance instead
-      of a silent per-worker no-op.
-  (b) The per-clone mutex covers worktree SETUP, but a running worker's OWN in-run `git fetch`/
-      `rebase` still shares the clone's refs — full isolation would need a clone-per-PR (follow-up).
-  (c) Cleanup-on-merge/close is gated on the PR leaving `gh search prs`, whose index lags ~tens of
-      seconds, so reclaim can trail by one poll cycle (self-heals; harmless at a 30-min interval)._
-
-_Done 2026-06-21 (verify green: 133 tests, react build, adherence lint; adversarially
-reviewed; live-smoke-tested end-to-end against the dev sandbox incl. a real worker run):
-worktree/session/worker-file cleanup on PR merge/close (+ safety guard verified live);
-`recordDecision` mkdir-guard + `/decision` crash guard; worker-prompt polish (real worker
-emitted a valid `fix` result); `reasonFull` render guard; observability augment. Also fixed
-a pre-existing `ensureWorktree` bug surfaced by the smoke test: the fallback-clone path ran
-`git clone` with cwd=`worktrees/` before that dir existed (`spawn git ENOENT`) — now mkdir'd._
-
 ## Ingestion hardening — smoke-tested 2026-06-21 (mostly cleared; 2 residuals)
 The `scanner.mjs` rework was live-smoke-tested read-only against real github.com PRs
 (no daemon / no worker dispatch / no mutations). Cleared the two cases the TODO called
@@ -76,19 +37,6 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       already logged + the full transcript persisted, so this is polish. (Note: PR #30 added a
       `workerError`/`workerFailed` Needs-you surface for failed runs — re-check whether this is
       now substantially covered before building more.)
-
-## Requires you (cross-repo — not mine to commit)
-- [ ] `/pull-new-designs` skill edits (port the adherence-lint + DS-readme usage intent on a
-      design-system import; warn against recreating the prototype's `controller` object and
-      threading it as one prop through the tree) are written in
-      `~/Documents/dev/claude-code-system/.claude/skills/pull-new-designs/` (SKILL.md v2→v3 +
-      CHANGELOG) but LEFT UNCOMMITTED — review, commit/push there, then run `/sync-dot-claude`.
-      The in-repo `pr-controller-react/src/design-system/README.md` (usage/intent distilled
-      from the wabi-sabi readme) is committed here.
-- [ ] (optional) The app's own `controller`-as-prop pattern (`controller.js`, threaded
-      App→PRCard→ThreadRow) was NOT refactored — the skill fix only stops FUTURE imports from
-      reproducing it. Refactoring the live app to idiomatic hooks/context is a separate,
-      larger change if you want it.
 
 ## New
 - [ ] Daemon could use a scoped `--allowedTools` list (Write, Edit, Bash(git:*), Bash(gh:*)) instead
