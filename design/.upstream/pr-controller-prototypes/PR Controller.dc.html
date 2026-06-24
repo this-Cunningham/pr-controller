@@ -16,33 +16,41 @@
   <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
   <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
   <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
-  <style>html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}</style>
+  <style>html,body{margin:0;height:100%;background:var(--bg);color:var(--ink)}
+  @keyframes modal-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}</style>
 </helmet>
 <div style="min-height:100vh;background:var(--bg)">
 
   <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
     <div style="max-width:900px;margin:0 auto;padding:34px 28px 120px">
-      <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)">
-        <div>
-          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:28px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
-            <span title="The agent always acts for real — this only changes which PRs it watches.">
-              <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
-            </span>
-          </div>
-          <div style="margin-top:11px;font-size:13px;color:var(--ink-2);font-family:var(--font-mono)">{{ openCount }} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style="color:var(--accent)">{{ needCount }} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {{ updated }}</div>
+      <header style="display:flex;justify-content:space-between;align-items:center;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:16px;min-width:0;flex-wrap:wrap">
+          <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:28px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
+          <span title="The agent always acts for real — this only changes which PRs it watches." style="flex:none">
+            <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
+          </span>
+          <div style="flex:none;width:1px;height:28px;background:var(--line-2)"></div>
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);white-space:nowrap">updated {{ updated }}</span>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex:none">
-          <div style="display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px">
-            <button onClick="{{ onViewDashboard }}" style="{{ dashBtnStyle }}">Dashboard</button>
-            <button onClick="{{ onViewSwimlanes }}" style="{{ swimBtnStyle }}">Swimlanes</button>
-          </div>
-          <x-import component-from-global-scope="DesignSystem_220c99.ThemeSwitcher" hint-size="auto,38px"></x-import>
-          <button onClick="{{ onRefresh }}" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font:500 13px var(--font-sans);padding:9px 15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink)">
-            <sc-if value="{{ refreshing }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;display:inline-block;animation:ws-spin .9s linear infinite">⟳</span></sc-if>
-            <sc-if value="{{ notRefreshing }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;display:inline-block">⟳</span></sc-if>
-            {{ refreshLabel }}
+        <div style="display:flex;gap:14px;align-items:center;flex:none">
+          <button onClick="{{ onToggleWorking }}" aria-label="Toggle actively working" style="{{ wkCtlStyle }}">
+            <span style="display:flex;align-items:center;gap:10px;height:26px">
+              <span style="display:flex;align-items:center;justify-content:center;height:26px">
+                <sc-if value="{{ wkShowLiveDot }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-breathe var(--pulse) var(--ease-in-out) infinite"></span>
+                </sc-if>
+                <sc-if value="{{ wkShowStones }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;justify-content:center;height:26px;overflow:visible">
+                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="stones" size="{{ 30 }}" hint-size="30px,26px"></x-import>
+                  </span>
+                </sc-if>
+              </span>
+              <span style="{{ wkTrackStyle }}"><span style="{{ wkKnobStyle }}"></span></span>
+            </span>
+            <span style="{{ wkSecondaryStyle }}">{{ wkSecondaryLabel }}</span>
           </button>
+          <div style="flex:none;width:1px;height:28px;background:var(--line-2)"></div>
+          <button onClick="{{ onSettings }}" aria-label="Worker settings" title="Worker sensitivity" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;font-size:16px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink-2)">⚙</button>
         </div>
       </header>
 
@@ -72,27 +80,34 @@
 
   <sc-if value="{{ isSwimlanes }}" hint-placeholder-val="{{ false }}">
     <div style="height:100vh;display:flex;flex-direction:column;overflow:hidden">
-      <header style="flex:none;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:24px 32px 18px;border-bottom:1px solid var(--line)">
-        <div>
-          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:27px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
-            <span title="The agent always acts for real — this only changes which PRs it watches.">
-              <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
-            </span>
-          </div>
-          <div style="margin-top:11px;font-size:13px;color:var(--ink-2);font-family:var(--font-mono)">{{ openCount }} open&nbsp;&nbsp;·&nbsp;&nbsp;<span style="color:var(--accent)">{{ needCount }} need you</span>&nbsp;&nbsp;·&nbsp;&nbsp;updated {{ updated }}</div>
+      <header style="flex:none;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px 32px 18px;border-bottom:1px solid var(--line)">
+        <div style="display:flex;align-items:center;gap:16px;min-width:0;flex-wrap:wrap">
+          <h1 style="margin:0;font-family:var(--font-serif);font-weight:500;font-size:27px;letter-spacing:-.01em;white-space:nowrap;color:var(--ink)">PR Controller</h1>
+          <span title="The agent always acts for real — this only changes which PRs it watches." style="flex:none">
+            <x-import component-from-global-scope="DesignSystem_220c99.ScopeBadge" scope="{{ scope }}" count="{{ scopeN }}" all-label="Watching all PRs" scoped-label="{{ scopedLabel }}" on-toggle="{{ onToggleScope }}" hint-size="auto,28px"></x-import>
+          </span>
+          <div style="flex:none;width:1px;height:28px;background:var(--line-2)"></div>
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);white-space:nowrap">updated {{ updated }}</span>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;flex:none">
-          <div style="display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px">
-            <button onClick="{{ onViewDashboard }}" style="{{ dashBtnStyle }}">Dashboard</button>
-            <button onClick="{{ onViewSwimlanes }}" style="{{ swimBtnStyle }}">Swimlanes</button>
-          </div>
-          <x-import component-from-global-scope="DesignSystem_220c99.ThemeSwitcher" hint-size="auto,38px"></x-import>
-          <button onClick="{{ onRefresh }}" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font:500 13px var(--font-sans);padding:9px 15px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink)">
-            <sc-if value="{{ refreshing }}" hint-placeholder-val="{{ false }}"><span style="font-size:15px;display:inline-block;animation:ws-spin .9s linear infinite">⟳</span></sc-if>
-            <sc-if value="{{ notRefreshing }}" hint-placeholder-val="{{ true }}"><span style="font-size:15px;display:inline-block">⟳</span></sc-if>
-            {{ refreshLabel }}
+        <div style="display:flex;gap:14px;align-items:center;flex:none">
+          <button onClick="{{ onToggleWorking }}" aria-label="Toggle actively working" style="{{ wkCtlStyle }}">
+            <span style="display:flex;align-items:center;gap:10px;height:26px">
+              <span style="display:flex;align-items:center;justify-content:center;height:26px">
+                <sc-if value="{{ wkShowLiveDot }}" hint-placeholder-val="{{ false }}">
+                  <span style="flex:none;width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-breathe var(--pulse) var(--ease-in-out) infinite"></span>
+                </sc-if>
+                <sc-if value="{{ wkShowStones }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:flex;align-items:center;justify-content:center;height:26px;overflow:visible">
+                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="stones" size="{{ 30 }}" hint-size="30px,26px"></x-import>
+                  </span>
+                </sc-if>
+              </span>
+              <span style="{{ wkTrackStyle }}"><span style="{{ wkKnobStyle }}"></span></span>
+            </span>
+            <span style="{{ wkSecondaryStyle }}">{{ wkSecondaryLabel }}</span>
           </button>
+          <div style="flex:none;width:1px;height:28px;background:var(--line-2)"></div>
+          <button onClick="{{ onSettings }}" aria-label="Worker settings" title="Worker sensitivity" style="flex:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;font-size:16px;border:1px solid var(--line-2);border-radius:7px;background:var(--surface);color:var(--ink-2)">⚙</button>
         </div>
       </header>
 
@@ -160,7 +175,7 @@
 
     <sc-if value="{{ hasExpanded }}" hint-placeholder-val="{{ false }}">
       <div onClick="{{ onCloseCard }}" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 20px;animation:ws-appear .18s ease;overflow-y:auto">
-        <div onClick="{{ stopProp }}" style="position:relative;width:100%;max-width:640px;animation:ws-fadeup .22s ease">
+        <div onClick="{{ stopProp }}" style="position:relative;width:100%;max-width:640px;animation:modal-rise .22s var(--ease-out)">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
             <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">{{ expandedColName }}</span>
             <button onClick="{{ onCloseCard }}" aria-label="Close" style="cursor:pointer;display:inline-flex;align-items:center;gap:7px;font:500 12.5px var(--font-sans);color:var(--ink-2);background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:6px 12px">Close&nbsp;<span style="font-family:var(--font-mono);font-size:11px">esc</span></button>
@@ -169,6 +184,36 @@
         </div>
       </div>
     </sc-if>
+  </sc-if>
+
+  <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseSettings }}" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 20px;animation:ws-appear .18s ease;overflow-y:auto">
+      <div onClick="{{ stopProp }}" style="position:relative;width:100%;max-width:640px;animation:modal-rise .22s var(--ease-out)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+          <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Settings</span>
+          <button onClick="{{ onCloseSettings }}" aria-label="Close" style="cursor:pointer;display:inline-flex;align-items:center;gap:7px;font:500 12.5px var(--font-sans);color:var(--ink-2);background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:6px 12px">Close&nbsp;<span style="font-family:var(--font-mono);font-size:11px">esc</span></button>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:18px 26px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Default view</div>
+            <div style="margin-top:6px;font-size:13px;color:var(--ink-2)">Show your PRs as a list or a swimlane board.</div>
+          </div>
+          <div style="flex:none;display:inline-flex;background:var(--surface-2);border-radius:var(--radius-control);padding:2px;gap:2px">
+            <button onClick="{{ onViewDashboard }}" style="{{ dashBtnStyle }}">Dashboard</button>
+            <button onClick="{{ onViewSwimlanes }}" style="{{ swimBtnStyle }}">Swimlanes</button>
+          </div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:18px 26px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Theme</div>
+            <div style="margin-top:6px;font-size:13px;color:var(--ink-2)">Switch the paper-and-ink palette.</div>
+          </div>
+          <span style="flex:none"><x-import component-from-global-scope="DesignSystem_220c99.ThemeSwitcher" hint-size="auto,38px"></x-import></span>
+        </div>
+        <div style="margin-bottom:14px"><dc-import name="Worker Sensitivity" embedded="{{ true }}" hint-size="100%,560px"></dc-import></div>
+        <dc-import name="Settings" embedded="{{ true }}" hint-size="100%,900px"></dc-import>
+      </div>
+    </div>
   </sc-if>
 
   <x-import component-from-global-scope="DesignSystem_220c99.Toast" message="{{ toastMsg }}" hint-size="auto,44px"></x-import>
@@ -253,7 +298,7 @@ class Component extends DCLogic {
       branch: { kind: "outofsync" }, threads: [] },
   ];
 
-  state = { view: "dashboard", tab: "needs", scope: "all", loading: true, refreshing: false, updated: "just now", toastMsg: null, expanded: null, ts: {}, bs: {}, jira: {}, runs: {} };
+  state = { view: "dashboard", tab: "needs", scope: "all", working: false, winding: false, loading: true, refreshing: false, updated: "just now", toastMsg: null, expanded: null, settingsOpen: false, ts: {}, bs: {}, jira: {}, runs: {} };
 
   componentDidMount() {
     this._t = setTimeout(() => this.setState({ loading: false }), 850);
@@ -261,6 +306,29 @@ class Component extends DCLogic {
   componentWillUnmount() {
     clearTimeout(this._t);
     clearTimeout(this._tt);
+    clearTimeout(this._w);
+  }
+
+  activeRunCount() { const r = this.state.runs || {}; return Object.keys(r).filter((k) => r[k] === "running").length; }
+
+  toggleWorking() {
+    const s = this.state;
+    if (s.winding) return; // mid wind-down: let it settle
+    if (s.working) {
+      const n = this.activeRunCount();
+      if (n > 0) {
+        this.setState({ working: false, winding: true });
+        this.toast("Paused — finishing " + n + " task" + (n === 1 ? "" : "s"));
+        clearTimeout(this._w);
+        this._w = setTimeout(() => this.setState({ winding: false }), 3600);
+      } else {
+        this.setState({ working: false });
+        this.toast("Paused — resting");
+      }
+    } else {
+      this.setState({ working: true, winding: false });
+      this.toast("On — watching your PRs");
+    }
   }
 
   toast(m) {
@@ -379,9 +447,42 @@ class Component extends DCLogic {
     const expanded = s.expanded;
     const expandedPr = expanded && this.PRS.find((p) => p.id === expanded.prId);
 
+    // ── actively-working toggle ──
+    const wkMode = s.working ? "on" : (s.winding ? "winding" : "off");
+    const wkTrackBase = { position: "relative", flex: "none", width: "46px", height: "26px", borderRadius: "13px", boxSizing: "border-box" };
+    const wkKnobBase = { position: "absolute", top: "2px", left: "3px", width: "20px", height: "20px", borderRadius: "10px", boxSizing: "border-box" };
+    let wkTrackStyle, wkKnobStyle, wkPrimaryLabel, wkSecondaryLabel, wkPrimaryColor, wkSecondaryStyle;
+    if (wkMode === "on") {
+      wkTrackStyle = { ...wkTrackBase, background: "var(--auto-fg)", border: "1px solid var(--auto-fg)" };
+      wkKnobStyle = { ...wkKnobBase, transform: "translateX(20px)", background: "var(--surface)", border: "1px solid transparent" };
+      wkPrimaryLabel = "On"; wkSecondaryLabel = "Watching your PRs"; wkPrimaryColor = "var(--ink)";
+      wkSecondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
+    } else if (wkMode === "winding") {
+      const n = this.activeRunCount();
+      wkTrackStyle = { ...wkTrackBase, background: "var(--surface-2)", border: "1px solid var(--line-2)" };
+      wkKnobStyle = { ...wkKnobBase, transform: "translateX(0)", background: "var(--surface)", border: "1px solid var(--line-2)" };
+      wkPrimaryLabel = "Off"; wkSecondaryLabel = "finishing " + (n || 1) + " task" + ((n || 1) === 1 ? "" : "s"); wkPrimaryColor = "var(--ink-2)";
+      wkSecondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-2)" };
+    } else {
+      wkTrackStyle = { ...wkTrackBase, background: "var(--surface-2)", border: "1px solid var(--line-2)" };
+      wkKnobStyle = { ...wkKnobBase, transform: "translateX(0)", background: "var(--surface)", border: "1px solid var(--line-2)" };
+      wkPrimaryLabel = "Off"; wkSecondaryLabel = "Paused · resting"; wkPrimaryColor = "var(--ink-2)";
+      wkSecondaryStyle = { font: "400 11px var(--font-sans)", color: "var(--ink-3)" };
+    }
+
     return {
       isDashboard: s.view === "dashboard",
       isSwimlanes: s.view === "swimlanes",
+
+      onToggleWorking: () => this.toggleWorking(),
+      wkCtlStyle: { cursor: "pointer", display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", padding: "0", border: "none", background: "transparent", flex: "none" },
+      wkTrackStyle, wkKnobStyle,
+      wkPrimaryLabel, wkSecondaryLabel,
+      wkPrimaryStyle: { font: "600 14px var(--font-sans)", color: wkPrimaryColor, transition: "color var(--dur-fast) var(--ease)" },
+      wkSecondaryStyle: { ...wkSecondaryStyle, textAlign: "right" },
+      wkShowLiveDot: wkMode === "on",
+      wkShowStones: wkMode === "winding",
+      wkShowPrimaryText: wkMode !== "winding",
       onViewDashboard: () => this.setState({ view: "dashboard" }),
       onViewSwimlanes: () => this.setState({ view: "swimlanes" }),
       dashBtnStyle: s.view === "dashboard" ? segActive : segBase,
@@ -396,6 +497,9 @@ class Component extends DCLogic {
       controller,
       toastMsg: s.toastMsg,
       stopProp: (e) => e.stopPropagation(),
+      settingsOpen: s.settingsOpen,
+      onSettings: () => this.setState({ settingsOpen: true }),
+      onCloseSettings: () => this.setState({ settingsOpen: false }),
 
       tabs, tab, onTab: (k) => this.setState({ tab: k }),
       dashCaption: activeLane.caption,

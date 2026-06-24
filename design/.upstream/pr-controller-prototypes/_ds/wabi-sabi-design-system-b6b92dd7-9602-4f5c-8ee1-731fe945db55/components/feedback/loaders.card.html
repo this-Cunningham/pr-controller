@@ -1,0 +1,100 @@
+<!-- @dsCard group="Components" viewport="760x430" subtitle="enso · ripple · seal · brush · motes · reeds · kintsugi · stones" name="Organic loaders" -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      body { padding: 22px; }
+      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+      .cell { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-height: 148px; }
+      .glyph { flex: 1; display: flex; align-items: center; justify-content: center; }
+      .name { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); }
+    </style>
+  </head>
+  <body>
+    <div class="grid">
+
+      <div class="cell">
+        <div class="glyph">
+          <svg width="56" height="56" viewBox="0 0 62 62" style="animation:ws-enso-spin 9s linear infinite;transform-origin:center">
+            <circle cx="31" cy="31" r="26" fill="none" stroke="var(--ink-2)" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="163 232" stroke-dashoffset="36" style="animation:ws-enso-draw 3.4s ease-in-out infinite;transform-origin:center;transform:rotate(112deg)"></circle>
+          </svg>
+        </div>
+        <span class="name">enso</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph">
+          <div style="position:relative;width:56px;height:56px">
+            <span style="position:absolute;inset:0;border-radius:50%;border:2px solid var(--auto-fg);animation:ws-ripple 2.8s ease-out infinite"></span>
+            <span style="position:absolute;inset:0;border-radius:50%;border:2px solid var(--auto-fg);animation:ws-ripple 2.8s ease-out infinite;animation-delay:.93s"></span>
+            <span style="position:absolute;inset:0;border-radius:50%;border:2px solid var(--auto-fg);animation:ws-ripple 2.8s ease-out infinite;animation-delay:1.86s"></span>
+            <span style="position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--auto-fg)"></span>
+          </div>
+        </div>
+        <span class="name">ripple</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph">
+          <div style="position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center">
+            <span style="position:absolute;width:30px;height:30px;border-radius:50%;background:var(--accent);animation:ws-breathe-halo 2.2s ease-in-out infinite"></span>
+            <span style="width:18px;height:18px;border-radius:50%;background:var(--accent);animation:ws-breathe 2.2s ease-in-out infinite"></span>
+          </div>
+        </div>
+        <span class="name">seal</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph">
+          <div style="position:relative;width:100px;height:9px;border-radius:6px;background:var(--surface-2);overflow:hidden">
+            <span style="position:absolute;top:0;left:0;height:100%;width:55%;border-radius:6px;background:linear-gradient(90deg,transparent,var(--ink-2) 45%,var(--ink-2) 55%,transparent);animation:ws-sweep 1.9s ease-in-out infinite"></span>
+          </div>
+        </div>
+        <span class="name">brush</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph" style="gap:11px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-drift 2.6s ease-in-out infinite"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-drift 2.6s ease-in-out infinite;animation-delay:.45s"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-drift 2.6s ease-in-out infinite;animation-delay:.9s"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-drift 2.6s ease-in-out infinite;animation-delay:1.35s"></span>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--auto-fg);animation:ws-drift 2.6s ease-in-out infinite;animation-delay:1.8s"></span>
+        </div>
+        <span class="name">motes</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph" style="gap:7px;height:40px">
+          <span style="width:3px;height:38px;border-radius:3px;background:var(--ink-2);transform-origin:bottom;animation:ws-sway 1.5s ease-in-out infinite"></span>
+          <span style="width:3px;height:38px;border-radius:3px;background:var(--ink-2);transform-origin:bottom;animation:ws-sway 1.5s ease-in-out infinite;animation-delay:.18s"></span>
+          <span style="width:3px;height:38px;border-radius:3px;background:var(--ink-2);transform-origin:bottom;animation:ws-sway 1.5s ease-in-out infinite;animation-delay:.36s"></span>
+          <span style="width:3px;height:38px;border-radius:3px;background:var(--ink-2);transform-origin:bottom;animation:ws-sway 1.5s ease-in-out infinite;animation-delay:.54s"></span>
+          <span style="width:3px;height:38px;border-radius:3px;background:var(--ink-2);transform-origin:bottom;animation:ws-sway 1.5s ease-in-out infinite;animation-delay:.72s"></span>
+        </div>
+        <span class="name">reeds</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph">
+          <svg width="110" height="40" viewBox="0 0 120 44">
+            <path d="M4 30 L26 14 L44 26 L66 8 L86 28 L116 16" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="150" stroke-dashoffset="150" style="animation:ws-seam 3.2s ease-in-out infinite"></path>
+          </svg>
+        </div>
+        <span class="name">kintsugi</span>
+      </div>
+
+      <div class="cell">
+        <div class="glyph" style="gap:13px">
+          <span style="width:13px;height:13px;border-radius:50%;background:var(--auto-fg);animation:ws-place 2.4s ease-in-out infinite"></span>
+          <span style="width:13px;height:13px;border-radius:50%;background:var(--auto-fg);animation:ws-place 2.4s ease-in-out infinite;animation-delay:.3s"></span>
+          <span style="width:13px;height:13px;border-radius:50%;background:var(--auto-fg);animation:ws-place 2.4s ease-in-out infinite;animation-delay:.6s"></span>
+        </div>
+        <span class="name">stones</span>
+      </div>
+
+    </div>
+  </body>
+</html>

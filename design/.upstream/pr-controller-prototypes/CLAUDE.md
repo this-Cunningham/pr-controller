@@ -1,0 +1,1 @@
+On startup, blanket-pull the latest base design system into `_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/` to avoid drift — use `copy_files` from cross-project source `/projects/b6b92dd7-9602-4f5c-8ee1-731fe945db55/`. The project root isn't copyable directly, so copy each top-level item (files + folders) into the matching local path.

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+</helmet>
+<div style="{{ wrap }}">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:24px 26px 22px">
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+    <div style="min-width:0">
+      <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Worker sensitivity</div>
+      <h2 style="margin:8px 0 0;font:600 19px/1.3 var(--font-sans);color:var(--ink);text-wrap:pretty">How much should your workers surface to you?</h2>
+      <div style="margin-top:7px;font-size:13px;line-height:1.5;color:var(--ink-2);max-width:46ch;text-wrap:pretty">Sets the instruction every worker follows when it reviews a PR — what it resolves on its own versus brings back for your judgment.</div>
+    </div>
+    <span style="flex:none;margin-top:2px"><x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ levelBadgeTone }}" mono="{{ true }}" hint-size="auto,22px">{{ levelShort }}</x-import></span>
+  </div>
+
+  <!-- slider -->
+  <div style="margin-top:26px;padding:0 6px">
+    <div ref="{{ setTrackRef }}" onPointerDown="{{ onDown }}" onPointerMove="{{ onMove }}" onPointerUp="{{ onUp }}" onKeyDown="{{ onKey }}" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="{{ maxLevel }}" aria-valuenow="{{ level }}" style="position:relative;height:34px;cursor:pointer;touch-action:none;outline:none">
+      <!-- base rail (= surfaced to you) -->
+      <div style="position:absolute;top:50%;left:0;right:0;height:3px;transform:translateY(-50%);background:var(--line-2);border-radius:2px"></div>
+      <!-- handled fill -->
+      <div style="position:absolute;top:50%;left:0;height:3px;transform:translateY(-50%);background:var(--auto-fg);border-radius:2px;transition:width .18s var(--ease);width:{{ fillPct }}%"></div>
+      <!-- stop notches -->
+      <sc-for list="{{ ticks }}" as="tk" hint-placeholder-count="5">
+        <span style="position:absolute;top:50%;width:1px;height:9px;transform:translate(-50%,-50%);background:var(--ink-3);opacity:.5;left:{{ tk.pct }}%"></span>
+      </sc-for>
+      <!-- seal thumb -->
+      <span style="position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--surface),0 0 0 5px var(--line-2);transform:translate(-50%,-50%);transition:left .18s var(--ease);left:{{ thumbPct }}%"></span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:9px;font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;color:var(--ink-3)">
+      <span>← surfaces more to you</span>
+      <span>handles more itself →</span>
+    </div>
+  </div>
+
+  <!-- current selection -->
+  <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <div style="font:600 17px var(--font-sans);color:var(--ink)">{{ levelName }}</div>
+      <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2)"><span style="color:var(--accent)">{{ reachCount }}</span> of {{ totalThreads }} open threads reach you</div>
+    </div>
+    <div style="margin-top:6px;font-size:13.5px;line-height:1.55;color:var(--ink-2);text-wrap:pretty">{{ tagline }}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px">
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--auto-fg);margin-bottom:9px">Handles on its own</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ handles }}" as="h" hint-placeholder-count="2">
+            <div style="display:flex;gap:8px;font-size:12.5px;line-height:1.45;color:var(--ink);text-wrap:pretty"><span style="flex:none;color:var(--auto-fg)">✓</span><span>{{ h }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--accent);margin-bottom:9px">Brings to you</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ surfaces }}" as="sf" hint-placeholder-count="3">
+            <div style="display:flex;gap:8px;font-size:12.5px;line-height:1.45;color:var(--ink);text-wrap:pretty"><span style="flex:none;color:var(--accent)">↳</span><span>{{ sf }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- injected prompt preview -->
+  <div style="margin-top:20px">
+    <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Added to each worker's review prompt</div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-card);padding:13px 15px;font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap;text-wrap:pretty">{{ promptText }}</div>
+  </div>
+
+  <!-- hard guardrail -->
+  <div style="margin-top:14px;display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--ink-3)">
+    <span style="flex:none;color:var(--accent)">◆</span>
+    <span style="text-wrap:pretty">An aborted or complex rebase always stops for you — this setting never overrides that floor.</span>
+  </div>
+
+  <!-- actions -->
+  <div style="margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onSave }}" hint-size="auto,40px">Apply to all workers</x-import>
+    <sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}">
+      <span style="font-size:12px;color:var(--ink-3);font-style:italic">Unsaved — applies on your next run.</span>
+    </sc-if>
+    <sc-if value="{{ saved }}" hint-placeholder-val="{{ false }}">
+      <span style="flex:1;min-width:160px"><x-import component-from-global-scope="DesignSystem_220c99.Confirmation" text="✓ Sensitivity applied to all workers." fg="var(--auto-fg)" on-undo="{{ onUndo }}" hint-size="100%,24px"></x-import></span>
+    </sc-if>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:640},&quot;defaultLevel&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2,&quot;min&quot;:0,&quot;max&quot;:4,&quot;tsType&quot;:&quot;number&quot;},&quot;embedded&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  LEVELS = [
+    {
+      short: "surface all", name: "Surface everything", badge: "urgent",
+      tagline: "Maximum oversight. The worker drafts a response to every thread but waits for your nod before it changes code or replies.",
+      reach: 13,
+      handles: ["Nothing is applied or sent without your approval"],
+      surfaces: ["Every reviewer thread, with a reply drafted", "Mechanical nits & style notes", "All CI and branch warnings"],
+      prompt: "For every reviewer thread, draft a reply but do NOT apply any change or send any response without explicit approval. Surface all feedback as “needs your input”, including mechanical nits. Never auto-resolve.",
+    },
+    {
+      short: "cautious", name: "Cautious", badge: "neutral",
+      tagline: "Clears the busywork. Anything that involves a judgment call still comes to you.",
+      reach: 8,
+      handles: ["Formatting, lint & lockfile regeneration", "Pure renames with no behavior change"],
+      surfaces: ["Anything involving a judgment call", "Naming intent & scope questions", "Behavior or API changes"],
+      prompt: "Auto-apply only purely mechanical changes (formatting, lint, renames, lockfile regen) and reply “fixed”. Surface everything that involves a judgment call as “needs your input” with a drafted reply.",
+    },
+    {
+      short: "balanced", name: "Balanced", badge: "neutral",
+      tagline: "The default. The worker handles the clear-cut requests and brings the decisions that change product behavior.",
+      reach: 5,
+      handles: ["Mechanical changes", "Low-risk fixes the reviewer clearly asked for"],
+      surfaces: ["Product & architecture decisions", "Anything that changes runtime behavior", "Merge conflicts"],
+      prompt: "Auto-apply mechanical changes and low-risk fixes the reviewer clearly requested. Surface product decisions, architecture changes, and anything altering runtime behavior as “needs your input”, with a drafted reply or proposed approach.",
+    },
+    {
+      short: "trusting", name: "Trusting", badge: "active",
+      tagline: "Hands most of the review back to the worker. Only the genuinely high-stakes calls reach you.",
+      reach: 2,
+      handles: ["Most review feedback, end-to-end", "Moderate refactors & config changes", "Unambiguous rebases"],
+      surfaces: ["High-impact disputes — security, data, public API", "Risky migrations"],
+      prompt: "Resolve most review feedback end-to-end, including moderate refactors and config changes, and reply on my behalf. Only surface high-impact disputes (security, data integrity, public API or contract changes) and risky migrations.",
+    },
+    {
+      short: "autonomous", name: "Fully autonomous", badge: "active",
+      tagline: "The worker runs the whole review. It only stops you when a rebase can't be finished safely.",
+      reach: 1,
+      handles: ["Every reviewer thread — replies & pushes fixes", "Product calls when intent is clear", "All clean rebases & merges"],
+      surfaces: ["Only an aborted or complex rebase"],
+      prompt: "Resolve, reply to, and push fixes for all reviewer feedback without asking. Make the product call yourself when intent is reasonably clear. Only stop and surface to me when a rebase is aborted or the conflict is too complex to resolve safely.",
+    },
+  ];
+  TOTAL = 14;
+
+  state = { level: null, savedLevel: null, saved: false };
+
+  get level() { return this.state.level == null ? (this.props.defaultLevel ?? 2) : this.state.level; }
+
+  setLevel(n) {
+    const lvl = Math.max(0, Math.min(this.LEVELS.length - 1, n));
+    if (lvl === this.level) return;
+    this.setState({ level: lvl, saved: false });
+  }
+  levelFromX(clientX) {
+    if (!this.trackEl) return this.level;
+    const r = this.trackEl.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return Math.round(ratio * (this.LEVELS.length - 1));
+  }
+
+  renderVals() {
+    const i = this.level;
+    const L = this.LEVELS[i];
+    const max = this.LEVELS.length - 1;
+    const pct = (i / max) * 100;
+    const saved = this.state.saved;
+    const baseline = this.state.savedLevel == null ? (this.props.defaultLevel ?? 2) : this.state.savedLevel;
+
+    return {
+      wrap: this.props.embedded ? {} : { minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 20px", boxSizing: "border-box" },
+      level: i, maxLevel: max,
+      levelName: L.name, levelShort: L.short, levelBadgeTone: L.badge,
+      tagline: L.tagline,
+      handles: L.handles, surfaces: L.surfaces,
+      promptText: L.prompt,
+      reachCount: L.reach, totalThreads: this.TOTAL,
+      fillPct: pct, thumbPct: pct,
+      ticks: this.LEVELS.map((_, k) => ({ pct: (k / max) * 100 })),
+
+      dirty: !saved && i !== baseline,
+      saved,
+
+      setTrackRef: (el) => { this.trackEl = el; },
+      onDown: (e) => { this._drag = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.setLevel(this.levelFromX(e.clientX)); },
+      onMove: (e) => { if (this._drag) this.setLevel(this.levelFromX(e.clientX)); },
+      onUp: () => { this._drag = false; },
+      onKey: (e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); this.setLevel(i - 1); }
+        else if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); this.setLevel(i + 1); }
+        else if (e.key === "Home") { e.preventDefault(); this.setLevel(0); }
+        else if (e.key === "End") { e.preventDefault(); this.setLevel(max); }
+      },
+      onSave: () => this.setState({ savedLevel: i, saved: true }),
+      onUndo: () => this.setState({ level: baseline, saved: false, savedLevel: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

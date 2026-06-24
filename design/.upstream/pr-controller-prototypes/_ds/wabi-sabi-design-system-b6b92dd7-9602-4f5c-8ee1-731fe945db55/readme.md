@@ -4,8 +4,6 @@ A quiet, paper-ink design system: beauty in imperfection, transience, and natura
 
 It ships a token layer (six warm/stone/tea × light/dark themes), a small set of UI primitives, and a deliberately tiny iconography. Nothing here is tied to a product domain — every token and component speaks one abstract tone vocabulary.
 
-> Generalized from an internal product into a standalone, reusable aesthetic + primitive set.
-
 ## Using the system
 
 Link the single entry point and use the CSS custom properties:
@@ -68,7 +66,9 @@ The system is built across **six themes** — `warm`, `stone`, `tea` × `light`,
 
 **Hover / press.** Quiet. Buttons: primary dims to `opacity:.86`; outline fills to `--surface-2`; ghost lightens text to `--ink`. Links/tabs move toward `--ink`. No scale/bounce on press.
 
-**Motion.** Minimal and soft. `ws-appear` (3px rise, .3s) for cards and confirmations; `ws-fadeup` (.28s) for the toast; `ws-shimmer` for skeletons. The ambient "working / pending" vocabulary is the **OrganicLoader** — eight quiet glyphs (`ws-enso-*` / `ws-ripple` / `ws-breathe*` / `ws-sweep` / `ws-drift` / `ws-sway` / `ws-seam` / `ws-place` in `tokens/base.css`); show one loader at a time, never racing. `ws-spin` only while refreshing. Easing is plain `ease`; nothing springs.
+**Motion.** Minimal and soft, and fully tokenized (`tokens/effects.css`). Easings are plain — nothing springs or overshoots: `--ease` (one-shot UI), `--ease-out` (entrances), `--ease-in-out` (symmetric loops — pulse, breathe, shimmer), `--ease-linear` (continuous rotation). Durations: `--dur-fast` (.28s, fades), `--dur-card` (.3s, entrances), `--dur-slow` (.6s, the ceiling for a deliberate transition), and `--pulse` (1.6s, the live-dot period). One-shot keyframes: `ws-appear` (3px rise) for cards and confirmations, `ws-fadeup` for the toast, `ws-shimmer` for skeletons, `ws-spin` while refreshing. The ambient "working / pending" vocabulary is the **OrganicLoader** — eight quiet glyphs (`ws-enso-*` / `ws-ripple` / `ws-breathe*` / `ws-sweep` / `ws-drift` / `ws-sway` / `ws-seam` / `ws-place` in `tokens/base.css`) whose long loop timings are intrinsic to each glyph and stay literal; show one loader at a time, never racing. **Reduced motion:** a `prefers-reduced-motion: reduce` block in `tokens/base.css` collapses every animation and transition to near-instant — every component's visible end-state is its base style, so nothing is load-bearing once motion is removed.
+
+**When to reach for motion.** Animate only when an element *arrives, leaves, or is live* — feedback the user should notice. A static state needs no animation. Pick the token by its job, not its number: `--dur-fast` for fades (opacity in/out, dismiss), `--dur-card` when an element arrives (a card or confirmation rising into place), `--dur-slow` as a hard ceiling no UI transition should exceed, `--pulse` for a live/working dot. Easings pair the same way — `--ease` for one-shot, `--ease-out` for entrances, `--ease-in-out` for symmetric loops, `--ease-linear` for rotation. If something needs to run longer than `--dur-slow`, it's ambient, not a transition — reach for **OrganicLoader** instead.
 
 **Transparency / blur.** None. Surfaces are opaque; the only translucency is the faint grain overlay.
 
@@ -118,7 +118,7 @@ Urgency is a budget, not a palette: `urgent` / accent (the seal), a `pulse`, and
 
 - `styles.css` — global entry (link this). `@import`s everything below.
 - `tokens/` — `colors.css`, `typography.css`, `spacing.css`, `effects.css`, `fonts.css`, `base.css` (resets + keyframes).
-- `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Brand).
+- `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Motion, Brand).
 - `components/`
   - `core/` — **Button**, **TextButton**, **Badge**, **DispositionTag**, **Callout**, **ThemeSwitcher**
   - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**, **OrganicLoader** (eight quiet pending states)

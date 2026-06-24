@@ -21,7 +21,7 @@
 <div style="padding:14px 0;border-top:1px solid var(--line)">
   <div style="display:flex;flex-wrap:wrap;align-items:center;gap:9px">
     <x-import component-from-global-scope="DesignSystem_220c99.DispositionTag" tone="{{ tagTone }}" hint-size="auto,22px">{{ tagLabel }}</x-import>
-    <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">{{ thread.loc }}</span>
+    <a href="{{ locUrl }}" target="_blank" rel="noopener" title="Open this thread on GitHub" style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3);text-decoration:none;border-bottom:1px solid transparent;transition:color .15s,border-color .15s" style-hover="color:var(--accent);border-bottom-color:var(--accent)">{{ thread.loc }}</a>
     <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-2)">{{ thread.author }}</span>
   </div>
 
@@ -129,6 +129,7 @@ class Component extends DCLogic {
   // Sample data + a no-op controller so this DC renders on its own when opened
   // directly (no props). When mounted by PRCard it always receives real props.
   SAMPLE = { id: "sample", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
+    url: "https://github.com/acme/web-app/pull/2412#discussion_r1839204417",
     body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.",
     reasonSummary: "Reviewer disputes the change — needs your judgment.",
     reasonFull: "The reviewer is right that the early return powers silent re-auth — that’s a product call, so the agent surfaced the thread with a drafted reply rather than guessing.",
@@ -141,11 +142,26 @@ class Component extends DCLogic {
     return { approachStaged: F, approveApproach: N, unstageApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
   }
 
+  // Build a GitHub blob deeplink from a thread's repo + "path:line" loc, e.g.
+  // acme/web-app + src/auth/middleware.ts:88 → .../blob/HEAD/src/auth/middleware.ts#L88
+  buildLocUrl(t) {
+    const repo = t.repo || (this.props.controller && this.props.controller.repo);
+    if (!repo || !t.loc) return null;
+    const m = /^(.*?):(\d+)$/.exec(t.loc);
+    const path = m ? m[1] : t.loc;
+    const line = m ? "#L" + m[2] : "";
+    const ref = t.sha || t.ref || "HEAD";
+    return "https://github.com/" + repo + "/blob/" + ref + "/" + path + line;
+  }
+
   renderVals() {
     const t = this.props.thread || this.SAMPLE;
     const c = this.props.controller || (this._stub || (this._stub = this.stubController()));
     const id = t.id;
     const tag = this.TAGS[t.tag] || this.TAGS.waiting;
+    // Deeplink to the GitHub thread/comment. Prefer the exact url the thread
+    // carries; otherwise fall back to a blob link built from repo + loc.
+    const locUrl = t.url || this.buildLocUrl(t) || "#";
     const isLong = (t.body || "").length > 150;
     const bodyClamped = isLong && !this.state.bodyOpen;
     const reply = this.state.draft == null ? (t.reply || "") : this.state.draft;
@@ -168,6 +184,7 @@ class Component extends DCLogic {
       // preview-only constraint when opened standalone (no real `thread` prop)
       previewWrap: this.props.thread ? {} : { padding: "40px 20px", maxWidth: "640px", margin: "0 auto", boxSizing: "border-box" },
       thread: t,
+      locUrl,
       tagTone: tag.tone,
       tagLabel: tag.label,
       isLong,
