@@ -1,0 +1,251 @@
+/* Swimlane board — three scrollable lane columns of compact cards, mirroring the
+   Swimlanes view in PR Controller.dc.html. Full-viewport flex column: header pinned,
+   columns scroll independently. Off-scale px below match the prototype's board metrics. */
+.board {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.boardHead {
+  flex: none;
+  padding: var(--space-7) var(--space-8) 0; /* horizontal gutter for the reused Header */
+}
+
+.columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8) var(--space-8);
+  overflow-x: auto;
+}
+.col {
+  flex: 1;
+  min-width: 312px; /* off-scale — board column min width, per prototype */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.colHead {
+  flex: none;
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--line-2); /* off-scale — lane underline */
+}
+.colHead[data-accent] {
+  border-bottom-color: var(--accent);
+}
+.colTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.colTitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: 15px; /* off-scale — column heading */
+  color: var(--ink);
+}
+.colCount {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-pill);
+  padding: 1px var(--space-2); /* 1px off-scale */
+  border-radius: var(--radius-round);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.colCount[data-accent] {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+.colCaption {
+  margin-top: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+  font-style: italic;
+}
+.colCards {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+  padding-right: var(--space-1);
+  padding-bottom: var(--space-3);
+}
+
+/* compact PR card — a summary; the full interactive card opens in the expand modal */
+.card {
+  composes: ws-appear from global; /* entrance fade; keyframe lives in base.css */
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 15px 15px 15px 17px; /* off-scale — compact card gutter, per prototype */
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.card:hover {
+  border-color: var(--line-2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.55); /* off-scale — hover lift */
+}
+.card[data-needs]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--seal-rule); /* 3px accent seal — the Needs-you marker */
+  background: var(--accent);
+}
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cardRepo {
+  font-family: var(--font-mono);
+  font-size: var(--text-pill);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardTitle {
+  font-size: 14.5px; /* off-scale — compact card title */
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-title);
+  margin-top: var(--space-2);
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cardPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.cardFoot {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.cardLoc {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.cardMore {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  color: var(--ink-3);
+}
+.cardStaged {
+  margin-top: var(--space-3);
+  font-size: var(--text-pill);
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cardStaged[data-running] {
+  color: var(--auto-fg);
+}
+.cardStagedDot {
+  flex: none;
+  width: 6px; /* off-scale — status dot */
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.cardStaged[data-running] .cardStagedDot {
+  background: var(--auto-fg);
+}
+
+/* expand modal — same scrim/modal pattern as the Settings overlay */
+.backdrop {
+  composes: ws-appear from global;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 20px; /* off-scale — modal gutter */
+  overflow-y: auto;
+}
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 640px; /* off-scale */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  animation: modal-rise var(--dur-card) var(--ease-out);
+}
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modalEyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.modalClose {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-4);
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.modalClose:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  color: var(--ink-3);
+}

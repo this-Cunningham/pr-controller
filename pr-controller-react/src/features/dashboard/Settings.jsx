@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import SettingsSetup from './SettingsSetup.jsx';
 import WorkerSensitivity from './WorkerSensitivity.jsx';
@@ -6,19 +6,27 @@ import styles from './Settings.module.css';
 
 const THEME_KEY = 'pr-controller-theme';
 
+// Settings-modal tabs — order + default ('agent') mirror PR Controller.dc.html's settings modal.
+const TABS = [
+  { key: 'agent', label: 'Agent setup' },
+  { key: 'sensitivity', label: 'Worker sensitivity' },
+  { key: 'appearance', label: 'Appearance' },
+];
+
 /**
  * Settings overlay — opened by the header gear. Mirrors the settings overlay in the
- * PR Controller prototype: a scrim-backed stack of standalone cards (no tabs) — a Default
- * view card, a Theme preference card, then the Worker Sensitivity panel, then the Agent
- * Setup panel. Each embedded panel is its own bordered card and POSTs its own save via
- * `saveConfig` (server-authoritative state.json `settings`). This shell owns only theme
- * persistence and dismissal. Closes on backdrop click / Escape / Close.
+ * PR Controller prototype: a scrim-backed modal whose body is a three-tab control —
+ * 'Agent setup' (default), 'Worker sensitivity', and 'Appearance' (default view + theme).
+ * Each embedded panel is its own bordered card and POSTs its own save via `saveConfig`
+ * (server-authoritative state.json `settings`). This shell owns only theme persistence,
+ * the active tab, and dismissal. Closes on backdrop click / Escape / Close.
  *
- * (The "Default view" card — Dashboard | Swimlanes — is kept to match the prototype but is
- * INERT dead UI: the app has no swimlane view to switch to, so the toggle has no onClick.
- * Wire it to a real view mode here if/when swimlanes ship — see the inline note below.)
+ * The Appearance tab's "Default view" card switches between the dashboard list and the
+ * swimlane board (`viewMode` / `onSetViewMode`, persisted in useDashboard).
  */
-export default function Settings({ settings, sensitivityLevels, saveConfig, onClose }) {
+export default function Settings({ settings, sensitivityLevels, saveConfig, onClose, viewMode, onSetViewMode }) {
+  const [tab, setTab] = useState('agent');
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -45,33 +53,69 @@ export default function Settings({ settings, sensitivityLevels, saveConfig, onCl
           <div className={styles.loading}>Loading settings…</div>
         ) : (
           <>
-            {/* Default view — DEAD UI. The app has no swimlane view to switch to, so this
-                toggle is inert (no onClick); kept to match the PR Controller prototype.
-                Wire it to a real view mode here if/when swimlanes ship. */}
-            <section className={styles.prefCard}>
-              <div className={styles.prefText}>
-                <span className={styles.prefEyebrow}>Default view</span>
-                <span className={styles.prefDesc}>Show your PRs as a list or a swimlane board.</span>
-              </div>
-              <div className={styles.seg} role="group" aria-label="Default view">
-                <button type="button" className={styles.segItem} data-active="true">Dashboard</button>
-                <button type="button" className={styles.segItem}>Swimlanes</button>
-              </div>
-            </section>
+            <div className={styles.tabs} role="tablist" aria-label="Settings sections">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.key}
+                  className={styles.tab}
+                  data-active={tab === t.key}
+                  onClick={() => setTab(t.key)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-            {/* Theme — the prototype carries this preference in the shell, not the panels */}
-            <section className={styles.prefCard}>
-              <div className={styles.prefText}>
-                <span className={styles.prefEyebrow}>Theme</span>
-                <span className={styles.prefDesc}>Switch the paper-and-ink palette.</span>
-              </div>
-              <ThemeSwitcher
-                onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ } }}
-              />
-            </section>
+            {tab === 'agent' && <SettingsSetup settings={settings} saveConfig={saveConfig} />}
 
-            <WorkerSensitivity sensitivityLevels={sensitivityLevels} settings={settings} saveConfig={saveConfig} />
-            <SettingsSetup settings={settings} saveConfig={saveConfig} />
+            {tab === 'sensitivity' && (
+              <WorkerSensitivity sensitivityLevels={sensitivityLevels} settings={settings} saveConfig={saveConfig} />
+            )}
+
+            {tab === 'appearance' && (
+              <div className={styles.panel}>
+                {/* Default view — switches the dashboard list vs the swimlane board
+                    (useDashboard.viewMode, persisted to localStorage). */}
+                <section className={styles.prefCard}>
+                  <div className={styles.prefText}>
+                    <span className={styles.prefEyebrow}>Default view</span>
+                    <span className={styles.prefDesc}>Show your PRs as a list or a swimlane board.</span>
+                  </div>
+                  <div className={styles.seg} role="group" aria-label="Default view">
+                    <button
+                      type="button"
+                      className={styles.segItem}
+                      data-active={viewMode !== 'swimlanes'}
+                      onClick={() => onSetViewMode('dashboard')}
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.segItem}
+                      data-active={viewMode === 'swimlanes'}
+                      onClick={() => onSetViewMode('swimlanes')}
+                    >
+                      Swimlanes
+                    </button>
+                  </div>
+                </section>
+
+                {/* Theme — the prototype carries this preference in the shell, not the panels */}
+                <section className={styles.prefCard}>
+                  <div className={styles.prefText}>
+                    <span className={styles.prefEyebrow}>Theme</span>
+                    <span className={styles.prefDesc}>Switch the paper-and-ink palette.</span>
+                  </div>
+                  <ThemeSwitcher
+                    onChange={(next) => { try { localStorage.setItem(THEME_KEY, next); } catch { /* ignore */ } }}
+                  />
+                </section>
+              </div>
+            )}
           </>
         )}
       </div>

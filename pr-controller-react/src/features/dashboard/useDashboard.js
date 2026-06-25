@@ -63,6 +63,12 @@ export function useDashboard(seed = null) {
   const [settings, setSettings] = useState(seed?.settings || null);
   const [sensitivityLevels, setSensitivityLevels] = useState(seed?.sensitivityLevels || []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Dashboard list vs swimlane board. A local UI preference (the daemon doesn't care how
+  // you look at the same placements), persisted so the "Default view" setting sticks.
+  const [viewMode, setViewModeState] = useState(() => {
+    try { return localStorage.getItem('pr-controller-view') === 'swimlanes' ? 'swimlanes' : 'dashboard'; }
+    catch { return 'dashboard'; }
+  });
   const [toastMsg, setToastMsg] = useState(null);
   const [threads, setThreads] = useState(seed?.threads || {});
   // Branch-health interaction state, keyed by PR id: { status: 'idle'|'discussing' }.
@@ -423,6 +429,13 @@ export function useDashboard(seed = null) {
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
+  // Switch + persist the dashboard/swimlanes view preference (the "Default view" setting).
+  const setViewMode = useCallback((mode) => {
+    const next = mode === 'swimlanes' ? 'swimlanes' : 'dashboard';
+    setViewModeState(next);
+    try { localStorage.setItem('pr-controller-view', next); } catch { /* ignore */ }
+  }, []);
+
   // Save Settings edits: POST the changed fields to /config; the daemon applies them live +
   // persists them, and echoes the authoritative settings back (which we adopt). Returns the
   // response so the caller can show a saved/again confirmation.
@@ -460,6 +473,8 @@ export function useDashboard(seed = null) {
     settingsOpen,
     openSettings,
     closeSettings,
+    viewMode,
+    setViewMode,
     saveConfig,
     toastMsg,
     setTab,

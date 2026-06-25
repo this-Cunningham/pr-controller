@@ -1,8 +1,9 @@
 import { useDashboard } from './useDashboard.js';
-import { cardProps, threadProps } from './cardProps.js';
+import { cardProps, wireItems } from './cardProps.js';
 import GrainOverlay from './GrainOverlay.jsx';
 import Header from './Header.jsx';
 import Settings from './Settings.jsx';
+import SwimlaneBoard from './SwimlaneBoard.jsx';
 import { Tabs } from '../../design-system/navigation/Tabs.jsx';
 import { PRCard } from './PRCard.jsx';
 import { Skeleton } from '../../design-system/feedback/Skeleton.jsx';
@@ -31,16 +32,6 @@ function emptyLabel(dash, active) {
   return dash.scope?.length
     ? `No PRs in scope${who}. Check config.onlyPRs and that those PRs are open.`
     : `No open PRs found${who}. Check \`gh auth status\` and your config (owner / login).`;
-}
-
-// Attach each thread item's presentational props (data + handlers, bound to this PR +
-// thread) so PRCard/ThreadRow stay pure renderers — they never touch the state hook.
-function wireItems(dash, prId, items) {
-  return items.map((it) =>
-    it.kind === 'thread'
-      ? { ...it, threadProps: threadProps(dash, prId, it.thread.id) }
-      : it
-  );
 }
 
 function Dashboard({ dash }) {
@@ -96,9 +87,13 @@ export default function App() {
   return (
     <div className={styles.app}>
       <GrainOverlay />
-      <div className={styles.column}>
-        <Dashboard dash={dash} />
-      </div>
+      {dash.viewMode === 'swimlanes' ? (
+        <SwimlaneBoard dash={dash} />
+      ) : (
+        <div className={styles.column}>
+          <Dashboard dash={dash} />
+        </div>
+      )}
       <Toast message={dash.toastMsg} />
       {dash.settingsOpen && (
         <Settings
@@ -106,6 +101,8 @@ export default function App() {
           sensitivityLevels={dash.sensitivityLevels}
           saveConfig={dash.saveConfig}
           onClose={dash.closeSettings}
+          viewMode={dash.viewMode}
+          onSetViewMode={dash.setViewMode}
         />
       )}
     </div>

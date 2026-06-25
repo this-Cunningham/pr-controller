@@ -1,7 +1,7 @@
-/* Settings overlay shell — a scrim-backed stack of standalone cards, mirroring the
-   settings overlay in PR Controller.dc.html. No tab bar: a Theme preference card, then
-   the Worker Sensitivity panel, then the Agent Setup panel — each its own bordered card
-   (the panels carry their own card chrome). This file is only the scrim + header. */
+/* Settings overlay shell — a scrim-backed modal with a three-tab body, mirroring the
+   settings overlay in PR Controller.dc.html: 'Agent setup', 'Worker sensitivity', and
+   'Appearance' (default-view + theme cards). Each panel carries its own card chrome; this
+   file is the scrim + header + tab row + the Appearance preference cards. */
 .backdrop {
   composes: ws-appear from global; /* scrim fade-in; keyframe lives in base.css */
   position: fixed;
@@ -66,6 +66,41 @@
   font-family: var(--font-mono);
   font-size: var(--text-eyebrow);
   color: var(--ink-3);
+}
+
+/* settings tab row — plain labels with an accent underline, per PR Controller.dc.html's
+   settings tabs. NOT the DS Tabs primitive (which carries count chips + sticky behavior). */
+.tabs {
+  display: flex;
+  gap: 24px; /* off-scale — settings tab gap, per prototype */
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: var(--space-4) 0;
+  margin-bottom: -1px; /* overlap the row's hairline so the active underline sits on it */
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-body);
+  color: var(--ink-2);
+  border-bottom: 2px solid transparent; /* off-scale — tab underline */
+  transition: color var(--dur-fast) var(--ease);
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[data-active='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+/* Appearance tab — stacks the default-view + theme preference cards */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 /* preference card (Theme) — matches the prototype's shell-level cards */
