@@ -4,13 +4,13 @@ import { promisify } from 'node:util';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
-import { config, ghEnv, hasLocalConfig, cloneRootDefaulted } from './config.mjs';
+import { config, ghEnv, hasLocalConfig, cloneRootDefaulted, clampPoll } from './config.mjs';
 
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { cleanupPr } from './cleanup.mjs';
-import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale } from './rules.mjs';
+import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale, isBranchHealthResultStale } from './rules.mjs';
 import { deriveRecord } from './derive.mjs';
 import { placementsFor, prSortRank } from './placements.mjs';
 import * as events from './events.mjs';
@@ -107,7 +107,8 @@ async function deriveAndSetPrFields(pr) {
   // later poll starts clean instead of re-asserting a fix on a resolved thread.
   // (Fixes the TODO "PR still shows in auto-handling after fix + resolve" bug.)
   const liveThreadIds = new Set(pr.threads.filter((t) => !t.error && t.threadId).map((t) => t.threadId));
-  if (isWorkerResultStale(result, liveThreadIds, { needsRebase: pr.needsRebase, outOfSync: pr.outOfSync })) {
+  if (isWorkerResultStale(result, liveThreadIds, { needsRebase: pr.needsRebase, outOfSync: pr.outOfSync })
+      || isBranchHealthResultStale(result, { needsRebase: pr.needsRebase, checkState: pr.branchHealth?.checkState }, liveThreadIds)) {
     try { await unlink(outPathFor(pr)); } catch {}
   }
 }
@@ -226,6 +227,7 @@ async function poll() {
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
         needsRebase: pr.needsRebase, healthChanged, rebaseSurfaced: !!pr.workerSurfaced,
+        ciReran: !!pr.ciReran,
       });
 
       // Mark threads seen — but DEFER while a real conflict blocks the PR (a conflict
@@ -235,7 +237,7 @@ async function poll() {
       seen.set(prKey, { threads: nextSeenThreads(prev.threads, liveFps, pr.needsRebase), health: healthSig });
 
       if (decision.kind === 'feedback')
-        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth });
+        dispatcher.enqueue(pr, newThreads, { branchHealth: pr.branchHealth, ci: pr.ciFailing });
       else if (decision.kind === 'rebase')
         dispatcher.enqueueRebase(pr, { branchHealth: pr.branchHealth });
     }
@@ -313,7 +315,7 @@ async function applyConfigEdits(edits) {
   }
   let pollChanged = false;
   if (edits.pollMinutes != null && Number.isFinite(Number(edits.pollMinutes))) {
-    const m = Math.max(1, Math.min(1440, Math.round(Number(edits.pollMinutes))));
+    const m = clampPoll(edits.pollMinutes);   // [5,60] — same clamp as load + UI
     if (m !== config.pollMinutes) { config.pollMinutes = m; pollChanged = true; }
     changed.push('pollMinutes');
   }

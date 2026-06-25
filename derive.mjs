@@ -33,6 +33,14 @@ export function deriveRecord(pr, { workerResult = null, outOfSync = false, agent
   const surfaced = workerResult?.branchHealth?.surfaced;
   pr.workerSurfaced = surfaced && pr.needsRebase ? surfaced : undefined;
 
+  // The worker already RE-RAN ("bounced") a flaky-looking CI failure once. Like a surfaced
+  // rebase, the daemon must not keep re-attempting (dispatchDecision suppresses CI-only runs
+  // while this is set). Gated on "CI not yet green" rather than ciFailing: a bounced run goes
+  // PENDING before it re-fails, and gating on ciFailing would clear the flag in that window
+  // and let it bounce again forever. Clears once CI actually passes (checkState SUCCESS).
+  const ciReran = workerResult?.branchHealth?.ciReran;
+  pr.ciReran = ciReran && h.checkState !== 'SUCCESS' ? true : undefined;
+
   // The branch diverged from the remote and the worktree couldn't fast-forward, so
   // the last dispatch bailed without running. Comes from the dispatcher's durable set.
   pr.outOfSync = outOfSync;

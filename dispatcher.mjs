@@ -22,16 +22,18 @@ import { logger } from './log.mjs';
 
 const log = logger('dispatch');
 let deps = null;
-// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, opts }
+// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, ci, opts }
 //   rebase: a rebase is pending for the next run — either folded into thread/CI
 //   work (rebaseOnConflict) or a standalone user-initiated rebase (enqueueRebase).
+//   ci: a newly-failing-CI feedback run is pending with NO review threads — like
+//   rebase, it must still fire one run (the worker fixes CI from branchHealth context).
 const state = new Map();
 
 export function init(d) { deps = d; }
 
 function entry(prKey) {
   let e = state.get(prKey);
-  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), rebase: false, opts: {} }; state.set(prKey, e); }
+  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), rebase: false, ci: false, opts: {} }; state.set(prKey, e); }
   return e;
 }
 
@@ -68,6 +70,11 @@ function enqueueEntry(pr, opts) {
 export function enqueue(pr, newThreads, opts = {}) {
   const { prKey, e } = enqueueEntry(pr, opts);
   if (opts.rebaseOnConflict) e.rebase = true;
+  // A feedback run can be warranted by failing CI alone (no review threads). Mark it so
+  // the drain guard below doesn't treat an empty-thread CI run as "nothing to do" and
+  // silently drop it. The poller only enqueues feedback when work CHANGED (rules.
+  // dispatchDecision gates on healthChanged), so this can't hot-loop on a standing failure.
+  if (opts.ci) e.ci = true;
   mergePending(e.threads, newThreads);
   maybeDrain(prKey);
 }
@@ -96,11 +103,12 @@ export function enqueueApproved(pr, threadIds, opts = {}) {
 // again so anything that arrived mid-run goes out in the next batch (coalescing).
 async function maybeDrain(prKey) {
   const e = state.get(prKey);
-  // Fire when there's ANY pending work: threads OR a pending rebase. (Earlier this
-  // bailed on zero threads, which silently dropped health-only/rebase-only runs.)
-  // `e.failed` blocks only the AUTO re-fire after a throw — refiring the re-staged batch
-  // (see catch) immediately would hot-loop on a hard failure. The next enqueue clears it.
-  if (!e || e.running || e.failed || (e.threads.size === 0 && !e.rebase)) return;
+  // Fire when there's ANY pending work: threads OR a pending rebase OR a newly-failing-CI
+  // run. (Earlier this bailed on zero threads, which silently dropped health-only/rebase-
+  // only and CI-only runs.) `e.failed` blocks only the AUTO re-fire after a throw —
+  // refiring the re-staged batch (see catch) immediately would hot-loop on a hard failure.
+  // The next enqueue clears it.
+  if (!e || e.running || e.failed || (e.threads.size === 0 && !e.rebase && !e.ci)) return;
 
   e.running = true;
   // Optimistically clear any prior worker-failure surface — this run is a fresh attempt. If it
@@ -114,6 +122,7 @@ async function maybeDrain(prKey) {
   e.threads = new Map();
   e.approved = new Set();
   e.rebase = false;
+  e.ci = false;  // one-shot, like rebase — consumed so the post-run re-drain can't loop
 
   deps.events.markStarted(prKey, { rebase });
   const outPath = deps.outPath(pr);

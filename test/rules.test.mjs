@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
-  validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale,
+  validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale, isBranchHealthResultStale,
   cloneUrl, classifyWorkerError,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
@@ -169,6 +169,38 @@ test('isWorkerResultStale: no actions / no result -> never stale', () => {
   assert.equal(isWorkerResultStale({}, new Set(), {}), false);
 });
 
+// isBranchHealthResultStale — reap a branch-health-only result (no actions) once its flags
+// recover, so a stale `ciReran`/`surfaced` can't resurrect onto a LATER, distinct failure/
+// conflict (the "fixed, then fails again" case). isWorkerResultStale can't do this — a
+// rebase/CI-only run has no actions, so it bails.
+test('isBranchHealthResultStale: a CI-bounce result is dropped once CI goes green', () => {
+  const reran = { actions: [], branchHealth: { ciReran: true } };
+  assert.equal(isBranchHealthResultStale(reran, { checkState: 'SUCCESS' }, new Set()), true);   // green -> drop, next failure re-bounces
+  assert.equal(isBranchHealthResultStale(reran, { checkState: 'FAILURE' }, new Set()), false);  // still red -> keep (suppress a 2nd bounce)
+  assert.equal(isBranchHealthResultStale(reran, { checkState: 'PENDING' }, new Set()), false);  // re-run in flight -> keep (survives PENDING)
+});
+
+test('isBranchHealthResultStale: a surfaced rebase result is dropped once the conflict clears', () => {
+  const surfaced = { actions: [], branchHealth: { surfaced: 'rebase too risky' } };
+  assert.equal(isBranchHealthResultStale(surfaced, { needsRebase: false }, new Set()), true);  // resolved -> drop, a NEW conflict re-attempts
+  assert.equal(isBranchHealthResultStale(surfaced, { needsRebase: true }, new Set()), false);  // still conflicting -> keep (suppress re-attempt)
+});
+
+test('isBranchHealthResultStale: a result carrying BOTH flags is kept until BOTH recover', () => {
+  const both = { actions: [], branchHealth: { surfaced: 'risky', ciReran: true } };
+  assert.equal(isBranchHealthResultStale(both, { needsRebase: false, checkState: 'FAILURE' }, new Set()), false); // CI still red
+  assert.equal(isBranchHealthResultStale(both, { needsRebase: true, checkState: 'SUCCESS' }, new Set()), false);  // still conflicting
+  assert.equal(isBranchHealthResultStale(both, { needsRebase: false, checkState: 'SUCCESS' }, new Set()), true);  // both clear -> drop
+});
+
+test('isBranchHealthResultStale: never drops a live thread verdict, and no-op without a flag', () => {
+  const withLiveThread = { actions: [{ threadId: 'a', response: 'fix' }], branchHealth: { ciReran: true } };
+  assert.equal(isBranchHealthResultStale(withLiveThread, { checkState: 'SUCCESS' }, new Set(['a'])), false); // verdict still live
+  assert.equal(isBranchHealthResultStale(withLiveThread, { checkState: 'SUCCESS' }, new Set()), true);       // thread gone -> safe
+  assert.equal(isBranchHealthResultStale({ actions: [], branchHealth: {} }, { checkState: 'SUCCESS' }, new Set()), false); // no flag
+  assert.equal(isBranchHealthResultStale(null, { checkState: 'SUCCESS' }, new Set()), false);
+});
+
 const cfg = {
   ignoreChecks: ['license/', 'cla', 'dco'],
   complianceChecks: ['compliance/sox', 'compliance/'],
@@ -284,6 +316,16 @@ test('dispatchDecision: failing CI that already existed (no change) -> none', ()
 
 test('dispatchDecision: failing CI newly appeared (health changed), no conflict -> feedback', () => {
   assert.equal(dispatchDecision({ ciFailing: true, healthChanged: true }).kind, 'feedback');
+});
+
+test('dispatchDecision: already-bounced CI (ciReran) does NOT re-dispatch, even on a health change', () => {
+  // Mirrors rebaseSurfaced: once the worker re-ran a flaky-looking failure, the daemon
+  // stops bouncing it — no infinite re-run loop. The re-failed run is left for the user.
+  assert.equal(dispatchDecision({ ciFailing: true, healthChanged: true, ciReran: true }).kind, 'none');
+});
+
+test('dispatchDecision: already-bounced CI still yields to NEW threads (threads are real work)', () => {
+  assert.equal(dispatchDecision({ newThreadCount: 1, ciFailing: true, healthChanged: true, ciReran: true }).kind, 'feedback');
 });
 
 test('dispatchDecision: idle conflict + health changed -> rebase', () => {

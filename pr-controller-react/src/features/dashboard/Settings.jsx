@@ -8,14 +8,15 @@ const THEME_KEY = 'pr-controller-theme';
 
 /**
  * Settings overlay — opened by the header gear. Mirrors the settings overlay in the
- * PR Controller prototype: a scrim-backed stack of standalone cards (no tabs) — a Theme
- * preference card, then the Worker Sensitivity panel, then the Agent Setup panel. Each
- * embedded panel is its own bordered card and POSTs its own save via `saveConfig`
- * (server-authoritative state.json `settings`). This shell owns only theme persistence
- * and dismissal. Closes on backdrop click / Escape / Close.
+ * PR Controller prototype: a scrim-backed stack of standalone cards (no tabs) — a Default
+ * view card, a Theme preference card, then the Worker Sensitivity panel, then the Agent
+ * Setup panel. Each embedded panel is its own bordered card and POSTs its own save via
+ * `saveConfig` (server-authoritative state.json `settings`). This shell owns only theme
+ * persistence and dismissal. Closes on backdrop click / Escape / Close.
  *
- * (The prototype also carries a "Default view" card — Dashboard | Swimlanes — omitted
- * here: the app has no swimlane view to toggle, so a dead control would mislead.)
+ * (The "Default view" card — Dashboard | Swimlanes — is kept to match the prototype but is
+ * INERT dead UI: the app has no swimlane view to switch to, so the toggle has no onClick.
+ * Wire it to a real view mode here if/when swimlanes ship — see the inline note below.)
  */
 export default function Settings({ settings, sensitivityLevels, saveConfig, onClose }) {
   useEffect(() => {

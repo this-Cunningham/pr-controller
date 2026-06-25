@@ -73,6 +73,8 @@ export function validateWorkerResult(raw) {
     problems.push('`branchHealth` is present but not an object');
   if (bh?.surfaced !== undefined && bh.surfaced !== null && typeof bh.surfaced !== 'string')
     problems.push('`branchHealth.surfaced` is present but not a string');
+  if (bh?.ciReran !== undefined && typeof bh.ciReran !== 'boolean')
+    problems.push('`branchHealth.ciReran` is present but not a boolean');
 
   return { result: { ...raw, actions }, problems };
 }
@@ -117,6 +119,25 @@ export function isWorkerResultStale(result, liveThreadIds, { needsRebase = false
   const live = liveThreadIds instanceof Set ? liveThreadIds : new Set(liveThreadIds || []);
   const anyLive = result.actions.some((a) => live.has(a.threadId));
   return !anyLive && !needsRebase && !outOfSync;
+}
+
+// A branch-health-only worker result (no live thread verdict) carries flags about a PAST
+// branch-health episode: `surfaced` (a rebase the worker bailed on, which suppresses re-
+// attempts) and/or `ciReran` (a CI failure it bounced once, which suppresses re-bounces).
+// isWorkerResultStale never reaps these — a rebase/CI-only run has no actions — so without
+// this they'd persist and RESURRECT onto a LATER, distinct conflict/failure, wrongly
+// suppressing it ("I already handled this"). Reap the result once EVERY flag it carries has
+// recovered: `surfaced` -> the branch no longer conflicts (!needsRebase); `ciReran` -> CI is
+// green again (checkState SUCCESS — not !ciFailing, which would clear it during a re-run's
+// PENDING window and let it bounce forever). Only when no live thread verdict would be lost
+// (a feedback run that also judged threads keeps its result until those resolve). Pure; tested.
+export function isBranchHealthResultStale(result, { needsRebase = false, checkState = null } = {}, liveThreadIds) {
+  const bh = result?.branchHealth;
+  if (!bh || (!bh.surfaced && !bh.ciReran)) return false;
+  if (bh.surfaced && needsRebase) return false;             // conflict still live -> keep suppressing
+  if (bh.ciReran && checkState !== 'SUCCESS') return false;  // CI not green yet -> keep (survives PENDING)
+  const live = liveThreadIds instanceof Set ? liveThreadIds : new Set(liveThreadIds || []);
+  return !(result.actions || []).some((a) => live.has(a.threadId));
 }
 
 // Merge incoming threads into a pending Map keyed by threadId, in place. Used by
@@ -180,11 +201,14 @@ export function needsRebase(mergeState, mergeable) {
 //    something risky). Normal flow resumes once the conflict clears (surfaced drops).
 //  - NO CONFLICT -> normal feedback path: dispatch threads/CI only when there's work
 //    AND something changed this poll (new threads, or health changed). Feedback runs
-//    NEVER rebase — the branch is already mergeable.
-export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false, rebaseSurfaced = false }) {
+//    NEVER rebase — the branch is already mergeable. Once the worker has already RE-RUN
+//    ("bounced") a flaky-looking CI failure (ciReran), CI alone stops counting as work —
+//    the daemon won't bounce it again, mirroring rebaseSurfaced. It re-engages only when
+//    new threads arrive, or CI goes green and later fails afresh (ciReran clears in derive).
+export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false, rebaseSurfaced = false, ciReran = false }) {
   if (needsRebase)
     return rebaseSurfaced ? { kind: 'none' } : healthChanged ? { kind: 'rebase' } : { kind: 'none' };
-  const workToDo = newThreadCount > 0 || ciFailing;
+  const workToDo = newThreadCount > 0 || (ciFailing && !ciReran);
   if (workToDo && (newThreadCount > 0 || healthChanged))
     return { kind: 'feedback' };
   return { kind: 'none' };

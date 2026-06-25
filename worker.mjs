@@ -133,7 +133,13 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   const base = pr.baseRefName || 'main';
   const healthBlock = (bh.mergeState || bh.checkState)
     ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
-      + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => `- ${c.name} [${c.state}] ${c.url || ''}`).join('\n')}` : '')
+      + ((bh.failingChecks || []).length ? `\nfailing checks:\n${bh.failingChecks.map(c => {
+        // Surface the GitHub Actions run id (parsed from the check's detailsUrl) + the
+        // exact rerun command, so the worker can bounce a flaky/infra failure without
+        // hand-parsing the URL. Non-Actions checks (no run id) just omit the hint.
+        const runId = (c.url || '').match(/\/actions\/runs\/(\d+)/)?.[1];
+        return `- ${c.name} [${c.state}] ${c.url || ''}${runId ? ` — rerun: gh run rerun ${runId} --failed` : ''}`;
+      }).join('\n')}` : '')
       + (opts.rebase
         ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git rebase origin/${base}\` — onto the REMOTE base origin/${base}, NOT a local ref (your local ${base} would be stale and hide the conflict). Do NOT run \`git fetch\` yourself: the daemon already fetched origin/${base} for you under a per-clone lock, and a second concurrent fetch on the shared clone would race on its refs. Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
         : `\nREBASE this run: NO — do not rebase. Fix CI only if it's caused by your changes (see "Branch health" in the house rules).`)

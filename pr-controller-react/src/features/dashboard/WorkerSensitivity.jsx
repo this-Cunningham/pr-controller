@@ -20,6 +20,10 @@ export default function WorkerSensitivity({ sensitivityLevels = [], settings, sa
   const [working, setWorking] = useState(baseline);
   const [saved, setSaved] = useState(false);
   const trackRef = useRef(null);
+  // The level in effect BEFORE the last save. Captured at save time because `baseline`
+  // recomputes from the freshly-saved `settings` prop, so Undo can't read the old value
+  // off it anymore — without this the Undo would restore the just-saved value (a no-op).
+  const prevLevel = useRef(null);
 
   const max = Math.max(0, sensitivityLevels.length - 1);
   const level = sensitivityLevels[working] || sensitivityLevels[0];
@@ -68,8 +72,20 @@ export default function WorkerSensitivity({ sensitivityLevels = [], settings, sa
   }
 
   async function save() {
+    prevLevel.current = baseline; // the level before this save, for Undo
     await saveConfig({ workerSensitivity: working });
     setSaved(true);
+  }
+
+  // Undo a just-applied level: the value is already persisted server-side, so restore the
+  // pre-save level locally AND re-POST it so the daemon reverts too (not a UI-only revert).
+  function undo() {
+    const prev = prevLevel.current;
+    setSaved(false);
+    if (prev != null && prev !== working) {
+      setWorking(prev);
+      saveConfig({ workerSensitivity: prev });
+    }
   }
 
   return (
@@ -174,7 +190,7 @@ export default function WorkerSensitivity({ sensitivityLevels = [], settings, sa
           <Confirmation
             text="✓ Sensitivity applied to all workers."
             fg="var(--auto-fg)"
-            onUndo={() => { setWorking(baseline); setSaved(false); }}
+            onUndo={undo}
           />
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '../../design-system/core/Button.jsx';
 import { Confirmation } from '../../design-system/feedback/Confirmation.jsx';
 import styles from './SettingsSetup.module.css';
@@ -63,6 +63,10 @@ export default function SettingsSetup({ settings, saveConfig }) {
   const [prError, setPrError] = useState('');
   const [saved, setSaved] = useState(false);
   const [justAdded, setJustAdded] = useState(null); // key of the just-added row, for its entrance anim
+  // The config in effect BEFORE the last save. Captured at save time because savedPRs/
+  // savedPoll/savedModel recompute from the freshly-saved `settings` prop — so Undo can't
+  // read the old values off them anymore (without this it would restore the just-saved ones).
+  const prevConfig = useRef(null);
 
   const dirty =
     !arraysEqual(onlyPRs, savedPRs) ||
@@ -108,16 +112,23 @@ export default function SettingsSetup({ settings, saveConfig }) {
     touched();
   }
 
+  // Undo a just-saved edit: the values are already persisted server-side, so restore the
+  // pre-save snapshot locally AND re-POST it so the daemon reverts too (not a UI-only revert).
   function revert() {
-    setOnlyPRs(savedPRs);
-    setPollMinutes(savedPoll);
-    setWorkerModel(savedModel);
+    const prev = prevConfig.current;
     setDraft('');
     setPrError('');
     setSaved(false);
+    if (prev) {
+      setOnlyPRs(prev.onlyPRs);
+      setPollMinutes(prev.pollMinutes);
+      setWorkerModel(prev.workerModel);
+      saveConfig(prev);
+    }
   }
 
   async function save() {
+    prevConfig.current = { onlyPRs: savedPRs, pollMinutes: savedPoll, workerModel: savedModel };
     await saveConfig({ onlyPRs, pollMinutes, workerModel });
     setSaved(true);
   }

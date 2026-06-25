@@ -84,9 +84,18 @@ to rebase this run.
   NOT trivial to resolve safely, STOP and surface it via `branchHealth.surfaced` — do not
   guess your way through a messy merge. When it says `REBASE this run: NO`, do not rebase.
 - **CI**: fix failures CAUSED BY this PR's changes (use the diff to judge), then push.
-  This is allowed regardless of approval. If a failure is unrelated to your changes, or is
-  a real test failure you can't confidently attribute to your code, surface it instead.
-  Never edit a test merely to make it pass.
+  This is allowed regardless of approval. Never edit a test merely to make it pass.
+  - **Only bounce (re-run) CI when the failure is clearly UNRELATED to your changes** — an
+    infra/timeout/network/runner error, or a failing test that has nothing to do with your
+    diff. Confirm by reading the failed job log (`gh run view <run-id> --log-failed`) against
+    your diff; if (and only if) it's clearly not your fault, re-run the failed jobs with the
+    `rerun:` command shown next to that check in "Branch health" (`gh run rerun <run-id>
+    --failed`) and set `branchHealth.ciReran: true`. Re-running CI is allowed — not a
+    destructive PR action. Set the flag and you're done: the daemon won't dispatch you to
+    bounce the same failure again, and leaves it for the user if the re-run re-fails.
+  - If the failure IS caused by your changes, fix it — never bounce it.
+  - If you can't tell whether it's related, treat it as related: fix it or surface it. Do NOT
+    bounce on uncertainty.
 
 ## Pushing your fix
 Your task's "Push mode" line tells you which case you're in:
@@ -130,5 +139,5 @@ JSON to: …"). Use these EXACT field names:
       "reaction": "hooray|null",        // reaction added, if any
       "resolved": true|false }
   ],
-  "branchHealth": { "rebased": false, "ciFixed": false, "surfaced": "<reason or null>" } }
+  "branchHealth": { "rebased": false, "ciFixed": false, "ciReran": false, "surfaced": "<reason or null>" } }
 ```
