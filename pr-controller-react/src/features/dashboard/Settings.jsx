@@ -1,18 +1,23 @@
-import { useEffect, useState } from 'react';
-import { Tabs } from '../../design-system/navigation/Tabs.jsx';
+import { useEffect } from 'react';
+import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import SettingsSetup from './SettingsSetup.jsx';
 import WorkerSensitivity from './WorkerSensitivity.jsx';
 import styles from './Settings.module.css';
 
+const THEME_KEY = 'pr-controller-theme';
+
 /**
- * Settings overlay — opened by the header gear. A modal shell with two tabs (Setup +
- * Worker sensitivity); each tab is a self-contained editor that POSTs its own save via
- * `saveConfig`. The config it edits is server-authoritative (state.json `settings`); this
- * component owns only the open tab + dismissal. Closes on backdrop click / Escape / ×.
+ * Settings overlay — opened by the header gear. Mirrors the settings overlay in the
+ * PR Controller prototype: a scrim-backed stack of standalone cards (no tabs) — a Theme
+ * preference card, then the Worker Sensitivity panel, then the Agent Setup panel. Each
+ * embedded panel is its own bordered card and POSTs its own save via `saveConfig`
+ * (server-authoritative state.json `settings`). This shell owns only theme persistence
+ * and dismissal. Closes on backdrop click / Escape / Close.
+ *
+ * (The prototype also carries a "Default view" card — Dashboard | Swimlanes — omitted
+ * here: the app has no swimlane view to toggle, so a dead control would mislead.)
  */
 export default function Settings({ settings, sensitivityLevels, saveConfig, onClose }) {
-  const [tab, setTab] = useState('setup');
-
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -22,33 +27,52 @@ export default function Settings({ settings, sensitivityLevels, saveConfig, onCl
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div
-        className={styles.panel}
+        className={styles.modal}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.head}>
-          <Tabs
-            sticky={false}
-            active={tab}
-            onChange={setTab}
-            tabs={[
-              { key: 'setup', label: 'Setup' },
-              { key: 'sensitivity', label: 'Worker sensitivity' },
-            ]}
-          />
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close settings" title="Close">×</button>
+          <span className={styles.headEyebrow}>Settings</span>
+          <button type="button" className={styles.close} onClick={onClose} aria-label="Close settings">
+            Close <span className={styles.kbd}>esc</span>
+          </button>
         </div>
-        <div className={styles.body}>
-          {!settings ? (
-            <div className={styles.loading}>Loading settings…</div>
-          ) : tab === 'setup' ? (
-            <SettingsSetup settings={settings} saveConfig={saveConfig} />
-          ) : (
+
+        {!settings ? (
+          <div className={styles.loading}>Loading settings…</div>
+        ) : (
+          <>
+            {/* Default view — DEAD UI. The app has no swimlane view to switch to, so this
+                toggle is inert (no onClick); kept to match the PR Controller prototype.
+                Wire it to a real view mode here if/when swimlanes ship. */}
+            <section className={styles.prefCard}>
+              <div className={styles.prefText}>
+                <span className={styles.prefEyebrow}>Default view</span>
+                <span className={styles.prefDesc}>Show your PRs as a list or a swimlane board.</span>
+              </div>
+              <div className={styles.seg} role="group" aria-label="Default view">
+                <button type="button" className={styles.segItem} data-active="true">Dashboard</button>
+                <button type="button" className={styles.segItem}>Swimlanes</button>
+              </div>
+            </section>
+
+            {/* Theme — the prototype carries this preference in the shell, not the panels */}
+            <section className={styles.prefCard}>
+              <div className={styles.prefText}>
+                <span className={styles.prefEyebrow}>Theme</span>
+                <span className={styles.prefDesc}>Switch the paper-and-ink palette.</span>
+              </div>
+              <ThemeSwitcher
+                onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ } }}
+              />
+            </section>
+
             <WorkerSensitivity sensitivityLevels={sensitivityLevels} settings={settings} saveConfig={saveConfig} />
-          )}
-        </div>
+            <SettingsSetup settings={settings} saveConfig={saveConfig} />
+          </>
+        )}
       </div>
     </div>
   );

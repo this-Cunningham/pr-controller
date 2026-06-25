@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../design-system/core/Button.jsx';
 import { Confirmation } from '../../design-system/feedback/Confirmation.jsx';
-import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import styles from './SettingsSetup.module.css';
-
-const THEME_KEY = 'pr-controller-theme';
 
 /**
  * Agent setup (Settings). Renders the daemon's server-authoritative `settings` and edits
@@ -65,6 +62,7 @@ export default function SettingsSetup({ settings, saveConfig }) {
   const [draft, setDraft] = useState('');
   const [prError, setPrError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [justAdded, setJustAdded] = useState(null); // key of the just-added row, for its entrance anim
 
   const dirty =
     !arraysEqual(onlyPRs, savedPRs) ||
@@ -88,6 +86,7 @@ export default function SettingsSetup({ settings, saveConfig }) {
       return;
     }
     setOnlyPRs([...onlyPRs, norm]);
+    setJustAdded(norm);
     setDraft('');
     setPrError('');
     touched();
@@ -150,17 +149,6 @@ export default function SettingsSetup({ settings, saveConfig }) {
         <span className={styles.connNote}>The agent skips your own comments.</span>
       </section>
 
-      {/* APPEARANCE (theme — applies instantly, not part of Save) */}
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <span className={styles.eyebrow}>Appearance</span>
-        </div>
-        <p className={styles.sectionDesc}>The dashboard theme — applies instantly.</p>
-        <div className={styles.themeRow}>
-          <ThemeSwitcher onChange={(t) => { try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ } }} />
-        </div>
-      </section>
-
       {/* WHICH PRs TO WATCH (editable → onlyPRs) */}
       <section className={styles.section}>
         <div className={styles.sectionHead}>
@@ -178,7 +166,11 @@ export default function SettingsSetup({ settings, saveConfig }) {
         ) : (
           <ul className={styles.prList}>
             {onlyPRs.map((key) => (
-              <li key={key} className={styles.prRow}>
+              <li
+                key={key}
+                className={key === justAdded ? `${styles.prRow} ${styles.prRowEnter}` : styles.prRow}
+                onAnimationEnd={() => { if (key === justAdded) setJustAdded(null); }}
+              >
                 <span className={styles.prMark} aria-hidden="true">◆</span>
                 <span className={styles.prKey}>{key}</span>
                 <button
@@ -212,20 +204,26 @@ export default function SettingsSetup({ settings, saveConfig }) {
         {/* How often to check (editable → pollMinutes) */}
         <div className={styles.field}>
           <span className={styles.eyebrow}>How often to check</span>
+          <p className={styles.fieldDesc}>How frequently it looks for new activity.</p>
           <div className={styles.stepper}>
-            <button
-              type="button"
-              className={styles.stepBtn}
-              onClick={() => setPoll(pollMinutes - POLL_STEP)}
-              disabled={pollMinutes <= POLL_MIN}
-              aria-label="Check less often"
-            >−</button>
-            <span className={styles.stepReadout}>{pollMinutes} min</span>
+            {/* − = less often = a LARGER interval; + = more often = a SMALLER one
+                (the buttons step frequency, so the minute value moves the opposite way). */}
             <button
               type="button"
               className={styles.stepBtn}
               onClick={() => setPoll(pollMinutes + POLL_STEP)}
               disabled={pollMinutes >= POLL_MAX}
+              aria-label="Check less often"
+            >−</button>
+            <span className={styles.stepReadout}>
+              <span key={pollMinutes} className={styles.stepValue}>{pollMinutes}</span>
+              <span className={styles.stepUnit}>min</span>
+            </span>
+            <button
+              type="button"
+              className={styles.stepBtn}
+              onClick={() => setPoll(pollMinutes - POLL_STEP)}
+              disabled={pollMinutes <= POLL_MIN}
               aria-label="Check more often"
             >+</button>
           </div>
@@ -235,6 +233,7 @@ export default function SettingsSetup({ settings, saveConfig }) {
         {/* Assistant model (editable → workerModel) */}
         <div className={styles.field}>
           <span className={styles.eyebrow}>Assistant model</span>
+          <p className={styles.fieldDesc}>Which model does the work.</p>
           <div className={styles.segmented} role="radiogroup" aria-label="Assistant model">
             {MODELS.map((m) => (
               <button

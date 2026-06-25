@@ -6,6 +6,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-7);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 24px 26px 22px; /* card gutter, per Worker Sensitivity.dc.html */
   font-family: var(--font-sans);
   color: var(--ink);
 }
@@ -32,8 +36,8 @@
 }
 .title {
   margin: 0;
-  font-family: var(--font-serif);
-  font-weight: var(--weight-medium);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
   font-size: var(--text-section);
   line-height: var(--leading-title);
   color: var(--ink);

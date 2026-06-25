@@ -1,62 +1,139 @@
-/* Settings overlay shell — a centered modal over a scrim. The two tab editors bring their
-   own section styling; this file is only the dialog chrome. */
+/* Settings overlay shell — a scrim-backed stack of standalone cards, mirroring the
+   settings overlay in PR Controller.dc.html. No tab bar: a Theme preference card, then
+   the Worker Sensitivity panel, then the Agent Setup panel — each its own bordered card
+   (the panels carry their own card chrome). This file is only the scrim + header. */
 .backdrop {
-  composes: ws-appear from global;
+  composes: ws-appear from global; /* scrim fade-in; keyframe lives in base.css */
   position: fixed;
   inset: 0;
+  z-index: 80;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px 20px; /* off-scale — modal gutter */
-  z-index: 50;
+  padding: 5vh 20px; /* off-scale — modal gutter */
   overflow-y: auto;
 }
 
-.panel {
+.modal {
+  position: relative;
   width: 100%;
-  max-width: 660px; /* off-scale */
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-toast);
-  overflow: hidden;
+  max-width: 640px; /* off-scale */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  animation: modal-rise var(--dur-card) var(--ease-out);
+}
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
+/* header row — eyebrow + Close */
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--line);
 }
-
-.close {
-  flex: none;
-  cursor: pointer;
-  border: none;
-  background: transparent;
+.headEyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
   color: var(--ink-3);
-  font-size: 22px; /* off-scale */
-  line-height: 1;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-chip);
-  transition: color var(--dur-fast) var(--ease);
+}
+.close {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  padding: var(--space-2) var(--space-4);
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .close:hover {
   color: var(--ink);
+  border-color: var(--ink-3);
+}
+.kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  color: var(--ink-3);
 }
 
-.body {
-  padding: var(--space-6);
-  max-height: 78vh;
-  overflow-y: auto;
+/* preference card (Theme) — matches the prototype's shell-level cards */
+.prefCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-6) 26px; /* 26px card gutter, per prototype */
+}
+.prefText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.prefEyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.prefDesc {
+  font-size: var(--text-caption);
+  color: var(--ink-2);
+}
+
+/* segmented control for the shell preference cards (Default view) */
+.seg {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-2);
+  border-radius: var(--radius-control);
+}
+.segItem {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-caption);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.segItem:hover {
+  color: var(--ink);
+}
+.segItem[data-active='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-seg);
 }
 
 .loading {
   color: var(--ink-3);
   font-family: var(--font-mono);
   font-size: var(--text-caption);
-  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: var(--space-7) 26px;
 }
