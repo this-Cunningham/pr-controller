@@ -1,0 +1,3 @@
+[
+  { "v": "1.0.0", "change": "Initial skill — drives the real daemon via the dev sandbox profile (whitelisted disposable PRs) through scan/derive/place/render/dispatch; added smoke.sh (build→launch→screenshot→verify) and the gotchas." }
+]

@@ -1,0 +1,4 @@
+[
+  { "v": "3.1.0", "change": "Neutral built-in profiles; config ships without machine-specific values." },
+  { "v": "3.2.0", "change": "Renamed setup→configure-pr-controller; guarded the config write so it never clobbers an existing config; added confirm-it-worked, first-run-safety, and gh-derived transport-verify steps; corrected JSON/cloneRoot/profile gotchas.", "snag": "bare heredoc wiped a populated config on re-setup" }
+]
