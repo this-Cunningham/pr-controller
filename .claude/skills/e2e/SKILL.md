@@ -220,4 +220,4 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
   503-before-build, render-races-scan.
 
 ---
-_Improve this skill over time with `/auto-improve e2e` (see CHANGELOG.md)._
+_Improve this skill over time with `/auto-improve e2e` (see _changelog.json)._

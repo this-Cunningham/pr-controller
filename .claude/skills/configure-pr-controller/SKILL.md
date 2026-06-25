@@ -98,4 +98,4 @@ After `node server.mjs`, open http://localhost:4317:
   confirm the resolved `account` is who you expect (`gh auth status`) and that `onlyPRs` / `owner` are right.
 
 ---
-_Improve this skill with `/auto-improve configure-pr-controller` (see [CHANGELOG.md](CHANGELOG.md))._
+_Improve this skill with `/auto-improve configure-pr-controller` (see [_changelog.json](_changelog.json))._

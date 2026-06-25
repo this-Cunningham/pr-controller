@@ -192,4 +192,4 @@ cd pr-controller-react && yarn lint                  # design-system token + pro
 | `chrome-devtools: command not found` | Install the `chrome-devtools-mcp` plugin / put its CLI on PATH. |
 
 ---
-_Improve this skill over time with `/auto-improve run-pr-controller` (see CHANGELOG.md)._
+_Improve this skill over time with `/auto-improve run-pr-controller` (see _changelog.json)._
