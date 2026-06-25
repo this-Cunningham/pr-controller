@@ -20,6 +20,17 @@ export function cardProps(dash, prId) {
   };
 }
 
+// Attach each thread item's presentational props (data + handlers, bound to this PR +
+// thread) so PRCard/ThreadRow stay pure renderers — they never touch the state hook.
+// Shared by the dashboard list view and the swimlane board's expand modal.
+export function wireItems(dash, prId, items) {
+  return items.map((it) =>
+    it.kind === 'thread'
+      ? { ...it, threadProps: threadProps(dash, prId, it.thread.id) }
+      : it
+  );
+}
+
 // Per-thread data + handlers, bound to one (prId, threadId). The card knows both ids
 // (it renders the thread inside the PR), so no thread->PR lookup is needed.
 export function threadProps(dash, prId, threadId) {
