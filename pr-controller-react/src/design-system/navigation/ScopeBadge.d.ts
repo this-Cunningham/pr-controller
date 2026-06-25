@@ -6,6 +6,10 @@ export interface ScopeBadgeProps {
   /** Number of allowlisted PRs (shown in the scoped state). */
   count?: number;
   onToggle: () => void;
+  /** Label for the "all" state (default "Watching all PRs"). */
+  allLabel?: string;
+  /** Label for the scoped state (default "Scoped · {count} PRs"). */
+  scopedLabel?: string;
 }
 
 export function ScopeBadge(props: ScopeBadgeProps): JSX.Element;

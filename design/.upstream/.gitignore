@@ -1,0 +1,8 @@
+# Generated Claude Design runtime — never ported into the app, never design intent, and ~4200
+# lines of compiled noise per baseline refresh. The change-keys that actually matter (per-component
+# sourceHashes + token values) are committed in <product-baseline>/.sync-snapshot.json instead, and
+# sync-plan.mjs reads the bundle header from the fresh EXPORT (not the committed baseline), so these
+# bodies never need to be tracked. (support.js is marked "GENERATED … do not edit"; _ds_bundle.js is
+# the compiled component bundle the sync explicitly never ports.)
+support.js
+_ds_bundle.js

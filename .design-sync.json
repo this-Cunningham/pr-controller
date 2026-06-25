@@ -4,6 +4,16 @@
     "onUpstreamRemoval": "mirror-when-complete",
     "note": "Apply an upstream removal (delete the primitive/token locally) when syncing from a COMPLETE design-system import — a kind=design-system project verified complete against its _ds_manifest, where absence reliably means 'removed', so mirror it. From a product/prototype export (a partial slice), NEVER infer removal: absence only means 'not used by these prototypes'. Either way, surface what changed in the report."
   },
+  "snapshot": {
+    "path": "design/.upstream/pr-controller-prototypes/.sync-snapshot.json",
+    "note": "Committed change-key baseline for the /pull-new-designs `sync-plan.mjs` script: per-component DS sourceHashes, token name→value map, and the integrated product lastChangelogVersion. On re-sync, sync-plan diffs a fresh export's index files (bundle header + manifest + _changelog.json) against this snapshot to emit the MINIMAL get_file list (was: a full ~81-file pull). Regenerate AFTER integrating a sync: `node <skill>/scripts/sync-plan.mjs snapshot --from <export>`. The generated runtime (support.js, _ds_bundle.js) is gitignored via design/.upstream/.gitignore — this snapshot replaces the need to commit the ~4200-line bundle body."
+  },
+  "app": {
+    "$comment": "Target-repo wiring so the gates/verify are not hardcoded to this repo (the skill reads this). 'src' = roots check-motion scans for *.module.css/keyframes (omit to auto-derive the …/src ancestor of each project's primitives/features). 'lint'/'dsDrift' = the commands that run eslint+check-motion and the drift report. The two gates (check-motion.mjs, check-ds-drift.mjs) are scaffolded into the app's scripts/ from <skill>/scaffold/.",
+    "src": ["pr-controller-react/src"],
+    "lint": "cd pr-controller-react && yarn lint",
+    "dsDrift": "cd pr-controller-react && yarn ds-drift"
+  },
   "projects": {
     "wabi-sabi-foundation": {
       "namespace": "DesignSystem_220c99",
@@ -12,7 +22,12 @@
       "note": "No standalone foundation export yet — the foundation is bundled in the pr-controller-prototypes export, so its baseline IS that export's _ds/. Don't copy it into a separate dir (duplicates + drifts on the next product sync). A standalone foundation import would give it its own design/.upstream/wabi-sabi-foundation/ baseline.",
       "tokens": "pr-controller-react/src/design-system/tokens",
       "primitives": "pr-controller-react/src/design-system",
-      "styling": "css-modules"
+      "styling": "css-modules",
+      "localPatches": {
+        "$comment": "Intentional, deliberate divergences of the app's .d.ts prop contracts from the upstream baseline. scripts/check-ds-drift.mjs suppresses these so only GENUINE missed-upstream changes surface (the signal/noise fix for the 3-way merge). Keys per component: added (app-only prop), retyped (prop type widened/narrowed on purpose), dropped (upstream prop intentionally omitted).",
+        "Toggle": { "added": ["ariaLabel"], "note": "local a11y: accessible name for a label-less switch (applied only when `label` is absent)." },
+        "OrganicLoader": { "retyped": ["tone"], "note": "intentionally widened to `string` (any token name) — broader than upstream's OrganicLoaderTone union." }
+      }
     },
     "pr-controller-prototypes": {
       "namespace": "DesignSystem_220c99",
@@ -21,6 +36,19 @@
       "baseline": "design/.upstream/pr-controller-prototypes",
       "features": ["pr-controller-react/src/features/dashboard"],
       "styling": "css-modules",
+      "decomposition": {
+        "$comment": "Which app feature files each prototype (.dc.html) fans out into, so a re-sync edits the existing split instead of re-discovering it (and risking regressing local edits). Verify on a structural change; dc-extract.mjs helps re-derive props/tables.",
+        "PRCard.dc.html": ["PRCard.jsx", "AgentWorking.jsx", "BranchStatus.jsx", "JiraBanner.jsx", "StagedApprovalsBar.jsx", "StatusLine.jsx"],
+        "ThreadRow.dc.html": ["ThreadRow.jsx", "TerminalNote.jsx"],
+        "Header.dc.html": ["Header.jsx", "PollingToggle.jsx"],
+        "Settings.dc.html": ["Settings.jsx", "SettingsSetup.jsx"],
+        "Worker Sensitivity.dc.html": ["WorkerSensitivity.jsx"],
+        "PR Controller.dc.html": ["App.jsx", "GrainOverlay.jsx"]
+      },
+      "referenceOnly": {
+        "$comment": "Prototype logic that is NOT ported — the daemon owns it. Translate behaviors, not this scaffolding.",
+        "PR Controller.dc.html": "makeController / buildItems / TAG_LANE / prInLane in-template routing is server-authoritative in the app (placements.mjs). State is the app-native useDashboard.js + cardProps.js + adapt.js — NOT a port of the prototype controller god-object."
+      },
       "note": "2026-06-24 pull: integrated 3 new prototypes — Header (polished polling toggle), Settings (config panel), Worker Sensitivity (worker-sensitivity dial) — into features/dashboard. BASELINE REFRESHED this run to a verbatim mirror of the export (78 files), EXCLUDING binary image noise (screenshots/, uploads/ sketches, .thumbnail) which add nothing to a text diff. Upstream delta vs the prior baseline: the 2 net-new prototypes + Header rework, a richer _ds/ format (now ships per-component .jsx/.d.ts/.prompt.md + guidelines + fonts + SKILL.md as reference), and one tiny DS change — _adherence.oxlintrc.json added the already-existing motion tokens --dur-slow/--ease-out/--ease-in-out/--ease-linear to its token allowlist. Tokens (colors/spacing/base/effects/typography) + the compiled component bundle are UNCHANGED. The adherence tweak needs NO app port: the app's ESLint translation has no token-allowlist rule, and those tokens already resolve in the app."
     }
   }

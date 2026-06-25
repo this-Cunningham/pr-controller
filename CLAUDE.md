@@ -15,7 +15,8 @@ truth for how the system is built. [SPEC.md](SPEC.md) is the behavior spec.
 - **Vocabulary:** the per-item verdict is a `disposition` (not `tier`); tabs are `lanes`
   (not `sections`); the design-system short `tag` is styling only. The worker emits a
   `response` (fix/praise/surface); the daemon derives the `disposition`.
-- **The design system is frozen** (baseline `design/.upstream/wabi-sabi-foundation/`
+- **The design system is frozen** (baseline bundled at
+  `design/.upstream/pr-controller-prototypes/_ds/wabi-sabi-design-system-*/`
   + the vendored `pr-controller-react/src/design-system/`): components render, they
   don't route; don't restyle ad hoc. Sync it only via `/pull-new-designs` (see
   `.design-sync.json` for the project→baseline→app mapping).
