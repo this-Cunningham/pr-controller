@@ -1,6 +1,7 @@
 /* Settings overlay shell — a centered modal over a scrim. The two tab editors bring their
    own section styling; this file is only the dialog chrome. */
 .backdrop {
+  composes: ws-appear from global;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -10,7 +11,6 @@
   padding: 48px 20px; /* off-scale — modal gutter */
   z-index: 50;
   overflow-y: auto;
-  animation: ws-appear var(--dur-fast) var(--ease-out);
 }
 
 .panel {

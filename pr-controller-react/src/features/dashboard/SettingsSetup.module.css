@@ -86,12 +86,12 @@
   color: var(--ink);
 }
 .breathDot {
+  composes: ws-breathe from global;
   flex: none;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--auto-fg);
-  animation: ws-breathe var(--pulse) var(--ease-in-out) infinite;
 }
 .connHandle {
   font-family: var(--font-mono);

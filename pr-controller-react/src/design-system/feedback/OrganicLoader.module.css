@@ -1,9 +1,12 @@
 /* OrganicLoader — eight quiet pending glyphs in the Wabi-sabi motion language.
-   Keyframes are GLOBAL (tokens/base.css: ws-enso-*, ws-ripple, ws-breathe*,
-   ws-sweep, ws-drift, ws-sway, ws-seam, ws-place). Each variant carries its own
-   default tone via `color`; the `tone` prop overrides it inline. SVG strokes,
-   dot fills and the brush gradient all draw with currentColor. Per-glyph delays
-   are dynamic (inline, set per index in the component). */
+   Motion is GLOBAL: the keyframes AND each glyph's `animation` shorthand live in
+   tokens/base.css as `.ws-loader-*` utility classes, and every animated rule here
+   pulls its own in with `composes: ws-loader-* from global`. (A bare `animation:
+   ws-enso-spin` *inside* this module would be silently dead — Vite's CSS-modules
+   transform rescopes the keyframe name, so it matches no global @keyframes.)
+   Each variant carries its own default tone via `color`; the `tone` prop overrides
+   it inline. SVG strokes, dot fills and the brush gradient all draw with
+   currentColor. Per-glyph delays are dynamic (inline, set per index). */
 .root {
   display: inline-flex;
   flex-direction: column;
@@ -35,14 +38,14 @@
 
 /* 1. Ensō — an ink ring breathing open and closed. */
 .enso {
+  composes: ws-loader-enso from global;
   color: var(--ink-2);
   transform-origin: center;
-  animation: ws-enso-spin 9s var(--ease-linear) infinite;
 }
 .ensoArc {
+  composes: ws-loader-enso-arc from global;
   transform-origin: center;
   transform: rotate(112deg);
-  animation: ws-enso-draw 3.4s var(--ease-in-out) infinite;
 }
 
 /* 2. Ink ripple — a stone dropped in still water. */
@@ -53,11 +56,11 @@
   color: var(--auto-fg);
 }
 .rippleRing {
+  composes: ws-loader-ripple from global;
   position: absolute;
   inset: 0;
   border-radius: 50%;
   border: 2px solid currentColor;
-  animation: ws-ripple 2.8s var(--ease-out) infinite;
 }
 .rippleCore {
   position: absolute;
@@ -81,19 +84,19 @@
   color: var(--accent);
 }
 .sealHalo {
+  composes: ws-loader-halo from global;
   position: absolute;
   width: 30px;
   height: 30px;
   border-radius: 50%;
   background: currentColor;
-  animation: ws-breathe-halo 2.2s var(--ease-in-out) infinite;
 }
 .sealDot {
+  composes: ws-loader-seal from global;
   width: 18px;
   height: 18px;
   border-radius: 50%;
   background: currentColor;
-  animation: ws-breathe 2.2s var(--ease-in-out) infinite;
 }
 
 /* 4. Brush sweep — a single sumi stroke passing through. */
@@ -107,6 +110,7 @@
   color: var(--ink-2);
 }
 .brushStroke {
+  composes: ws-loader-sweep from global;
   position: absolute;
   top: 0;
   left: 0;
@@ -114,7 +118,6 @@
   width: 55%;
   border-radius: 6px;
   background: linear-gradient(90deg, transparent, currentColor 45%, currentColor 55%, transparent);
-  animation: ws-sweep 1.9s var(--ease-in-out) infinite;
 }
 
 /* 5. Settling motes — dust drifting on a slow current. */
@@ -126,11 +129,11 @@
   color: var(--auto-fg);
 }
 .mote {
+  composes: ws-loader-drift from global;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-  animation: ws-drift 2.6s var(--ease-in-out) infinite;
 }
 
 /* 6. Reeds — hairlines swaying like reeds in wind. */
@@ -143,12 +146,12 @@
   color: var(--ink-2);
 }
 .reed {
+  composes: ws-loader-sway from global;
   width: 3px;
   height: 38px;
   border-radius: 3px;
   background: currentColor;
   transform-origin: bottom;
-  animation: ws-sway 1.5s var(--ease-in-out) infinite;
 }
 
 /* 7. Kintsugi seam — a golden seam drawing itself closed. */
@@ -156,7 +159,7 @@
   color: var(--accent);
 }
 .kintsugiPath {
-  animation: ws-seam 3.2s var(--ease-in-out) infinite;
+  composes: ws-loader-seam from global;
 }
 
 /* 8. Stone placement — stones set down one at a time. */
@@ -168,9 +171,9 @@
   color: var(--auto-fg);
 }
 .stone {
+  composes: ws-loader-place from global;
   width: 13px;
   height: 13px;
   border-radius: 50%;
   background: currentColor;
-  animation: ws-place 2.4s var(--ease-in-out) infinite;
 }
