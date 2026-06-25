@@ -125,8 +125,8 @@ since threads get resolved and conflicts get rebased between runs.
 | `probe` (`#8`) | plumbing | inject feedback → feedback worker |
 
 > Only PRs with a **currently unresolved** thread are injectable. After a `--hard` reset
-> or once threads are resolved, seed a fresh review comment first (see §5). The dry-run
-> scan lists which PRs have live threads right now.
+> or once threads are resolved, seed one first (a fresh review-thread comment, or a new PR
+> per §6). The dry-run scan lists which PRs have live threads right now.
 
 ## 4. Inject realistic reviewer feedback (`@claude-debug`)
 
@@ -159,12 +159,10 @@ exercise every worker response + edge case:
 
 ## 5. Drive the app like a real user
 
-Beyond the dispatch pipeline, **click around the app in the visible browser** — what you
-exercise depends on `<what to test>`. As a real user would: switch lanes
-(Needs you / In progress / Waiting on reviewer), expand a card's threads, use CTAs
-(Run agent, Approve approach, Rebase, Merge), open Settings and change the worker
-sensitivity dial, trigger a toast, resize the window. `take_screenshot` at each step so
-the user sees the run progress, and report what worked / looked off.
+Beyond the dispatch pipeline, **click around the visible browser** as a real user would (per
+`<what to test>`): switch lanes, expand a card's threads, use the CTAs (Run agent, Approve
+approach, Rebase, Merge), open Settings + move the sensitivity dial, trigger a toast.
+`take_screenshot` each step; report what worked / looked off.
 
 ## 6. Create realistic PRs (whitelisted + sandbox-based)
 
@@ -211,9 +209,8 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
 
 - **Idle until armed.** `node server.mjs` scans/dispatches nothing until you arm polling
   (dashboard toggle or `POST /polling {on:true}`). `/state.json` shows `prs:[]` before that.
-- **`@claude-debug` must be an UNRESOLVED review-thread comment** — top-level `gh pr
-  comment` is ignored; resolved threads are filtered. Use `inject-debug.sh` (it targets an
-  unresolved thread's root and tells you when there isn't one).
+- **`@claude-debug` only re-attributes on an UNRESOLVED review thread** (top-level comments +
+  resolved threads are ignored) — use `inject-debug.sh`; see §4.
 - **CI / conflict PRs dispatch without debug** — failing CI and `needsRebase` are their
   own signals; `@claude-debug` is only for review threads.
 - **New whitelist entries / `PRC_*` need a daemon restart** — config is read once at load.
