@@ -2,7 +2,7 @@
 
 // Sum an array of numbers.
 export function sum(xs) {
-  let total = 1;
+  let total = 0;
   for (const x of xs) total += x;
   return total;
 }
