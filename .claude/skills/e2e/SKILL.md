@@ -1,6 +1,6 @@
 ---
 name: e2e
-version: 1.1.0
+version: 1.2.0
 description: >-
   Battle-test the running pr-controller end-to-end against the e2e sandbox fleet
   (~18 disposable PRs on personal github.com), driven in a REAL, visible browser you
@@ -49,11 +49,9 @@ expands, CTAs, toasts) as a real user would — not just the dispatch pipeline.
 
 ## Switch to haiku (cheap)
 
-This is a stress test — run it cheap. Launch with `PRC_WORKER_MODEL=haiku`: every
-**newly-dispatched** (new-session) `claude -p` runs on haiku (`worker.mjs` passes
-`--model` only at session birth). A **resumed** session keeps its birth model — so if a
-PR was previously worked under sonnet, `rm data/sessions.json` (or use a fresh PR) to
-get haiku. The user may also `/model haiku` this driving session — the steps are mechanical.
+Launch with `PRC_WORKER_MODEL=haiku` — every **new-session** worker runs on haiku
+(`--model` is set only at session birth). A **resumed** session keeps its birth model:
+`rm data/sessions.json` (or use a fresh PR) to force haiku.
 
 ## 1. Reset to a clean slate (optional, recommended)
 
@@ -76,8 +74,8 @@ way to arm it is the dashboard's header **arm toggle** (drive it with the
 ```bash
 cd <repo-root>
 ( cd pr-controller-react && yarn install --silent && yarn build )   # 503 until dist/ exists
-pkill -f "node server.mjs" 2>/dev/null; sleep 1
-PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_POLL_MINUTES=1440 PRC_PORT=4317 PRC_LOG_LEVEL=debug \
+pkill -f "node server.mjs" 2>/dev/null; pkill -f worker-guard 2>/dev/null; sleep 1  # also kill ORPHAN workers
+PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_PORT=4317 PRC_LOG_LEVEL=debug \
   node server.mjs > /tmp/prc-server.log 2>&1 &
 # Banner: [e2e @ github.com] ... "polling is OFF by default".
 ```
@@ -188,8 +186,8 @@ URL=$(gh pr create --repo this-Cunningham/pr-controller --base main --head fix/<
         --title "<realistic title>" --body "<realistic description>")   # prints the PR URL
 PR="${URL##*/}"                                            # trailing number
 .claude/skills/e2e/whitelist-add.sh "pr-controller#$PR"    # appends to profiles.e2e.onlyPRs
-pkill -f "node server.mjs"; sleep 1                        # restart: config is read once at load
-PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_POLL_MINUTES=1440 PRC_LOG_LEVEL=debug node server.mjs >> /tmp/prc-server.log 2>&1 &
+pkill -f "node server.mjs"; pkill -f worker-guard; sleep 1   # restart (config read once); also kill orphan workers
+PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_LOG_LEVEL=debug node server.mjs >> /tmp/prc-server.log 2>&1 &
 # re-arm (dashboard toggle or curl POST /polling) and inject as needed.
 ```
 
@@ -202,6 +200,10 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
 
 - **Browser:** lanes fill as workers run; screenshot each step.
 - **Dispatch log:** `grep -E '\[poll\]|\[dispatch\]' /tmp/prc-server.log`; transcripts in `data/worker-<repo>-<num>.log`.
+- **Did a setting reach the worker?** The prompt is a `-p` argv, so the live process shows
+  the injected text + model: `pgrep -f worker-guard | xargs -I{} ps -ww -o command= -p {}`
+  (grep for the sensitivity text or `--model`). Settings apply LIVE — sensitivity/onlyPRs at
+  the next poll/dispatch, model at the next NEW session; no restart needed.
 - **PR side-effects:** `gh pr view <num> --repo this-Cunningham/pr-controller --comments`.
 - **Pure-layer regressions** (if you touched routing/verdict/derivation): `node --test "test/**/*.test.mjs"`.
 
@@ -216,8 +218,18 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
   own signals; `@claude-debug` is only for review threads.
 - **New whitelist entries / `PRC_*` need a daemon restart** — config is read once at load.
 - **Watch in a REAL browser** — don't run chrome-devtools headless when the user wants to watch.
-- Inherits run-pr-controller's gotchas: `PRC_POLL_MINUTES=1440` (setInterval overflow),
-  503-before-build, render-races-scan.
+- **Restarting the daemon ORPHANS in-flight workers.** `pkill -f "node server.mjs"` kills only
+  the daemon; its `claude` workers reparent to launchd and keep running. They show up in
+  `pgrep -f worker-guard` and masquerade as the new daemon's workers (a worker "running" while
+  the fresh log shows no dispatch = an orphan). Always `pkill -f worker-guard` on restart.
+  (Disarming via the toggle drains gracefully; a process kill does not.)
+- **A standing signal won't re-dispatch.** The daemon won't re-spin an UNCHANGED failure/
+  conflict (in-memory `seen` + healthChanged), so re-breaking a PR it already saw failing does
+  nothing — restart to clear `seen` and force a fresh dispatch.
+- **`[dispatch]` logs on COMPLETION, not spawn** — "0 dispatch lines" can mean capped OR
+  still-running; check `pgrep -f worker-guard` / the In-progress lane for in-flight workers.
+- Inherits run-pr-controller's gotchas: 503-before-build, render-races-scan. (Poll cadence
+  clamps to [5,60]; the arm toggle — off at boot — is the real on/off, so no `PRC_POLL_MINUTES`.)
 
 ---
 _Improve this skill over time with `/auto-improve e2e` (see _changelog.json)._
