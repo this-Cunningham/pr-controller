@@ -206,6 +206,46 @@ body {
 .ws-spin {
   animation: ws-spin 0.9s linear infinite;
 }
+/* A breathing dot (scale + fade) — the live / "alive" indicator. */
+.ws-breathe {
+  animation: ws-breathe var(--pulse) var(--ease-in-out) infinite;
+}
+
+/* OrganicLoader per-glyph motion. The loader's eight glyphs each animate with
+   their own keyframe + timing/easing; those shorthands live here (global) so the
+   component can `composes: ws-loader-* from global` instead of writing a bare
+   `animation:` inside its CSS module (which Vite would rescope to a dead name).
+   Inline per-index animation-delay (set in the component) still layers on top. */
+.ws-loader-enso {
+  animation: ws-enso-spin 9s var(--ease-linear) infinite;
+}
+.ws-loader-enso-arc {
+  animation: ws-enso-draw 3.4s var(--ease-in-out) infinite;
+}
+.ws-loader-ripple {
+  animation: ws-ripple 2.8s var(--ease-out) infinite;
+}
+.ws-loader-halo {
+  animation: ws-breathe-halo 2.2s var(--ease-in-out) infinite;
+}
+.ws-loader-seal {
+  animation: ws-breathe 2.2s var(--ease-in-out) infinite;
+}
+.ws-loader-sweep {
+  animation: ws-sweep 1.9s var(--ease-in-out) infinite;
+}
+.ws-loader-drift {
+  animation: ws-drift 2.6s var(--ease-in-out) infinite;
+}
+.ws-loader-sway {
+  animation: ws-sway 1.5s var(--ease-in-out) infinite;
+}
+.ws-loader-seam {
+  animation: ws-seam 3.2s var(--ease-in-out) infinite;
+}
+.ws-loader-place {
+  animation: ws-place 2.4s var(--ease-in-out) infinite;
+}
 
 /* Respect the OS "reduce motion" setting: drop ambient loops and shorten
    one-shot transitions to a near-instant fade. The visible end-state of every
