@@ -7,8 +7,15 @@ import styles from "./ScopeBadge.module.css";
  * (calm, sage dot); "scoped" = an allowlist of N PRs (accent, hollow
  * ring) to flag that some PRs are deliberately out of view. Click toggles.
  */
-export function ScopeBadge({ scope, count = 0, onToggle }) {
+export function ScopeBadge({
+  scope,
+  count = 0,
+  onToggle,
+  allLabel = "Watching all PRs",
+  scopedLabel,
+}) {
   const key = scope === "scoped" ? "scoped" : "all";
+  const scopedText = scopedLabel || `Scoped · ${count} PRs`;
   return (
     <button
       type="button"
@@ -18,7 +25,7 @@ export function ScopeBadge({ scope, count = 0, onToggle }) {
     >
       <span className={styles.pill} data-scope={key}>
         <span className={styles.dot} data-scope={key} />
-        {key === "scoped" ? `Scoped · ${count} PRs` : "Watching all PRs"}
+        {key === "scoped" ? scopedText : allLabel}
       </span>
     </button>
   );

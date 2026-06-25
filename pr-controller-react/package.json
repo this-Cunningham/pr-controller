@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src"
+    "lint": "eslint src && node scripts/check-motion.mjs",
+    "ds-drift": "node scripts/check-ds-drift.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -16,6 +17,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.7",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "9.15.0",
     "vite": "^5.4.8"
