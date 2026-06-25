@@ -4,7 +4,7 @@
 export function slugify(s) {
   return String(s)
     .trim()
-    .toUpperCase()
+    .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
@@ -19,6 +19,6 @@ export function truncate(s, n) {
 // Capitalize the first letter of every word.
 export function titleCase(s) {
   return String(s)
-    .toUpperCase()
+    .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
