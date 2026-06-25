@@ -1,11 +1,18 @@
-/* Agent setup panel. Embeddable (no centering / min-height — a parent overlay frames it).
-   Control-specific dimensions (avatar, stepper, segmented control) live here as raw px;
-   every color/font resolves through a design-system var() token. Active/disabled state
-   rides on data-attrs + :disabled, not inline styles. */
+/* Agent setup panel. A faithful port of the Settings prototype
+   (design/.upstream/pr-controller-prototypes/Settings.dc.html): hairline-ruled sections,
+   a boxed connection card, boxed trigger rows, and inset working rows (repos / checks).
+   Embeddable (no centering / min-height — a parent overlay frames it). Control-specific
+   dimensions (avatar, stepper, segmented control) live here as raw px; every color/font
+   resolves through a design-system var() token. Active/disabled state rides on data-attrs
+   + :disabled, not inline styles. */
 .panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-7);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 24px 26px 22px; /* card gutter, per Settings.dc.html */
   font-family: var(--font-sans);
   color: var(--ink);
 }
@@ -19,7 +26,7 @@
   color: var(--ink-3);
 }
 
-/* HEADER */
+/* HEADER — sans, not the serif display face (the prototype's h2 is 600 sans) */
 .headingText {
   display: flex;
   flex-direction: column;
@@ -27,8 +34,8 @@
 }
 .title {
   margin: 0;
-  font-family: var(--font-serif);
-  font-weight: var(--weight-medium);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
   font-size: var(--text-section);
   line-height: var(--leading-title);
   color: var(--ink);
@@ -41,12 +48,13 @@
   max-width: 60ch;
 }
 
-/* CONNECTION (read-only) */
+/* CONNECTION (read-only, boxed) */
 .connection {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
+  flex-wrap: wrap;
   background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
@@ -55,21 +63,22 @@
 .connLeft {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: var(--space-4);
   min-width: 0;
 }
 .avatar {
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--accent-bg);
+  border: 1px solid var(--line-2);
   color: var(--accent);
   font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  font-size: var(--text-meta);
   text-transform: uppercase;
 }
 .connText {
@@ -83,10 +92,11 @@
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
   color: var(--ink);
 }
 .breathDot {
-  composes: ws-breathe from global;
+  composes: ws-breathe from global; /* live pulse; keyframe lives in base.css */
   flex: none;
   width: 7px;
   height: 7px;
@@ -105,21 +115,24 @@
   color: var(--ink-3);
 }
 
-/* GENERIC SECTION */
+/* RULED SECTION — each section is separated from the one above by a hairline rule */
 .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-6);
 }
 .sectionHead {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
 }
 .count {
   font-family: var(--font-mono);
   font-size: var(--text-meta);
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 .sectionDesc {
   margin: 0;
@@ -132,10 +145,11 @@
 /* WHICH PRs TO WATCH */
 .emptyPRs {
   margin: 0;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-4);
   border: 1px dashed var(--line-2);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
   font-size: var(--text-caption);
+  font-style: italic;
   color: var(--ink-3);
 }
 .prList {
@@ -150,15 +164,23 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-card);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.prRow:hover {
+  border-color: var(--ink-3);
+}
+/* entrance for a just-added row (applied conditionally in the JSX, cleared on animationend) */
+.prRowEnter {
+  composes: ws-appear from global;
 }
 .prMark {
   flex: none;
-  color: var(--accent);
-  font-size: var(--text-meta);
+  color: var(--ink-3);
+  font-size: var(--text-caption);
 }
 .prKey {
   flex: 1;
@@ -166,22 +188,29 @@
   font-family: var(--font-mono);
   font-size: var(--text-meta);
   color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .prRemove {
   flex: none;
   border: none;
   background: none;
-  padding: 0;
-  width: 20px;
-  height: 20px;
+  padding: var(--space-1);
+  width: 22px;
+  height: 22px;
   font-size: var(--text-card-title);
   line-height: 1;
   color: var(--ink-3);
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease);
+  border-radius: var(--radius-chip);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .prRemove:hover {
   color: var(--accent);
+}
+.prRemove:active {
+  transform: scale(0.82);
 }
 .prAdd {
   display: flex;
@@ -191,12 +220,12 @@
   flex: 1;
   min-width: 0;
   padding: var(--pad-input);
-  font-family: var(--font-sans);
-  font-size: var(--text-body);
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line-2);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-card);
 }
 .input::placeholder {
   color: var(--ink-3);
@@ -206,8 +235,9 @@
   border-color: var(--accent);
 }
 .fieldError {
+  composes: ws-appear from global;
   margin: 0;
-  font-size: var(--text-caption);
+  font-size: var(--text-pill);
   color: var(--err-fg);
 }
 
@@ -215,15 +245,23 @@
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-6);
+  gap: var(--space-7);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-6);
 }
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
+.fieldDesc {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+}
 
-/* stepper */
+/* stepper — one continuous control, no internal dividers */
 .stepper {
   display: inline-flex;
   align-items: center;
@@ -234,62 +272,71 @@
   overflow: hidden;
 }
 .stepBtn {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 40px;
   border: none;
   background: transparent;
   font-family: var(--font-sans);
   font-size: var(--text-section);
-  color: var(--ink-2);
+  color: var(--ink);
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 .stepBtn:hover:not(:disabled) {
-  color: var(--ink);
   background: var(--surface-2);
 }
 .stepBtn:disabled {
   color: var(--ink-3);
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
 }
 .stepReadout {
-  min-width: 64px;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
+  min-width: 74px;
+  padding: 0 var(--space-5);
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--space-1);
+}
+.stepValue {
+  /* re-keyed by value in the JSX, so it replays the composed ws-appear on each step */
+  composes: ws-appear from global;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-section);
   color: var(--ink);
-  border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
-  padding: 0 var(--space-3);
-  line-height: 34px;
+}
+.stepUnit {
+  font-family: var(--font-mono);
+  font-size: var(--text-pill);
+  color: var(--ink-2);
 }
 .hint {
   font-size: var(--text-meta);
   color: var(--ink-3);
 }
 
-/* segmented control */
+/* segmented control — bare track; only the active item carries a shadow */
 .segmented {
   display: inline-flex;
   align-self: flex-start;
   gap: 2px;
-  padding: 3px;
+  padding: 2px;
   background: var(--surface-2);
-  border: 1px solid var(--line-2);
   border-radius: var(--radius-control);
-  box-shadow: var(--shadow-seg);
 }
 .segment {
   border: none;
   background: transparent;
   color: var(--ink-2);
   font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
   font-size: var(--text-caption);
-  padding: var(--space-2) var(--space-5);
-  border-radius: var(--radius-chip);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-control);
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .segment:hover {
   color: var(--ink);
@@ -301,15 +348,15 @@
 }
 .modelId {
   font-family: var(--font-mono);
-  font-size: var(--text-meta);
+  font-size: var(--text-tag);
   color: var(--ink-2);
 }
 .note {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-  font-size: var(--text-meta);
-  line-height: var(--leading-body);
+  font-size: var(--text-pill);
+  line-height: var(--leading-title);
   color: var(--ink-3);
 }
 .noteMark {
@@ -317,19 +364,23 @@
   color: var(--accent);
 }
 
-/* TRIGGER PHRASES */
+/* TRIGGER PHRASES (boxed rows) */
 .triggerList {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .triggerRow {
   display: flex;
   align-items: baseline;
   gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
 }
 .triggerHandle {
   flex: none;
@@ -339,11 +390,11 @@
 }
 .triggerDesc {
   font-size: var(--text-caption);
-  line-height: var(--leading-body);
+  line-height: var(--leading-title);
   color: var(--ink-2);
 }
 
-/* CHECK RULES */
+/* CHECK RULES (inset rows) */
 .checkList {
   list-style: none;
   margin: 0;
@@ -357,16 +408,19 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-card);
 }
 .checkName {
   min-width: 0;
   font-family: var(--font-mono);
   font-size: var(--text-meta);
   color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pillNeeds,
 .pillIgnore {
@@ -385,20 +439,17 @@
   border: 1px solid var(--line-2);
 }
 
-/* ACTIONS */
+/* ACTIONS (ruled) */
 .actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-4);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-6);
 }
 .dirtyHint {
   font-style: italic;
   font-size: var(--text-caption);
   color: var(--ink-3);
-}
-
-/* theme picker row (relocated from the header) */
-.themeRow {
-  margin-top: var(--space-3);
 }
