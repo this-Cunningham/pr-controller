@@ -1,4 +1,5 @@
 [
   { "v": "1.0.0", "change": "Initial skill — battle-tests pr-controller against the e2e sandbox fleet (#8–28), widening run-pr-controller's dev smoke; adds @claude-debug injection, whitelist-add, and a per-PR scenario map." },
-  { "v": "1.1.0", "change": "Free-text arg; arm polling in a visible browser (daemon idle until armed); realistic PRs/comments; manual UI testing; reset-prs.sh; fixed inject-debug unresolved-thread lookup and gh-pr-create URL capture.", "snag": "4-dimension adversarial audit found blockers" }
+  { "v": "1.1.0", "change": "Free-text arg; arm polling in a visible browser (daemon idle until armed); realistic PRs/comments; manual UI testing; reset-prs.sh; fixed inject-debug unresolved-thread lookup and gh-pr-create URL capture.", "snag": "4-dimension adversarial audit found blockers" },
+  { "v": "1.2.0", "change": "Restart now kills orphan workers (pkill worker-guard) + gotcha; dropped stale PRC_POLL_MINUTES=1440 (clamps to [5,60]); added seen/standing-signal + dispatch-logs-on-completion gotchas; argv-capture verify; trimmed haiku note + deduped §5/@claude-debug gotcha + fixed §3 cross-ref.", "snag": "orphaned workers masquerading as current ate ~30min of e2e debugging" }
 ]

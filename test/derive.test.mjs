@@ -55,6 +55,19 @@ test('deriveRecord: surfaced honored only while the branch still conflicts (stal
   assert.equal(deriveRecord(scannedPr({ branchHealth: clean }), { workerResult: wr }).workerSurfaced, undefined);
 });
 
+test('deriveRecord: ciReran honored until CI goes green — survives the PENDING re-run window', () => {
+  // The worker bounced a flaky check (ciReran). Gated on "not green", NOT on ciFailing —
+  // a bounced run goes PENDING (no failing checks) before it re-fails, and gating on
+  // ciFailing would clear the flag mid-flight and let it bounce again forever.
+  const wr = { branchHealth: { ciReran: true } };
+  const failing = { checkState: 'FAILURE', failingChecks: [{ name: 'ci' }], complianceChecks: [] };
+  const pending = { checkState: 'PENDING', failingChecks: [], complianceChecks: [] };  // re-run in flight
+  const green   = { checkState: 'SUCCESS', failingChecks: [], complianceChecks: [] };
+  assert.equal(deriveRecord(scannedPr({ branchHealth: failing }), { workerResult: wr }).ciReran, true);
+  assert.equal(deriveRecord(scannedPr({ branchHealth: pending }), { workerResult: wr }).ciReran, true);   // survives PENDING
+  assert.equal(deriveRecord(scannedPr({ branchHealth: green }),   { workerResult: wr }).ciReran, undefined); // clears on green
+});
+
 test('deriveRecord: outOfSync flows through from the dispatcher flag', () => {
   assert.equal(deriveRecord(scannedPr({}), { outOfSync: true }).outOfSync, true);
   assert.equal(deriveRecord(scannedPr({}), { outOfSync: false }).outOfSync, false);

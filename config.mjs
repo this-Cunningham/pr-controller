@@ -14,6 +14,19 @@ const env = process.env;
 const csv = (s) => s.split(',').map((x) => x.trim()).filter(Boolean);
 const baseDir = new URL('.', import.meta.url).pathname;
 
+// The poll cadence is clamped to [POLL_MIN, POLL_MAX] in EVERY path — at load (here),
+// on each Settings save (server.mjs applyConfigEdits uses clampPoll), and in the UI
+// stepper (SettingsSetup.jsx mirrors these bounds). So no env / hand-edited config /
+// direct POST can set a value outside the window: a huge value (e.g. 1_000_000) can't
+// overflow setInterval (>2^31-1 ms → Node floors to 1 ms → busy-loop), and a zero/
+// negative can't make the delay ≤0. Non-numeric input falls to the default.
+export const POLL_MIN = 5;
+export const POLL_MAX = 60;
+export const clampPoll = (n) => {
+  const m = Math.round(Number(n));
+  return Number.isFinite(m) ? Math.max(POLL_MIN, Math.min(POLL_MAX, m)) : 15;
+};
+
 // Persistent local config (config.local.json): { profile?, profiles?: {name:{...}}, + flat overrides }.
 let local = {};
 const localPath = join(baseDir, 'config.local.json');
@@ -44,7 +57,7 @@ export const config = {
   owner: env.PRC_OWNER || local.owner || base.owner || '',                 // PRC_OWNER
   login: env.PRC_LOGIN || local.login || base.login || '',                 // PRC_LOGIN
   port: Number(env.PRC_PORT) || local.port || 4317,                        // PRC_PORT
-  pollMinutes: Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 15,    // PRC_POLL_MINUTES
+  pollMinutes: clampPoll(Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 15),  // PRC_POLL_MINUTES (clamped [5,60])
   reenrichFloor: Number(env.PRC_REENRICH_FLOOR) || local.reenrichFloor || 5,
 
   // PRs to watch. DEFAULT (normal production): empty = ALL your open, NON-DRAFT PRs. A

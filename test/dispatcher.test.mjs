@@ -35,6 +35,30 @@ test('enqueueRebase with no threads still dispatches a rebase-only worker run', 
   assert.equal(runs[0].rebase, true);
 });
 
+// Failing-CI PR with NO review threads: dispatchDecision returns 'feedback', the server
+// enqueues with { ci: true } and empty threads. The drain guard must still fire one run
+// (the worker fixes CI from branchHealth) — without the ci flag it was silently dropped.
+test('enqueue with no threads but ci:true still dispatches a CI-fix worker run', async () => {
+  const runs = harness();
+  const pr = { repo: 'inv', number: 11, branchHealth: { checkState: 'FAILING', failingChecks: [{ name: 'e2e-sandbox CI', state: 'FAILURE' }] } };
+  dispatcher.enqueue(pr, [], { branchHealth: pr.branchHealth, ci: true });
+  await flush();
+  assert.equal(runs.length, 1, 'a CI-only feedback enqueue must spawn exactly one worker');
+  assert.equal(runs[0].prKey, 'inv#11');
+  assert.equal(runs[0].threadCount, 0);
+  assert.equal(runs[0].rebase, false);  // a CI run is not a rebase run
+});
+
+// Guard still holds: an enqueue with no threads and no ci/rebase reason must NOT fire
+// (e.g. the post-run re-drain when nothing new arrived) — otherwise it would hot-loop.
+test('enqueue with no threads and no ci/rebase reason does NOT dispatch', async () => {
+  const runs = harness();
+  const pr = { repo: 'noop', number: 1, branchHealth: {} };
+  dispatcher.enqueue(pr, [], { branchHealth: pr.branchHealth });
+  await flush();
+  assert.equal(runs.length, 0);
+});
+
 // A thrown worker run must NOT silently drop its batch (the threads were already marked
 // "seen" by the poller, so they can't re-enqueue on their own). The batch is re-staged and
 // retried on the next enqueue — without hot-looping in between.
