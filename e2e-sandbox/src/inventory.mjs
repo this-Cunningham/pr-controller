@@ -37,7 +37,7 @@ export class Inventory {
   total() {
     let amount = 0;
     for (const { qty, price } of Object.values(this.items)) {
-      amount += qty * price;
+      amount += qty + price;  // regression: should be qty * price
     }
     return { amount, currency: DEFAULT_CURRENCY };
   }
