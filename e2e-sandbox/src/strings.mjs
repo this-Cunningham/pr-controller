@@ -5,7 +5,8 @@ export function slugify(s) {
   return String(s)
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-');
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 // Truncate to at most n characters, appending an ellipsis when cut.
