@@ -21,5 +21,5 @@ export function truncate(s, n) {
 export function titleCase(s) {
   return String(s)
     .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toLowerCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
