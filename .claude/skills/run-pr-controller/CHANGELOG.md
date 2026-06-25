@@ -1,5 +1,24 @@
 # Changelog — run-pr-controller
 
+## 1.0.1 — 2026-06-25
+
+`smoke.sh` started FAILing (`prs:[]` forever → `[smoke] FAIL — no PRs scanned`) after
+the server overhaul gated polling behind an explicit arm: `server.mjs`'s listen handler
+now seeds an empty idle state and logs "polling is OFF by default", and the daemon never
+auto-scans — the scan/dispatch loop only runs after `POST /polling {"on":true}` (the
+dashboard's toggle) or a one-shot `POST /poll`. smoke.sh launched the daemon and went
+straight to its wait-for-scan loop without arming it, so the count check never passed.
+
+- **smoke.sh:** arm polling right after launch (new step 3, `POST /polling {"on":true}`,
+  retried until the server binds) before the wait-for-scan loop. `startPolling()` kicks
+  the first scan fire-and-forget, so the POST returns promptly.
+- **SKILL.md:** added a Gotcha ("Daemon starts idle — polling is OFF by default"); fixed
+  the hand-launch drive example (it too needs the arm POST or it sits at `prs:[]`); noted
+  the arm step in the agent-path description; added the idle cause to the `prs:[]`
+  Troubleshooting row.
+- Verified live: `PRC_PROFILE=dev PRC_ONLY_PRS=pr-controller#1` → `/state.json` is
+  `prs:0` before arming, `prs:1`/`placements:3` after `POST /polling {"on":true}`.
+
 ## 1.0.0 — 2026-06-21
 
 Initial skill. Authored by launching and driving the actual running app.

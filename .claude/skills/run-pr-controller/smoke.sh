@@ -44,7 +44,19 @@ PRC_PROFILE=dev PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
 SERVER_PID=$!
 echo "[smoke] server pid $SERVER_PID, profile=dev scope=$SCOPE (sandbox on github.com)"
 
-# 3. Wait for the startup poll to scan GitHub and populate state (a few seconds).
+# 3. Arm the daemon. It starts with polling OFF and NEVER auto-scans (server.mjs's listen
+#    handler seeds an empty idle state and logs "polling is OFF by default"); the scan →
+#    derive → place → dispatch loop only runs once armed. The dashboard arms it via
+#    POST /polling {on:true}; smoke.sh does the same so the wait loop below sees real PRs
+#    instead of prs:[] forever. Retry until the server is listening (it binds a beat after
+#    launch). startPolling() kicks the first scan fire-and-forget, so this returns promptly.
+for _ in $(seq 1 20); do
+  curl -fsS -XPOST "http://localhost:$PORT/polling" -H 'content-type: application/json' \
+    -d '{"on":true}' >/dev/null 2>&1 && { echo "[smoke] polling armed (POST /polling {on:true})"; break; }
+  sleep 0.5
+done
+
+# 4. Wait for the startup poll to scan GitHub and populate state (a few seconds).
 #    Keep the curl and the count separate so a not-yet-up server (failed curl)
 #    can't smear the PR count with stray output.
 PRS=0
@@ -57,7 +69,7 @@ for _ in $(seq 1 40); do
   sleep 1
 done
 
-# 4. Screenshot the real dashboard. No init-script, no fixture — this is live
+# 5. Screenshot the real dashboard. No init-script, no fixture — this is live
 #    /state.json. Click the first lane tab with a non-zero count so the shot shows
 #    real cards, not an empty "Needs you" landing. Retry: the React app fetches
 #    /state.json and renders the counts a beat after navigate, so the button we
@@ -74,13 +86,13 @@ chrome-devtools take_screenshot --filePath "$SHOT" >/dev/null
 
 echo "[smoke] screenshot -> $SHOT   (daemon scanned ${PRS:-0} PR(s) of real github.com data)"
 
-# 5. Report worker dispatch. With the default scope (#1) there is none; widening to
+# 6. Report worker dispatch. With the default scope (#1) there is none; widening to
 #    #2/#3 dispatches real workers against the sandbox PRs (expected — not prod).
 if pgrep -f "claude -p" >/dev/null 2>&1; then
   echo "[smoke] a 'claude -p' worker is running against the sandbox (expected for SCOPE #2/#3)."
 fi
 
-# 6. Stop, unless KEEP=1 (then leave it up for interactive driving).
+# 7. Stop, unless KEEP=1 (then leave it up for interactive driving).
 if [ "${KEEP:-0}" = "1" ]; then
   echo "[smoke] KEEP=1 -> server left on http://localhost:$PORT (stop: pkill -f 'node server.mjs')"
 else

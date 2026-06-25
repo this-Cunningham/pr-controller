@@ -1,6 +1,6 @@
 ---
 name: run-pr-controller
-version: 1.0.0
+version: 1.0.1
 description: >-
   Build, launch, screenshot, and drive the pr-controller daemon + React dashboard
   locally and SAFELY against whitelisted dummy PRs on personal github.com (no
@@ -75,9 +75,11 @@ cd pr-controller-react && yarn install --silent && yarn build && cd ..
 
 This is the **quick render smoke**: it builds `dist/` if missing, launches the
 daemon scoped to `pr-controller#1` (display-only — its threads are
-`awaitingReviewer`, so this scope happens to dispatch no worker), waits for the
-real GitHub scan, clicks the populated lane, screenshots to `/tmp/prc-dashboard.png`,
-verifies ≥1 PR was scanned, then stops. Fast, and proves the live pipeline renders.
+`awaitingReviewer`, so this scope happens to dispatch no worker), **arms polling**
+(`POST /polling {"on":true}` — the daemon starts idle and never auto-scans; see
+Gotchas), waits for the real GitHub scan, clicks the populated lane, screenshots to
+`/tmp/prc-dashboard.png`, verifies ≥1 PR was scanned, then stops. Fast, and proves
+the live pipeline renders.
 
 - **Keep it running** to drive interactively: `KEEP=1 .claude/skills/run-pr-controller/smoke.sh`
   (leaves the server on http://localhost:4317; stop with `pkill -f 'node server.mjs'`).
@@ -98,6 +100,9 @@ radius at a glance:
 ```bash
 PRC_PROFILE=dev PRC_ONLY_PRS="pr-controller#1" PRC_POLL_MINUTES=1440 PRC_PORT=4317 \
   node server.mjs > /tmp/prc-server.log 2>&1 &
+# The daemon starts IDLE — polling is OFF and it never auto-scans. Arm it (what the
+# dashboard's toggle does) or /state.json stays prs:[] forever:
+curl -s -XPOST localhost:4317/polling -H 'content-type: application/json' -d '{"on":true}'
 # Wait a few seconds for the first scan, then:
 curl -s http://localhost:4317/state.json    # real data: scope + prs[] + placements[]
 ```
@@ -160,6 +165,11 @@ cd pr-controller-react && yarn lint                  # design-system token + pro
   empty `PRC_ONLY_PRS=""` means **ALL** your open PRs (full production), the
   opposite of safe. For local runs always scope to a known whitelist of disposable
   PRs.
+- **Daemon starts idle — polling is OFF by default.** `server.mjs`'s listen handler
+  seeds an empty `/state.json` (`pollingEnabled:false`) and never auto-scans; the
+  scan/derive/place/dispatch loop runs only once armed — `POST /polling {"on":true}`
+  (what the dashboard toggle does) or `POST /poll` (one-shot). `smoke.sh` arms it
+  automatically; a hand-launched daemon sits at `prs:[]` until you do.
 - **First poll = first dispatch.** On startup `seen` is empty, so every dispatchable
   thread counts as "new." Scope `pr-controller#1` dispatches nothing (its threads are
   `awaitingReviewer`); **#2** (`@claude-debug` re-attributes your comment to a
@@ -185,7 +195,7 @@ cd pr-controller-react && yarn lint                  # design-system token + pro
 |---|---|
 | `[smoke] FAIL — no PRs scanned` | `gh` not authed on github.com as the owner, or the whitelist PRs were closed. `gh auth status`; `gh pr list --repo this-Cunningham/pr-controller --state open`. |
 | `GET /` → `503 Dashboard not built` | No `dist/`. Run the Build step (`yarn build`). |
-| `/state.json` shows `"prs":[]` after a few seconds | The scope matched no open PR (typo in `PRC_ONLY_PRS`), or `gh` can't reach the host. Check `/tmp/prc-server.log` for `[poll] failed`. |
+| `/state.json` shows `"prs":[]` after a few seconds | Polling not armed — the daemon starts idle (`POST /polling {"on":true}`; see Gotchas); or the scope matched no open PR (typo in `PRC_ONLY_PRS`), or `gh` can't reach the host. Check `/tmp/prc-server.log` for `[poll] failed`. |
 | Screenshot shows empty "Needs you" lane | The lane-click raced the render — retry after a short sleep (see Gotchas). |
 | Log spams `[poll] already running, skipped` | `PRC_POLL_MINUTES` too large → 1 ms interval (see Gotchas). Use `1440`. |
 | Daemon exits on first decision click while offline | Latent bug: `recordDecision` writes `data/decisions.json` without `mkdir`; only bites if the first poll never succeeded (so `data/` was never created). A successful scan creates `data/` and avoids it. |
