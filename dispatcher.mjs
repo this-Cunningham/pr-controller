@@ -127,7 +127,11 @@ async function maybeDrain(prKey) {
   deps.events.markStarted(prKey, { rebase });
   const outPath = deps.outPath(pr);
   try {
-    const wt = await deps.ensureWorktree(pr);
+    // If the last run for this PR didn't finish cleanly (worker killed on shutdown, or
+    // a daemon crash left the durable flag set), tell ensureWorktree to hard-reset our
+    // managed worktree first, and tell the worker its run is a recovered resume.
+    const recover = deps.isInterrupted ? await deps.isInterrupted(prKey) : false;
+    const wt = await deps.ensureWorktree(pr, { recover });
     if (wt.outOfSync) {
       pr.outOfSync = true;
       deps.markOutOfSync?.(prKey, true);
@@ -137,7 +141,7 @@ async function maybeDrain(prKey) {
       const r = await deps.runWorker(pr, drainedThreads, wt.path, outPath, {
         detached: wt.detached, pushRefspec: wt.pushRefspec,
         branchHealth: opts.branchHealth, rebase,
-        applyApproved,
+        applyApproved, recovered: wt.recovered,
       });
       log.info(`${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''}${rebase ? ' +rebase' : ''} -> `
         + (r.spawned ? `session ${r.sessionId} (exit ${r.code})` : r.reason));

@@ -1,0 +1,5 @@
+[
+  { "v": "1.0.0", "change": "Initial skill — prune noise comments (restated code, duplicates, stale/filler) while keeping why/invariant/gotcha/far-pointer comments; calibrate to per-file density; list-then-apply with a test gate." },
+  { "v": "1.1.0", "change": "Bias one notch leaner: default disposition is remove, borderline comments get cut, keep-bar raised, calibration trims below file density.", "snag": "blunt deletion bias = unintelligent chopping; reverted" },
+  { "v": "1.2.0", "change": "Reverted the deletion bias. Cleanup is per-comment judgment (signal vs noise); leanness is a byproduct of precision, not a quota; over-pruning real context stated as the worse failure." }
+]
