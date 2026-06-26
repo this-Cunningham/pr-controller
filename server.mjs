@@ -98,9 +98,13 @@ async function deriveAndSetPrFields(pr) {
   // canonical record. deriveRecord is pure + tested (test/derive.test.mjs); this
   // wrapper supplies the two I/O-backed inputs (the verdict file + the durable
   // diverged-branch flag). Shared by poll() and refreshOnePR() so both derive identically.
-  const result = await readWorkerResult(outPathFor(pr));
+  const { result, parseError } = await readWorkerResult(outPathFor(pr));
   const prKey = `${pr.repo}#${pr.number}`;
-  deriveRecord(pr, { workerResult: result, outOfSync: outOfSyncPRs.has(prKey), agentError: agentErrorPRs.get(prKey) || null });
+  // An unparseable verdict file surfaces as a Needs-you agentError (-> pr.workerError ->
+  // workerFailed) — same plumbing as a dispatcher-reported run failure — so the lost verdict
+  // is visible instead of leaving the threads stuck in notYetReviewed ("still reviewing").
+  const agentError = agentErrorPRs.get(prKey) || parseError || null;
+  deriveRecord(pr, { workerResult: result, outOfSync: outOfSyncPRs.has(prKey), agentError });
 
   // Invalidate a stale worker verdict file: once none of its actions match a live
   // (unresolved) thread and the branch is clean, the file is stale — unlink it so a

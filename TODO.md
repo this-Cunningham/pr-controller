@@ -92,3 +92,15 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
 - [ ] ability to customize worker sensitivity prompts and "restore to default" if needed
 - [ ] put the worker sensitivity panel under a separate tab within the settings panel
 - [ ] a way to edit all agent prompts in the system from the UI and save them.
+- [ ] **Harden the worker result seam.** Look into the whole class of "the daemon didn't get a
+      clean, usable result from a worker run." It shows up a few ways — the worker emits malformed
+      output, emits none at all, gets cut short (output-token limit, refusal, error), or dies
+      mid-run — and today any of these can leave a PR silently stuck instead of clearly flagged.
+      Investigate how the worker hands its result back and how the daemon ingests/persists it (start
+      at `worker.mjs` runWorker/readWorkerResult and `server.deriveAndSetPrFields`), then make the
+      seam robust: the result should always be parseable (structured output is the likely lever),
+      and any run that doesn't produce a usable result should be detected and surfaced as actionable
+      — never lost. Worth knowing going in: the result file is also the daemon's durable per-PR
+      store (re-read every poll, survives restarts), so changing the delivery mechanism has to keep
+      that storage role intact. There's an interim repair/parse workaround in `worker.mjs` to remove
+      once the real fix lands.

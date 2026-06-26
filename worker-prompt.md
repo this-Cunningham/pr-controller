@@ -141,3 +141,12 @@ JSON to: …"). Use these EXACT field names:
   ],
   "branchHealth": { "rebased": false, "ciFixed": false, "ciReran": false, "surfaced": "<reason or null>" } }
 ```
+
+**It MUST be valid JSON** — the daemon parses it with `JSON.parse`, not as JS. A single bad
+escape loses your ENTIRE verdict and strands the PR in "In progress" forever. So:
+- JSON allows ONLY these escapes inside a string: `\" \\ \/ \b \f \n \r \t \uXXXX`.
+- NEVER backslash-escape a backtick — write a plain `` ` ``, never `` \` ``. (`` \` `` is fine in a
+  JS template literal but is INVALID JSON.) This is the #1 way the file breaks.
+- In `suggestedReply`/`suggestedApproach`, prefer plain prose with normal quotes. If you must
+  include example code, avoid raw template literals; use `\n` for newlines and `\\` for a
+  literal backslash. When unsure, write less code and describe the change in words.
