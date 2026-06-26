@@ -126,16 +126,39 @@ async function recordSeenSha(prKey, worktreePath) {
 }
 
 // Read back the last worker run's result JSON for a PR (the file the worker was
-// told to write). Null if absent/unparseable. The file is model-written and not
-// schema-enforced, so we validate the shape deriveRecord depends on and log any drift
-// (bad/renamed fields) loudly — otherwise threads silently fall to the notYetReviewed disposition.
-// Malformed individual actions are dropped; the rest of the result still merges.
-export async function readWorkerResult(outPath) {
+// told to write). Returns `{ result, parseError }`:
+//   result      — the validated worker verdict, or null when the file is absent/unusable.
+//   parseError  — a human message when the file EXISTS but could not be parsed (even after
+//                 repair); null otherwise. The caller surfaces it as a Needs-you agentError
+//                 so a lost verdict can't masquerade as notYetReviewed ("still reviewing")
+//                 forever — the unchanged thread is already `seen` and never re-dispatches.
+// The file is model-written and not schema-enforced, so a hard JSON.parse failure must NOT
+// be swallowed: log it at error and return parseError (the old code returned null silently,
+// indistinguishable from "never ran" — the original stuck-in-progress bug). Before giving
+// up we attempt one repair of the single invalid-JSON case the model keeps emitting: a
+// backslash-escaped backtick (`\`` is legal in a JS template literal but illegal in JSON,
+// which allows only \" \\ \/ \b \f \n \r \t \uXXXX) inside suggestedReply/suggestedApproach
+// example code. Past that, we validate the shape deriveRecord depends on and log any drift
+// loudly. Malformed individual actions are dropped; the rest of the result still merges.
+export async function readWorkerResult(outPath, { log: l = log } = {}) {
+  let text;
+  try { text = await readFile(outPath, 'utf8'); }
+  catch { return { result: null, parseError: null }; }   // file absent — the worker genuinely never wrote a verdict
+
   let raw;
-  try { raw = JSON.parse(await readFile(outPath, 'utf8')); } catch { return null; }
+  try { raw = JSON.parse(text); }
+  catch (err) {
+    // One-shot repair of the common `\`` -> ``` ` ``` failure, then retry once. If it still
+    // won't parse, surface the failure instead of dropping the whole verdict on the floor.
+    try { raw = JSON.parse(text.replace(/\\`/g, '`')); l.warn(`repaired invalid JSON in ${outPath} (unescaped backtick)`); }
+    catch {
+      l.error(`could not parse worker result ${outPath}`, err.message);
+      return { result: null, parseError: `The worker finished but its result JSON was unparseable (${err.message}); its verdict was lost.` };
+    }
+  }
   const { result, problems } = validateWorkerResult(raw);
-  if (problems.length) log.warn(`result drift in ${outPath}`, problems.join('; '));
-  return result;
+  if (problems.length) l.warn(`result drift in ${outPath}`, problems.join('; '));
+  return { result, parseError: null };
 }
 
 // Dispatch the per-PR worker for only the NEW/changed threads.

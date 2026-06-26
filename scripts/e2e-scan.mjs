@@ -25,7 +25,7 @@ const prs = await scanAll();
 console.log(`[e2e] scanned ${prs.length} PR(s)\n`);
 
 for (const pr of prs) {
-  const wr = await readWorkerResult(outPathFor(pr));
+  const { result: wr } = await readWorkerResult(outPathFor(pr));
   deriveRecord(pr, { workerResult: wr, outOfSync: false });
 }
 
