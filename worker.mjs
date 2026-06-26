@@ -17,6 +17,45 @@ const log = logger('worker');
 const DATA = join(config.baseDir, 'data');
 const SESSIONS = join(DATA, 'sessions.json');
 
+// ── Live worker registry + shutdown drain ───────────────────────────────────
+// Every spawned `claude` child is tracked here so a daemon shutdown (SIGTERM from a
+// redeploy/launchd, SIGINT from Ctrl-C, etc.) can wind it down instead of orphaning
+// it. An orphan (reparented to launchd) keeps acting on the PR unsupervised
+// (commit/push/force-push under bypassPermissions), burns API $, may die mid-action
+// on a broken stdout pipe, and — worst — can collide with a fresh same-PR worker
+// after restart on the SAME session UUID + worktree (the dispatcher's in-memory
+// `running` lock doesn't survive a restart). server.mjs wires SIGTERM/SIGINT to
+// drainWorkers() so a kill behaves like the disarm toggle, just bounded + terminal.
+const liveWorkers = new Set();
+export function liveWorkerCount() { return liveWorkers.size; }
+// Signal every in-flight worker; returns how many were signalled.
+export function killAllWorkers(signal = 'SIGTERM') {
+  let n = 0;
+  for (const c of liveWorkers) { try { c.kill(signal); n += 1; } catch {} }
+  return n;
+}
+
+const realSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Wind down in-flight workers for a clean shutdown: wait up to graceMs for them to
+// finish on their own (most actions are a commit/push away from done), then SIGTERM
+// any stragglers, give them killGraceMs to exit, and SIGKILL whatever survives — so
+// the process never exits leaving an orphan. The I/O (count/kill/sleep) is injected
+// so the policy is unit-testable without spawning a real `claude`.
+export async function drainWorkers({
+  graceMs = 15000, killGraceMs = 2000, pollMs = 200,
+  count = liveWorkerCount, kill = killAllWorkers, sleep = realSleep, log: l = log,
+} = {}) {
+  let waited = 0;
+  while (count() > 0 && waited < graceMs) { await sleep(pollMs); waited += pollMs; }
+  if (count() === 0) return { drained: true, terminated: 0, killed: 0 };
+  const terminated = kill('SIGTERM');
+  l.warn(`${terminated} worker(s) still running after ${graceMs}ms — sent SIGTERM`);
+  await sleep(killGraceMs);
+  const killed = count() > 0 ? kill('SIGKILL') : 0;
+  if (killed) l.warn(`${killed} worker(s) ignored SIGTERM — sent SIGKILL`);
+  return { drained: false, terminated, killed };
+}
+
 // One durable Claude session per PR. First sight -> mint uuid (--session-id);
 // later diffs -> --resume that uuid, so the worker remembers prior rounds.
 async function loadSessions() {
@@ -203,10 +242,16 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
     // piped so we can capture the full transcript.
     const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Track the live child so a daemon shutdown can drain/kill it instead of orphaning
+    // it (see drainWorkers). Log on SPAWN — not only on completion — so a current worker
+    // is distinguishable from an orphan in the logs (e.g. when debugging a stuck run).
+    liveWorkers.add(child);
+    log.info(`${prKey}: worker spawned pid ${child.pid} session ${id} (${isNew ? 'new' : 'resume'})`);
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { out += d; });
     child.on('close', async (code) => {
+      liveWorkers.delete(child);
       await recordSeenSha(prKey, worktreePath);
       try {
         await mkdir(DATA, { recursive: true });

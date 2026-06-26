@@ -7,7 +7,7 @@ import { join, extname } from 'node:path';
 import { config, ghEnv, hasLocalConfig, cloneRootDefaulted, clampPoll } from './config.mjs';
 
 import { scanAll, scanOnePr } from './scanner.mjs';
-import { spawnDiscussTerminal, runWorker, readWorkerResult } from './worker.mjs';
+import { spawnDiscussTerminal, runWorker, readWorkerResult, drainWorkers } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { cleanupPr } from './cleanup.mjs';
 import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale, isBranchHealthResultStale } from './rules.mjs';
@@ -555,6 +555,27 @@ const srvLog = logger('server');
 try { account = (await exec('gh', ['api', 'user', '--jq', '.login'], { env: ghEnv })).stdout.trim() || null; }
 catch (e) { srvLog.warn('could not resolve gh account (gh api user) — is gh authed for this host?', String(e.message || e).slice(0, 160)); }
 if (account && !config.login) config.login = account;
+
+// Graceful shutdown. A process kill (SIGTERM from a redeploy/launchd, SIGINT from
+// Ctrl-C) must NOT orphan in-flight `claude` workers — see drainWorkers (worker.mjs)
+// for why orphans are dangerous (they keep pushing unsupervised and can collide with
+// a fresh same-PR worker after restart). On the first signal: stop polling (no new
+// scans/dispatches), stop accepting HTTP, drain in-flight workers (bounded by
+// config.shutdownGraceMs), then exit. A second signal mid-drain forces an immediate
+// exit (impatient double Ctrl-C). This makes a kill behave like the disarm toggle.
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) { srvLog.warn(`${signal} again — forcing immediate exit`); process.exit(1); }
+  shuttingDown = true;
+  srvLog.info(`${signal} received — winding down (drain ≤${config.shutdownGraceMs}ms, then kill stragglers)`);
+  try { await stopPolling(); } catch (e) { srvLog.error('stopPolling on shutdown failed', e.message); }
+  server.close();   // stop accepting new connections; in-flight requests/SSE close on exit
+  const r = await drainWorkers({ graceMs: config.shutdownGraceMs, log: srvLog });
+  srvLog.info(`shutdown complete (${r.drained ? 'workers drained cleanly' : `terminated ${r.terminated}, killed ${r.killed}`})`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.listen(config.port, async () => {
   const scoped = (config.onlyPRs || []).length;

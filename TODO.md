@@ -72,7 +72,23 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       config.local.json → `process.exit(0)`), and a reconnect-after-restart UX (the React app
       already has SSE auto-reconnect + /state.json polling). This is the blocker for the
       restart-required settings-panel fields (host, port, clone folder, ssh/https) — see TODO_UX.md.
-- [ ] Orphaned `claude` worker processes on daemon process-termination. The graceful winding-down drain is wired ONLY to the disarm toggle (stopPolling); a process kill (pkill to redeploy, Ctrl-C, crash, reboot) bypasses it and orphans in-flight workers (reparented to launchd). worker.mjs spawns `claude` as a plain child (no detached, handle not tracked) and there is NO SIGTERM/SIGINT handler in server.mjs. Effects while orphaned: keeps acting on the PR unsupervised (push/comment/rebase under bypassPermissions; worker-guard still blocks close/merge/delete/force-push), burns API $, may die mid-action on a broken stdout pipe (EPIPE) leaving partial state, writes a result JSON that races the next daemon, and — worst — can collide with a new same-PR worker on the same session UUID + worktree because the in-memory dispatcher `running` lock doesn't survive a restart → session/worktree corruption. Fix: track worker child handles (worker/dispatcher layer) and add a SIGTERM/SIGINT handler that runs the same drain as disarm — wait up to a bounded timeout for in-flight workers, then kill stragglers — so a restart behaves like the toggle. Also consider logging dispatch on SPAWN (not just on completion) so current-vs-orphan workers are distinguishable in observability (this ambiguity made the e2e cap test take ages to debug).
+- [x] Orphaned `claude` worker processes on daemon process-termination. **DONE:** worker.mjs
+      now tracks every spawned child in a `liveWorkers` set (`liveWorkerCount`/`killAllWorkers`)
+      and exposes a bounded `drainWorkers()` policy (wait ≤`config.shutdownGraceMs` for in-flight
+      workers to finish, then SIGTERM, then SIGKILL stragglers). server.mjs wires SIGTERM/SIGINT
+      to a `shutdown()` that stops polling, closes the HTTP server, and drains — so a kill behaves
+      like the disarm toggle instead of orphaning workers (a second signal forces immediate exit).
+      Dispatch is now logged on SPAWN (pid + session) so a current worker is distinguishable from
+      an orphan. Grace is `PRC_SHUTDOWN_GRACE_MS`-overridable (default 15s). Tested:
+      `test/worker.test.mjs` locks the drain/escalation policy.
+      Original report: the graceful winding-down drain was wired ONLY to the disarm toggle
+      (stopPolling); a process kill (pkill to redeploy, Ctrl-C, crash, reboot) bypassed it and
+      orphaned in-flight workers (reparented to launchd). Effects while orphaned: kept acting on the
+      PR unsupervised (push/comment/rebase under bypassPermissions; worker-guard still blocks
+      close/merge/delete/force-push), burned API $, could die mid-action on a broken stdout pipe
+      (EPIPE) leaving partial state, wrote a result JSON that raced the next daemon, and — worst —
+      could collide with a new same-PR worker on the same session UUID + worktree because the
+      in-memory dispatcher `running` lock doesn't survive a restart → session/worktree corruption.
 - [ ] ability to customize worker sensitivity prompts and "restore to default" if needed
 - [ ] put the worker sensitivity panel under a separate tab within the settings panel
 - [ ] a way to edit all agent prompts in the system from the UI and save them.
