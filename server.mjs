@@ -531,6 +531,22 @@ const server = createServer(async (req, res) => {
           spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent dispatched' };
         }
       }
+      // Manual retry of a run that came back without a usable result (the workerFailed card's
+      // Re-run). Re-dispatch the PR's open threads through the dispatcher — enqueue clears the
+      // failure gate (e.failed) and fires a fresh worker; on a clean run the workerFailed
+      // surface clears. Fold in CI/rebase so a health-only failure still re-fires.
+      if (payload.action === 'rerun') {
+        const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
+        const threads = (pr?.threads || []).filter((t) => !t.error && t.threadId);
+        if (!pr) spawn = { spawned: false, reason: 'PR not found' };
+        else if (!threads.length && !pr.ciFailing && !pr.needsRebase)
+          spawn = { spawned: false, reason: 'nothing to re-run — no open threads or branch work' };
+        else {
+          const queued = dispatcher.isWorking(payload.prKey);
+          dispatcher.enqueue(pr, threads, { branchHealth: pr.branchHealth, ci: pr.ciFailing, rebaseOnConflict: pr.needsRebase });
+          spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent re-dispatched' };
+        }
+      }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, scope: config.onlyPRs || [], spawn }));
       } catch (e) {

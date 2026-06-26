@@ -91,6 +91,42 @@ test('a thrown worker run re-stages its batch and retries on the next enqueue', 
   dispatcher.forget('rstage#1');
 });
 
+// A run that SPAWNS but comes back without a clean result (non-zero exit, refusal, token-cutoff,
+// no/garbage file) resolves normally — it never throws — so the dispatcher must route it through
+// the SAME surface-and-retry path as a thrown run: mark a durable error AND re-stage the batch
+// (the poller already marked these threads "seen", so they can't re-enqueue on their own).
+test('a spawned-but-failed run surfaces an error and re-stages its batch', async () => {
+  const runs = [];
+  const errors = [];
+  let failNext = true;
+  dispatcher.init({
+    events: { markStarted() {}, markFinished() {}, notifyStateUpdated() {} },
+    ensureWorktree: async () => ({ path: '/tmp/wt', outOfSync: false }),
+    runWorker: async (pr, threads) => {
+      if (failNext) { failNext = false; return { spawned: true, sessionId: 's', code: 0, outcome: { ok: false, reason: 'The worker declined to act on this run.' } }; }
+      runs.push({ threadCount: threads.length });
+      return { spawned: true, sessionId: 's', code: 0, outcome: { ok: true, reason: null } };
+    },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: (prKey, reason) => errors.push([prKey, reason]),
+  });
+  const pr = { repo: 'softfail', number: 1, threads: [{ threadId: 't1' }], branchHealth: {} };
+  dispatcher.enqueue(pr, [{ threadId: 't1' }], {});
+  await flush();
+  assert.equal(runs.length, 0);                              // the run failed — no success yet
+  assert.equal(dispatcher.pendingCount('softfail#1'), 1);    // t1 re-staged, not lost
+  assert.deepEqual(errors.at(-1), ['softfail#1', 'The worker declined to act on this run.']); // surfaced
+  // a genuine new enqueue clears the failure gate and retries the MERGED batch, which now succeeds
+  dispatcher.enqueue(pr, [{ threadId: 't2' }], {});
+  await flush();
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].threadCount, 2);                      // t1 (re-staged) + t2
+  assert.equal(dispatcher.pendingCount('softfail#1'), 0);    // a clean run drains the batch
+  dispatcher.forget('softfail#1');
+});
+
 // forget() while a worker is RUNNING must not drop the per-PR `running` lock: deleting the
 // entry would let a concurrent enqueue mint a fresh one and dispatch a SECOND worker on the
 // same session/worktree. It tombstones instead, so no double-dispatch.

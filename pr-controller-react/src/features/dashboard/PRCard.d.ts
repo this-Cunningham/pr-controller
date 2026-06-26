@@ -50,7 +50,9 @@ export interface PRCardProps {
   branchDetailsOpen?: boolean;
   onToggleBranchDetails?(): void;
   branchTerminalOpen?: boolean;
-  onBranchTerminal?(): void;
+  onBranchTerminal?(kind?: string): void;
+  /** Re-dispatch a run that came back without a usable result (the workerFailed card). */
+  onBranchRerun?(): void;
   /** The linked JIRA ticket, or null when none is set. */
   jiraLinked?: string | null;
   /** Set the PR's ticket. Return false to reject (e.g. empty/invalid). */

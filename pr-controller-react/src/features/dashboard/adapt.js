@@ -42,7 +42,14 @@ function branchPresentation(row) {
   if (row.disposition === 'branchOutOfSync')
     return { tone: 'attention', message: row.reason || 'The branch diverged from the remote — resolve it in a terminal.', actions: [{ key: 'terminal', kind: 'outOfSync', label: 'Resolve in terminal' }] };
   if (row.disposition === 'workerFailed')
-    return { tone: 'attention', message: row.reason || 'The worker run failed — see the daemon log.' };
+    // A run that came back without a usable result. Re-run re-dispatches it through the
+    // daemon (a clean run clears this card); Open in terminal resumes the PR's session so
+    // you can investigate / drive it by hand.
+    return { tone: 'attention', message: row.reason || 'The worker run failed — see the daemon log.',
+      actions: [
+        { key: 'rerun', label: 'Re-run' },
+        { key: 'terminal', kind: 'workerFailed', label: 'Open in terminal', variant: 'text' },
+      ] };
   return { tone: 'attention', message: row.reason };
 }
 
@@ -129,10 +136,11 @@ export function adaptThread(t, { dispatched = false } = {}) {
   };
 }
 
-// Apply the two client-only overlays on top of the server's authoritative
-// placements:
+// Apply the client-only overlays on top of the server's authoritative placements:
 //   - a DISPATCHED thread (Run agent fired, worker not finished) moves Needs you ->
 //     In progress immediately (state.json catches up when the worker exits).
+//   - a WORKERFAILED card whose PR has a worker in flight (you clicked Re-run) drops
+//     out of Needs you while the re-run runs — it's being worked on, not waiting on you.
 //   - a WORKING PR (SSE in-flight set) with no other progress row gets a synthetic
 //     "agent working" row, so a rebase-only/thread-less run still shows In progress.
 function applyOverlays(placements, prs, overlays) {
@@ -140,16 +148,24 @@ function applyOverlays(placements, prs, overlays) {
   const isDispatched = overlays.isDispatched || (() => false);
   const isRebasing = overlays.isRebasing || (() => false);
 
-  const rows = placements.map((r) => {
+  const rows = placements.flatMap((r) => {
     if (r.subjectKind === 'thread' && r.lane === 'needs' && isDispatched(r.prKey, r.subjectId)) {
-      return { ...r, lane: 'progress', _dispatched: true };
+      return [{ ...r, lane: 'progress', _dispatched: true }];
+    }
+    // A worker is in flight for this PR (e.g. you clicked Re-run on the failed card), so
+    // the failure is being re-attempted NOW — drop the workerFailed card from Needs you
+    // until the run settles. The PR still shows In progress (its thread row, or the
+    // synthetic "agent working" row below). state.json is authoritative on worker exit:
+    // a clean run drops the row for good; a failed run re-asserts it and it returns here.
+    if (r.disposition === 'workerFailed' && isWorking(r.prKey)) {
+      return [];
     }
     // A standing conflict lives in Needs you; show it In progress ("rebasing now")
     // ONLY while a rebase worker is actually in flight for this PR.
     if (r.disposition === 'branchConflict' && isRebasing(r.prKey)) {
-      return { ...r, lane: 'progress', _rebasing: true };
+      return [{ ...r, lane: 'progress', _rebasing: true }];
     }
-    return { ...r };
+    return [{ ...r }];
   });
 
   for (const pr of prs) {

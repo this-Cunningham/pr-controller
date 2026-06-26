@@ -23,6 +23,7 @@ function pr(over = {}) {
     needsRebase: over.needsRebase ?? false,
     outOfSync: over.outOfSync ?? false,
     workerSurfaced: over.workerSurfaced ?? null,
+    workerError: over.workerError ?? null,
     readyToMerge: over.readyToMerge ?? false,
     branchHealth: over.branchHealth ?? { failingChecks: [] },
     threads: (over.threads || []).map((t, i) => ({
@@ -141,6 +142,26 @@ test('outOfSync -> a Needs-you branch item (attention, terminal action)', () => 
   assert.deepEqual(items.map((i) => i.kind), ['branch']);
   assert.equal(items[0].branch.tone, 'attention');
   assert.deepEqual(items[0].branch.actions, [{ key: 'terminal', kind: 'outOfSync', label: 'Resolve in terminal' }]);
+});
+
+test('workerFailed -> a Needs-you branch item with Re-run + Open-in-terminal actions', () => {
+  const l = lanesFrom([pr({ workerError: 'The worker run finished but produced no usable result.' })]);
+  const items = itemsFor(l.needs, 'site-vdp-remix#1');
+  const branch = items.find((i) => i.kind === 'branch');
+  assert.equal(branch.branch.tone, 'attention');
+  assert.match(branch.branch.message, /no usable result/);
+  assert.deepEqual(branch.branch.actions, [
+    { key: 'rerun', label: 'Re-run' },
+    { key: 'terminal', kind: 'workerFailed', label: 'Open in terminal', variant: 'text' },
+  ]);
+});
+
+test('overlay: a workerFailed card drops out of Needs you while a re-run worker is in flight', () => {
+  const key = 'site-vdp-remix#1';
+  const l = lanesFrom([pr({ workerError: 'The worker run failed.' })], { isWorking: (prId) => prId === key });
+  assert.equal(cardIds(l.needs).length, 0);                                  // not "needs you" — being re-attempted
+  assert.deepEqual(cardIds(l.progress), [key]);                             // shows In progress instead
+  assert.deepEqual(itemsFor(l.progress, key).map((i) => i.kind), ['agentWorking']);
 });
 
 test('surfaced wins over a conflict -> Needs-you branch item, not In progress', () => {

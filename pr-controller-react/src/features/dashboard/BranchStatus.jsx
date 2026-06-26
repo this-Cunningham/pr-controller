@@ -12,8 +12,9 @@ import styles from "./BranchStatus.module.css";
  *                        running now).
  *   - tone="attention" → a boxed ◆ callout with optional "Show details" and action
  *                        buttons (e.g. Open in terminal, Rebase) — a "needs you" state.
- * `actions` is a list of { label, onClick, note? }; `note` renders after its button
- * when truthy (e.g. the terminal hand-off marker).
+ * `actions` is a list of { label, onClick, note?, variant? }; `variant:'text'` renders a
+ * muted TextButton (a secondary action) instead of the default primary Button. `note`
+ * renders after its button when truthy (e.g. the terminal hand-off marker).
  */
 export function BranchStatus({
   tone = "attention",
@@ -46,7 +47,9 @@ export function BranchStatus({
         <div className={styles.ctaRow}>
           {actions.map((a, i) => (
             <React.Fragment key={i}>
-              <Button variant="primary" onClick={a.onClick}>{a.label}</Button>
+              {a.variant === "text"
+                ? <TextButton tone="muted" onClick={a.onClick}>{a.label}</TextButton>
+                : <Button variant="primary" onClick={a.onClick}>{a.label}</Button>}
               {a.note && <TerminalNote>{a.note}</TerminalNote>}
             </React.Fragment>
           ))}

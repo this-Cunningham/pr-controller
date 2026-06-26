@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
   validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale, isBranchHealthResultStale,
-  cloneUrl, classifyWorkerError,
+  cloneUrl, classifyWorkerError, parseTerminalResult, classifyRunOutcome,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -24,6 +24,81 @@ test('classifyWorkerError: https auth failure -> a credential-helper hint', () =
 
 test('classifyWorkerError: unknown error -> truncated passthrough', () => {
   assert.match(classifyWorkerError('some other failure'), /worker run failed: some other failure/);
+});
+
+// parseTerminalResult: pull the LAST stream-json `{type:'result'}` line out of the worker's
+// captured stdout+stderr, tolerating interleaved non-JSON noise.
+test('parseTerminalResult: returns the terminal result event from NDJSON', () => {
+  const out = '{"type":"system"}\n{"type":"assistant"}\n{"type":"result","subtype":"success","stop_reason":"end_turn"}';
+  assert.deepEqual(parseTerminalResult(out), { type: 'result', subtype: 'success', stop_reason: 'end_turn' });
+});
+
+test('parseTerminalResult: skips interleaved stderr noise around the result line', () => {
+  const out = 'WARN: some stderr\n{"type":"result","subtype":"error_max_turns","is_error":true}\nnot json trailer';
+  assert.equal(parseTerminalResult(out).subtype, 'error_max_turns');
+});
+
+test('parseTerminalResult: no result line -> null', () => {
+  assert.equal(parseTerminalResult('{"type":"assistant"}\nplain text\n'), null);
+});
+
+test('parseTerminalResult: two result lines -> the LAST wins', () => {
+  const out = '{"type":"result","subtype":"success"}\n{"type":"result","subtype":"error_during_execution"}';
+  assert.equal(parseTerminalResult(out).subtype, 'error_during_execution');
+});
+
+// classifyRunOutcome: did the run hand back a clean, usable result? exit code/signal +
+// the terminal event (subtype/is_error/stop_reason/api_error_status) + result-file validity.
+test('classifyRunOutcome: clean success + valid file -> ok', () => {
+  const o = classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'success', is_error: false, stop_reason: 'end_turn' }, resultFileValid: true, expectResultFile: true });
+  assert.equal(o.ok, true);
+  assert.equal(o.reason, null);
+});
+
+test('classifyRunOutcome: non-zero exit -> fail', () => {
+  assert.match(classifyRunOutcome({ code: 1, expectResultFile: true }).reason, /exited abnormally \(code 1\)/);
+});
+
+test('classifyRunOutcome: signal kill (code null) -> fail', () => {
+  assert.match(classifyRunOutcome({ code: null, signal: 'SIGKILL' }).reason, /killed \(SIGKILL\)/);
+});
+
+test('classifyRunOutcome: subtype error_max_turns -> fail (turn limit)', () => {
+  assert.match(classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'error_max_turns', is_error: true } }).reason, /turn limit/);
+});
+
+test('classifyRunOutcome: error_during_execution with api_error_status -> fail (API error)', () => {
+  assert.match(classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 529 } }).reason, /API error \(status 529\)/);
+});
+
+test('classifyRunOutcome: refusal (exit 0, is_error:false) -> fail even with a valid file', () => {
+  const o = classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'success', is_error: false, stop_reason: 'refusal' }, resultFileValid: true, expectResultFile: true });
+  assert.equal(o.ok, false);
+  assert.match(o.reason, /declined/);
+});
+
+test('classifyRunOutcome: max_tokens truncation with no usable file -> fail (cut short)', () => {
+  assert.match(classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'success', stop_reason: 'max_tokens' }, resultFileValid: false, expectResultFile: true }).reason, /cut short/);
+});
+
+test('classifyRunOutcome: max_tokens but a parseable file landed -> ok (use the truncated-but-valid result)', () => {
+  assert.equal(classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'success', stop_reason: 'max_tokens' }, resultFileValid: true, expectResultFile: true }).ok, true);
+});
+
+test('classifyRunOutcome: exit-0 thread run with no result file -> fail (no usable result)', () => {
+  assert.match(classifyRunOutcome({ code: 0, terminalEvent: null, resultFileValid: false, expectResultFile: true }).reason, /no usable result/);
+});
+
+test('classifyRunOutcome: no-op health/rebase run (no threads), no file -> ok', () => {
+  assert.equal(classifyRunOutcome({ code: 0, terminalEvent: null, resultFileValid: false, expectResultFile: false }).ok, true);
+});
+
+test('classifyRunOutcome: unknown non-success subtype -> fail (conservative)', () => {
+  assert.equal(classifyRunOutcome({ code: 0, terminalEvent: { type: 'result', subtype: 'some_future_subtype', is_error: false } }).ok, false);
+});
+
+test('classifyRunOutcome: missing terminal event but a valid file landed -> ok (parse miss tolerated)', () => {
+  assert.equal(classifyRunOutcome({ code: 0, terminalEvent: null, resultFileValid: true, expectResultFile: true }).ok, true);
 });
 
 test('dispatchable: reviewer had the last word -> dispatch', () => {
