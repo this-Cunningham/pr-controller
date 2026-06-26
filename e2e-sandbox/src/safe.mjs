@@ -1,5 +1,5 @@
 // safe parsing
 export function safeParseInt(s) {
-  const n = parseInt(s, 10);
-  return Number.isNaN(n) ? null : n;
+  const parsed = parseInt(s, 10);
+  return Number.isNaN(parsed) ? null : parsed;
 }
