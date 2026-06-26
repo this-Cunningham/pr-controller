@@ -9,7 +9,7 @@
 //  - One worker per PR at a time (the per-PR `running` flag is the lock).
 //  - Work that arrives while a PR is busy (new poll threads OR user-approved
 //    approaches) lands in that PR's pending set and AUTO-FIRES when the lock frees
-//    — one re-ground + push per batch, never a double-dispatch. (plan §295-317)
+//    — one re-ground + push per batch, never a double-dispatch.
 //  - The whole-poll guard (`polling` in server.mjs) is orthogonal: it serializes
 //    SCANS; this serializes WORKERS.
 //

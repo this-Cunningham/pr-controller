@@ -156,8 +156,8 @@ test('parseBatchedResponse: a node title flows through; absent title leaves base
     p1: { pullRequest: prNodeFixture() }, // no title -> base 'B' preserved
   };
   const out = parseBatchedResponse(prs, data);
-  assert.equal(out[0].title, '[ABC-123] old base title'); // live title wins
-  assert.equal(out[1].title, 'B');                        // base meta preserved
+  assert.equal(out[0].title, '[ABC-123] old base title');
+  assert.equal(out[1].title, 'B');
 });
 
 test('parseBatchedResponse: tolerates a missing/null alias -> null slot', () => {

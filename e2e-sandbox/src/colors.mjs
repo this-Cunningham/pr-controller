@@ -8,7 +8,6 @@ export function hexToRgb(hex) {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
-// Format { r, g, b } as "#rrggbb".
 export function rgbToHex({ r, g, b }) {
   const h = (v) => v.toString(16).padStart(2, '0');
   return `#${h(r)}${h(g)}${h(b)}`;

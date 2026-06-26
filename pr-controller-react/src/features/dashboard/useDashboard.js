@@ -456,7 +456,6 @@ export function useDashboard(seed = null) {
   }, [seeded, fetchState, showToast]);
 
   return {
-    // scope badge: [] = live on all PRs, a list = restricted to those PR keys
     scope,
     tab,
     loading,

@@ -212,7 +212,7 @@ export default function SettingsSetup({ settings, saveConfig }) {
 
       {/* CADENCE + MODEL */}
       <section className={styles.grid2}>
-        {/* How often to check (editable → pollMinutes) */}
+        {/* editable → pollMinutes */}
         <div className={styles.field}>
           <span className={styles.eyebrow}>How often to check</span>
           <p className={styles.fieldDesc}>How frequently it looks for new activity.</p>
@@ -241,7 +241,7 @@ export default function SettingsSetup({ settings, saveConfig }) {
           <span className={styles.hint}>{pollHint(pollMinutes)}</span>
         </div>
 
-        {/* Assistant model (editable → workerModel) */}
+        {/* editable → workerModel */}
         <div className={styles.field}>
           <span className={styles.eyebrow}>Assistant model</span>
           <p className={styles.fieldDesc}>Which model does the work.</p>

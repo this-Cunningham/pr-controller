@@ -46,7 +46,7 @@ export const WORKER_RESPONSES = ['fix', 'praise', 'surface'];
 // Validate the worker's result JSON against the shape the derivation depends on. The
 // file is written by the model (free-form), so its shape isn't guaranteed — a
 // drifted result (renamed field, fenced JSON, missing actions) would silently
-// fall threads through to the notYetReviewed disposition. This catches that. Returns the sanitized
+// fall threads through to the notYetReviewed disposition. Returns the sanitized
 // result plus a list of human-readable `problems`; `result` is null when the
 // payload is unusable. Drops individual malformed actions rather than rejecting
 // the whole file, so one bad entry doesn't lose every verdict.

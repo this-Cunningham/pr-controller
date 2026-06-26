@@ -187,7 +187,6 @@ export function parsePullRequest(pr) {
         body: first.body,
         url: first.url,
         commentCount: t.comments.nodes.length,
-        // last author/body tell us who spoke last and what they said
         lastAuthor: last.author?.login || 'unknown',
         lastBody: last.body || '',
         lastCommentId: last.databaseId,
