@@ -93,7 +93,6 @@ function normType(t) {
   return t;
 }
 
-// --- compare ---
 const isRegistered = (comp, kind, prop) => ((patches[comp] && patches[comp][kind]) || []).includes(prop);
 const report = []; // {comp, severity, kind, detail}
 let realDrift = 0;
@@ -139,7 +138,6 @@ for (const [comp, basePath] of baseFiles) {
   }
 }
 
-// Output
 console.log(`check-ds-drift: ${dsName}  (baseline: ${relative(ROOT, baseDir)})`);
 const patchCount = Object.keys(patches).filter((k) => !k.startsWith("$")).length;
 console.log(`  ${baseFiles.size} upstream contracts vs ${appFiles.size} app contracts; ${patchCount} registered local-patch component(s).\n`);

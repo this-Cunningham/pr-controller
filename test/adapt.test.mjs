@@ -71,7 +71,7 @@ test('adaptThread: a short reason -> reasonSummary is the reason, reasonFull und
   const t = { threadId: 'a', disposition: 'needsYourApproval', reason: 'Looks risky.', body: 'b' };
   const out = adaptThread(t);
   assert.equal(out.reasonSummary, 'Looks risky.');
-  assert.equal(out.reasonFull, undefined); // nothing extra to expand
+  assert.equal(out.reasonFull, undefined);
 });
 
 test('adaptThread: a long single-sentence reason is clamped on a word boundary; reasonFull is the full text', () => {
@@ -80,7 +80,7 @@ test('adaptThread: a long single-sentence reason is clamped on a word boundary; 
   assert.ok(out.reasonSummary.length < reason.length, 'summary is shorter than the full reason');
   assert.ok(out.reasonSummary.endsWith('…'), 'clamped summary ends with an ellipsis');
   assert.ok(!out.reasonSummary.slice(0, -1).endsWith(' '), 'clamp lands on a word boundary');
-  assert.equal(out.reasonFull, reason); // the complete reason is available behind the toggle
+  assert.equal(out.reasonFull, reason);
   assert.ok(reason.startsWith(out.reasonSummary.slice(0, -1).trimEnd()));
 });
 

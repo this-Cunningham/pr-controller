@@ -72,7 +72,7 @@ export default function WorkerSensitivity({ sensitivityLevels = [], settings, sa
   }
 
   async function save() {
-    prevLevel.current = baseline; // the level before this save, for Undo
+    prevLevel.current = baseline;
     await saveConfig({ workerSensitivity: working });
     setSaved(true);
   }

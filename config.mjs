@@ -53,24 +53,24 @@ const cloneRootDefaulted = !(env.PRC_CLONE_ROOT || local.cloneRoot);
 
 export const config = {
   profile,
-  host: env.PRC_HOST || local.host || base.host || 'github.com',           // PRC_HOST
-  owner: env.PRC_OWNER || local.owner || base.owner || '',                 // PRC_OWNER
-  login: env.PRC_LOGIN || local.login || base.login || '',                 // PRC_LOGIN
-  port: Number(env.PRC_PORT) || local.port || 4317,                        // PRC_PORT
-  pollMinutes: clampPoll(Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 15),  // PRC_POLL_MINUTES (clamped [5,60])
+  host: env.PRC_HOST || local.host || base.host || 'github.com',
+  owner: env.PRC_OWNER || local.owner || base.owner || '',
+  login: env.PRC_LOGIN || local.login || base.login || '',
+  port: Number(env.PRC_PORT) || local.port || 4317,
+  pollMinutes: clampPoll(Number(env.PRC_POLL_MINUTES) || local.pollMinutes || 15),  // clamped [5,60]
   reenrichFloor: Number(env.PRC_REENRICH_FLOOR) || local.reenrichFloor || 5,
 
   // On shutdown (SIGTERM/SIGINT) the daemon gives in-flight `claude` workers up to this
   // many ms to finish on their own before it SIGTERMs/SIGKILLs them — so a kill never
   // orphans a worker. 0 = kill immediately. See drainWorkers (worker.mjs) + server.mjs.
-  shutdownGraceMs: Number(env.PRC_SHUTDOWN_GRACE_MS) || local.shutdownGraceMs || 15000,  // PRC_SHUTDOWN_GRACE_MS
+  shutdownGraceMs: Number(env.PRC_SHUTDOWN_GRACE_MS) || local.shutdownGraceMs || 15000,
 
   // PRs to watch. DEFAULT (normal production): empty = ALL your open, NON-DRAFT PRs. A
   // whitelist (PRC_ONLY_PRS="repo#1,repo#2", or a profile's onlyPRs) restricts to exactly
   // those — that's for testing / a dev sandbox, not normal use.
   onlyPRs: 'PRC_ONLY_PRS' in env ? csv(env.PRC_ONLY_PRS) : (local.onlyPRs || base.onlyPRs),
 
-  cloneRoot: env.PRC_CLONE_ROOT || local.cloneRoot || join(homedir(), 'src'),  // PRC_CLONE_ROOT
+  cloneRoot: env.PRC_CLONE_ROOT || local.cloneRoot || join(homedir(), 'src'),
   gitProtocol: (env.PRC_GIT_PROTOCOL || local.gitProtocol || 'ssh').toLowerCase() === 'https' ? 'https' : 'ssh',
 
   // Check categorization: compliance = needs your input; ignore = dropped; else = code CI.
@@ -79,7 +79,7 @@ export const config = {
   jiraPattern: '[A-Z]{2,}-\\d+',
   triggerToken: '@claude-plz-fix',
   debugToken: '@claude-debug',
-  workerModel: env.PRC_WORKER_MODEL || local.workerModel || 'sonnet',       // PRC_WORKER_MODEL
+  workerModel: env.PRC_WORKER_MODEL || local.workerModel || 'sonnet',
 
   // Worker sensitivity dial (0=surface everything … 4=fully autonomous; default 2).
   // Tunes the instruction injected into every worker run (see sensitivity.mjs). Editable

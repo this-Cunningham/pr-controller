@@ -33,7 +33,6 @@ export class Inventory {
     return this.items[sku]?.qty || 0;
   }
 
-  // Total value across all lines.
   total() {
     let amount = 0;
     for (const { qty, price } of Object.values(this.items)) {

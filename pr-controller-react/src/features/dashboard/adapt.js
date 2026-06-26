@@ -141,7 +141,6 @@ function applyOverlays(placements, prs, overlays) {
   const isRebasing = overlays.isRebasing || (() => false);
 
   const rows = placements.map((r) => {
-    // A dispatched (Run-fired) thread moves Needs you -> In progress immediately.
     if (r.subjectKind === 'thread' && r.lane === 'needs' && isDispatched(r.prKey, r.subjectId)) {
       return { ...r, lane: 'progress', _dispatched: true };
     }
