@@ -7,7 +7,7 @@ import { join, extname } from 'node:path';
 import { config, ghEnv, hasLocalConfig, cloneRootDefaulted, clampPoll } from './config.mjs';
 
 import { scanAll, scanOnePr } from './scanner.mjs';
-import { spawnDiscussTerminal, runWorker, readWorkerResult, drainWorkers } from './worker.mjs';
+import { spawnDiscussTerminal, runWorker, readWorkerResult, drainWorkers, wasInterrupted } from './worker.mjs';
 import { ensureWorktree } from './worktree.mjs';
 import { cleanupPr } from './cleanup.mjs';
 import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale, isBranchHealthResultStale } from './rules.mjs';
@@ -197,6 +197,8 @@ dispatcher.init({
   events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor,
   markOutOfSync: (prKey, v) => { if (v) outOfSyncPRs.add(prKey); else outOfSyncPRs.delete(prKey); },
   markAgentError: (prKey, reason) => { if (reason) agentErrorPRs.set(prKey, reason); else agentErrorPRs.delete(prKey); },
+  // True when the PR's last worker run didn't finish cleanly -> ensureWorktree recovers it.
+  isInterrupted: wasInterrupted,
 });
 
 async function poll() {

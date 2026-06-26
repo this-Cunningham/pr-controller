@@ -66,10 +66,26 @@ export function withCloneLock(clonePath, fn) {
   return run;
 }
 
-// Returns { path, ready, branch, detached?, pushRefspec?, reused?, outOfSync?, plan }.
+// Reset a MANAGED per-PR worktree back to the remote branch tip after an interrupted
+// run (a worker killed mid-action, or the daemon crashed — the daemon flags this via
+// wasInterrupted). Aborts any half-done rebase/merge (which would otherwise wedge git),
+// then drops local commits + uncommitted edits + untracked files. The remote PR branch
+// + the durable Claude session are the source of truth, so discarding the killed run's
+// partial work is safe — the resumed worker redoes it cleanly. ONLY ever called on our
+// own managed worktree (treeDir), NEVER a reused user clone — see setupWorktree.
+export async function recoverWorktree(dir, branch) {
+  await git(dir, ['fetch', 'origin']);
+  await git(dir, ['rebase', '--abort']).catch(() => {});   // no-op (nonzero) if no rebase in progress
+  await git(dir, ['merge', '--abort']).catch(() => {});    // ditto for an interrupted merge
+  await git(dir, ['reset', '--hard', `origin/${branch}`]);
+  await git(dir, ['clean', '-fd']);
+}
+
+// Returns { path, ready, branch, detached?, pushRefspec?, reused?, outOfSync?, recovered?, plan }.
 // Decision tree (clean reuse > detached worktree > fresh worktree), so we never
-// stash or disturb in-progress work in your clones.
-export async function ensureWorktree(pr) {
+// stash or disturb in-progress work in your clones. opts.recover (set by the dispatcher
+// when the last run was interrupted) hard-resets our managed worktree first.
+export async function ensureWorktree(pr, opts = {}) {
   // Ensure ROOT (worktrees/) exists: the fallback-clone path runs `git clone` with
   // cwd=ROOT and worktrees are placed under it, so a fresh checkout with no local clone
   // and no worktrees/ dir would otherwise fail with a confusing `spawn git ENOENT`.
@@ -81,12 +97,16 @@ export async function ensureWorktree(pr) {
   const repo = local || fallbackClone(pr.repo);
 
   // Serialize all git work on this shared clone (see withCloneLock above).
-  return withCloneLock(repo, () => setupWorktree(pr, { path, branch, repo, local }));
+  return withCloneLock(repo, () => setupWorktree(pr, { path, branch, repo, local, recover: !!opts.recover }));
 }
 
-async function setupWorktree(pr, { path, branch, repo, local }) {
+async function setupWorktree(pr, { path, branch, repo, local, recover }) {
   // RESUME: our managed worktree already exists -> re-ground to remote head.
   if (existsSync(path)) {
+    // `path` is always a managed worktree here (treeDir), so recovery is safe to run on
+    // it. The last run was flagged interrupted -> snap it back to the remote tip before
+    // resuming, discarding any partial work the killed worker left behind.
+    if (recover) await recoverWorktree(path, branch);
     // A worktree we made for a branch checked out DIRTY elsewhere is on a detached HEAD
     // (see useDetach below). There `--ff-only` has no upstream and always fails, falsely
     // marking the PR outOfSync on every resume — so ff to origin/<branch> explicitly,
@@ -96,14 +116,14 @@ async function setupWorktree(pr, { path, branch, repo, local }) {
       try {
         await git(path, ['fetch', 'origin']);
         await git(path, ['merge', '--ff-only', `origin/${branch}`]);
-        return { path, ready: true, branch, detached: true, pushRefspec: `HEAD:${branch}`, plan: [] };
+        return { path, ready: true, branch, detached: true, pushRefspec: `HEAD:${branch}`, recovered: recover, plan: [] };
       } catch (e) {
         return { path, ready: false, outOfSync: true, error: String(e).slice(0, 200) };
       }
     }
     const bail = await syncFfOnly(path);
     if (bail) return bail;
-    return { path, ready: true, branch, plan: [] };
+    return { path, ready: true, branch, recovered: recover, plan: [] };
   }
 
   // Need a checkout. First: is the branch already checked out somewhere?

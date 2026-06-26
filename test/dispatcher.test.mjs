@@ -120,6 +120,28 @@ test('forget() during a running worker keeps the lock (no double-dispatch)', asy
   await flush();
 });
 
+// A PR whose last run was interrupted (durable flag set) must drive worktree recovery:
+// ensureWorktree is told to recover, and the worker is told its run is a recovered resume.
+test('an interrupted prior run triggers worktree recovery + a recovered resume', async () => {
+  const seen = {};
+  dispatcher.init({
+    events: { markStarted() {}, markFinished() {}, notifyStateUpdated() {} },
+    ensureWorktree: async (pr, o = {}) => { seen.recover = o.recover; return { path: '/tmp/wt', outOfSync: false, recovered: !!o.recover }; },
+    runWorker: async (pr, threads, path, outPath, o) => { seen.recovered = o.recovered; return { spawned: true, code: 0 }; },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: () => {},
+    isInterrupted: async () => true,
+  });
+  const pr = { repo: 'rec', number: 1, threads: [], branchHealth: {} };
+  dispatcher.enqueueRebase(pr, {});
+  await flush();
+  assert.equal(seen.recover, true, 'ensureWorktree told to recover the worktree');
+  assert.equal(seen.recovered, true, 'runWorker told the run is a recovered resume');
+  dispatcher.forget('rec#1');
+});
+
 // #10/#12: markFinished must report whether a queued batch will run NEXT, so the client can
 // keep an optimistic "dispatched" overlay alive instead of snapping a still-applying approval
 // back to "Approve" when the PRIOR run finishes. The first finish (work queued mid-run) must

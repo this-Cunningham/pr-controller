@@ -28,10 +28,12 @@ const SESSIONS = join(DATA, 'sessions.json');
 // drainWorkers() so a kill behaves like the disarm toggle, just bounded + terminal.
 const liveWorkers = new Set();
 export function liveWorkerCount() { return liveWorkers.size; }
-// Signal every in-flight worker; returns how many were signalled.
+// Signal every in-flight worker; returns how many were signalled. Tag each as
+// `killedByDrain` BEFORE signalling so its close handler knows WE killed it mid-run
+// (and must leave the durable interrupted flag set) vs. a self-completed exit.
 export function killAllWorkers(signal = 'SIGTERM') {
   let n = 0;
-  for (const c of liveWorkers) { try { c.kill(signal); n += 1; } catch {} }
+  for (const c of liveWorkers) { try { c.killedByDrain = true; c.kill(signal); n += 1; } catch {} }
   return n;
 }
 
@@ -88,6 +90,25 @@ async function persistSession(prKey, id) {
   await withSessionsLock(async () => {
     const map = await loadSessions();
     if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+  });
+}
+
+// Durable "this PR's worker run did not finish cleanly" flag, kept in sessions.json
+// next to the session id. Set true right after a worker spawns; cleared ONLY on a
+// self-completed exit. So a daemon crash / kill -9 / shutdown-kill leaves it set, and
+// the next dispatch resets the worktree before resuming (see ensureWorktree's `recover`
+// + the recovered-resume note in runWorker). Survives a restart — that's the point.
+export async function wasInterrupted(prKey) {
+  const map = await loadSessions();
+  return !!map[prKey]?.interrupted;
+}
+async function setInterrupted(prKey, v) {
+  await withSessionsLock(async () => {
+    const map = await loadSessions();
+    if (!map[prKey]) return;   // no session yet -> the worker hasn't truly started; nothing to flag
+    map[prKey].interrupted = v;
+    await mkdir(DATA, { recursive: true });
+    await writeFile(SESSIONS, JSON.stringify(map, null, 2));
   });
 }
 
@@ -164,6 +185,12 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
     ];
   }
 
+  // Recovered resume: the daemon found this PR flagged as interrupted and hard-reset the
+  // worktree to the remote tip before relaunching (see ensureWorktree recover). Tell the
+  // session up front so it doesn't trust a stale memory of edits that are no longer on disk.
+  if (opts.recovered && !isNew)
+    head.unshift(`NOTE: your previous run on this PR was interrupted before it finished and the worktree was reset to origin/${pr.headRefName}, so any uncommitted changes from that run are gone — re-read the current files before acting.`);
+
   const bh = opts.branchHealth || {};
   // The PR's base branch (from the scan). The worker MUST rebase onto the REMOTE
   // base (origin/<base>), not a local ref — the long-lived clone's local base
@@ -235,23 +262,30 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // to diagnose a worker that misbehaved (workers run --permission-mode bypassPermissions
   // against real PRs). Overwritten each run, so it stays bounded to the last run.
   const logPath = join(DATA, `worker-${pr.repo}-${pr.number}.log`);
+  // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
+  // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
+  // input it will never get ("no stdin data received in 3s, proceeding without it"),
+  // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
+  // piped so we can capture the full transcript.
+  const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Track the live child so a daemon shutdown can drain/kill it instead of orphaning
+  // it (see drainWorkers). Log on SPAWN — not only on completion — so a current worker
+  // is distinguishable from an orphan in the logs (e.g. when debugging a stuck run).
+  liveWorkers.add(child);
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  log.info(`${prKey}: worker spawned pid ${child.pid} session ${id} (${isNew ? 'new' : 'resume'})`);
+  // Flag the run interrupted-until-proven-clean, durably, BEFORE we await it: if the
+  // daemon dies (crash/kill -9) or we kill this worker on shutdown, the flag survives so
+  // the next dispatch recovers the worktree. Cleared below ONLY on a self-completed exit.
+  await setInterrupted(prKey, true);
   return await new Promise((resolve) => {
-    // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
-    // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
-    // input it will never get ("no stdin data received in 3s, proceeding without it"),
-    // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
-    // piped so we can capture the full transcript.
-    const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
-    // Track the live child so a daemon shutdown can drain/kill it instead of orphaning
-    // it (see drainWorkers). Log on SPAWN — not only on completion — so a current worker
-    // is distinguishable from an orphan in the logs (e.g. when debugging a stuck run).
-    liveWorkers.add(child);
-    log.info(`${prKey}: worker spawned pid ${child.pid} session ${id} (${isNew ? 'new' : 'resume'})`);
-    let out = '';
-    child.stdout.on('data', (d) => { out += d; });
-    child.stderr.on('data', (d) => { out += d; });
     child.on('close', async (code) => {
       liveWorkers.delete(child);
+      // Clear the interrupted flag ONLY when the worker ended on its own. If WE killed it
+      // during the shutdown drain (killedByDrain), leave it set so the next run recovers.
+      if (!child.killedByDrain) { try { await setInterrupted(prKey, false); } catch {} }
       await recordSeenSha(prKey, worktreePath);
       try {
         await mkdir(DATA, { recursive: true });
