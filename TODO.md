@@ -11,33 +11,6 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       empty-`onlyPRs` / many-PRs case). Watch `[scanner] rate limited, backing off …s` the
       first time you widen scope; tune BATCH_SIZE / delays [1s,4s,10s] against what you see.
 
-## Decided — follow-up implementation
-- [ ] **Worker structured output** (was "should workers respond with structured output?")
-      **Verified:** `claude` CLI v2.1.185 exposes `--json-schema <schema>` ("JSON Schema for
-      structured output", works with `-p`/`--print`). It is NOT an Agent-SDK migration — just
-      one more flag on the existing `spawn('claude', …)` in `worker.mjs`; the only real change
-      is reading the validated object off the final `stream-json` result message instead of a
-      file.
-      **Recommendation — do it PARTIALLY, and only after the field vocabulary is settled
-      (item 2 done):** adopt `--json-schema` with a LOOSE schema (require only `prKey`,
-      `actions[].threadId`, `actions[].response ∈ fix|praise|surface`; everything else
-      optional; NO `additionalProperties:false`), switch the worker from "write JSON to a
-      path" to "emit the report as its final message", and KEEP `validateWorkerResult` as the
-      daemon-side gate (belt + suspenders; the flag's stability isn't guaranteed across CLI
-      versions). Do NOT go strict — a tight/required-heavy schema turns today's graceful "drop
-      the bad action + log drift" into hard worker FAILURES on an unattended daemon, and a
-      schema only guarantees SHAPE: it cannot catch the real hazard (a `fixed` reply without a
-      push). Net: low marginal value over the already-hardened `validateWorkerResult`; worth
-      doing for belt-and-suspenders, not urgent. Touches `worker.mjs` (spawn flag + read the
-      result off stream-json, not the file) and `worker-prompt.md` (§Output: "this is your
-      final message", not "write to a path"); add a `rules.test.mjs` case asserting a
-      schema-shaped result still passes `validateWorkerResult`.
-- [ ] **Observability — remaining piece:** per-PR `lastError` from the dispatcher's worker-run
-      failure paths onto the card (a "worker crashed" badge). The worker-run failures are
-      already logged + the full transcript persisted, so this is polish. (Note: PR #30 added a
-      `workerError`/`workerFailed` Needs-you surface for failed runs — re-check whether this is
-      now substantially covered before building more.)
-
 ## New
 - [ ] Daemon could use a scoped `--allowedTools` list (Write, Edit, Bash(git:*), Bash(gh:*)) instead
       of blanket `--permission-mode bypassPermissions` for workers — least-privilege, and it sidesteps
@@ -92,15 +65,8 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
 - [ ] ability to customize worker sensitivity prompts and "restore to default" if needed
 - [ ] put the worker sensitivity panel under a separate tab within the settings panel
 - [ ] a way to edit all agent prompts in the system from the UI and save them.
-- [ ] **Harden the worker result seam.** Look into the whole class of "the daemon didn't get a
-      clean, usable result from a worker run." It shows up a few ways — the worker emits malformed
-      output, emits none at all, gets cut short (output-token limit, refusal, error), or dies
-      mid-run — and today any of these can leave a PR silently stuck instead of clearly flagged.
-      Investigate how the worker hands its result back and how the daemon ingests/persists it (start
-      at `worker.mjs` runWorker/readWorkerResult and `server.deriveAndSetPrFields`), then make the
-      seam robust: the result should always be parseable (structured output is the likely lever),
-      and any run that doesn't produce a usable result should be detected and surfaced as actionable
-      — never lost. Worth knowing going in: the result file is also the daemon's durable per-PR
-      store (re-read every poll, survives restarts), so changing the delivery mechanism has to keep
-      that storage role intact. There's an interim repair/parse workaround in `worker.mjs` to remove
-      once the real fix lands.
+- [ ] **Harden the worker result seam.** A worker run can fail to hand back a clean, usable
+      result — malformed output, none at all, cut short (output-token limit, refusal, error), or
+      dead mid-run. Today any of these can leave a PR silently stuck instead of clearly flagged. A
+      run should never leave a PR in a wrong or ambiguous state: its result is always usable, or its
+      failure is clearly surfaced.
