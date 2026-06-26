@@ -124,6 +124,21 @@ async function maybeDrain(prKey) {
   e.rebase = false;
   e.ci = false;  // one-shot, like rebase — consumed so the post-run re-drain can't loop
 
+  // One home for "this run did not produce a clean result" — shared by a THROWN run (git
+  // transport/clone/push, caught below) and a run that spawned but came back unusable (non-zero
+  // exit, refusal, token-cutoff, no/garbage result file — r.outcome from runWorker). Both must
+  // (a) surface a durable workerFailed card and (b) re-stage the consumed batch: the poller
+  // already marked these threads "seen" (server.poll), so without a re-stage they'd strand
+  // un-judged. `e.failed` gates the auto-retry so a hard failure can't hot-loop; the next
+  // enqueue clears it.
+  const recordFailure = (reason) => {
+    deps.markAgentError?.(prKey, reason);
+    mergePending(e.threads, drainedThreads);
+    if (applyApproved) for (const t of drainedThreads) e.approved.add(t.threadId);
+    if (rebase) e.rebase = true;
+    e.failed = true;
+  };
+
   deps.events.markStarted(prKey, { rebase });
   const outPath = deps.outPath(pr);
   try {
@@ -152,19 +167,21 @@ async function maybeDrain(prKey) {
       if (r.spawned) {
         if (r.tail) log.debug(`worker ${prKey} tail`, r.tail.trim());
         if (!existsSync(outPath)) log.warn(`worker ${prKey}: no result JSON at ${outPath} — took no action (errored or empty run); see the .log transcript`);
+        // A run that spawned but came back without a clean, usable result (non-zero exit,
+        // refusal, token-cutoff, no/garbage file) resolves normally — it never throws — so route
+        // it through the SAME surface-and-retry path as a thrown run instead of letting its
+        // threads silently revert to "not yet reviewed".
+        if (r.outcome && !r.outcome.ok) {
+          log.warn(`${prKey}: worker run did not produce a clean result — ${r.outcome.reason}`);
+          recordFailure(r.outcome.reason);
+        }
       }
     }
   } catch (err) {
     // A worker-run failure (commonly a git transport/clone/push error) otherwise vanishes into
-    // this log line. Classify it and stash a durable per-PR surface so the dashboard shows it.
+    // this log line. Classify it and route it through the shared failure path (surface + re-stage).
     log.error(`${prKey}: worker run failed`, err.message);
-    deps.markAgentError?.(prKey, classifyWorkerError(err.message));
-    // Re-stage the consumed batch — the poller already marked these threads "seen", so a
-    // transient failure would otherwise strand them. `e.failed` gates the auto-retry.
-    mergePending(e.threads, drainedThreads);
-    if (applyApproved) for (const t of drainedThreads) e.approved.add(t.threadId);
-    if (rebase) e.rebase = true;
-    e.failed = true;
+    recordFailure(classifyWorkerError(err.message));
   } finally {
     e.running = false;
     // `pending` = a queued batch runs NEXT, so the client keeps its optimistic "dispatched"

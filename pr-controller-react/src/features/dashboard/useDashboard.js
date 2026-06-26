@@ -289,6 +289,21 @@ export function useDashboard(seed = null) {
     [seeded, setBranchHealthState, showToast]
   );
 
+  // Manual retry of a run that came back without a usable result (the workerFailed card's
+  // Re-run). Re-dispatches the PR's open threads through the daemon — clearing the
+  // dispatcher's failure gate and firing a fresh worker; on a clean run the workerFailed
+  // surface clears on its own.
+  const rerunBranch = useCallback(
+    async (prId) => {
+      showToast('Re-running the agent…');
+      if (seeded) return;
+      const res = await postDecision({ action: 'rerun', prKey: prId });
+      if (!res?.spawn?.spawned) showToast(res?.spawn?.reason || 'Could not re-run the agent');
+      else showToast(res.spawn.queued ? 'Agent busy — queued for the next run' : 'Agent re-dispatched');
+    },
+    [seeded, showToast]
+  );
+
   const discuss = useCallback(
     async (id) => {
       // Show the "›_ Terminal session opened…" note immediately on click (instant
@@ -496,6 +511,7 @@ export function useDashboard(seed = null) {
     undoReply,
     runAgent,
     discussRebase,
+    rerunBranch,
     discuss,
     sendRebuttal,
     setTicket,

@@ -41,6 +41,7 @@ export function PRCard({
   onToggleBranchDetails,
   branchTerminalOpen = false,
   onBranchTerminal,
+  onBranchRerun,
   jiraLinked = null,
   onSetTicket,
 }) {
@@ -95,10 +96,13 @@ export function PRCard({
         // (adapt.js is React-free, so it emits keys; the card wires the handlers).
         const actions = (b.actions || []).map((a) => ({
           label: a.label || "Open in terminal",
-          // Forward a.kind (conflict/outOfSync) so the right terminal opener is picked,
-          // not the default rebase one.
-          onClick: () => onBranchTerminal(a.kind),
-          note: branchTerminalOpen ? "Terminal session opened…" : undefined,
+          variant: a.variant,
+          // 'rerun' re-dispatches the failed run through the daemon; anything else opens a
+          // terminal — forward a.kind (conflict/outOfSync/workerFailed) so the right opener
+          // is picked, not the default rebase one.
+          onClick: a.key === "rerun" ? onBranchRerun : () => onBranchTerminal(a.kind),
+          // The terminal hand-off marker only applies to the terminal action.
+          note: a.key === "rerun" ? undefined : (branchTerminalOpen ? "Terminal session opened…" : undefined),
         }));
         return (
           <div key={`branch-${i}`} className={styles.section}>

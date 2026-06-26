@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
 import { fetchDiff } from './scanner.mjs';
-import { validateWorkerResult } from './rules.mjs';
+import { validateWorkerResult, parseTerminalResult, classifyRunOutcome } from './rules.mjs';
 import { sensitivityPrompt } from './sensitivity.mjs';
 import { logger } from './log.mjs';
 
@@ -302,17 +302,32 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // the next dispatch recovers the worktree. Cleared below ONLY on a self-completed exit.
   await setInterrupted(prKey, true);
   return await new Promise((resolve) => {
-    child.on('close', async (code) => {
+    child.on('close', async (code, signal) => {
       liveWorkers.delete(child);
-      // Clear the interrupted flag ONLY when the worker ended on its own. If WE killed it
-      // during the shutdown drain (killedByDrain), leave it set so the next run recovers.
-      if (!child.killedByDrain) { try { await setInterrupted(prKey, false); } catch {} }
-      await recordSeenSha(prKey, worktreePath);
+      // Did this run hand back a CLEAN, usable result? Parse the stream-json terminal `result`
+      // event (the richest failure signal — refusal / token-cutoff / api-error — which the exit
+      // code and a stdout tail can't see), and check whether the model actually wrote a parseable
+      // result file. A non-clean outcome must NOT look like success: runWorker reports it so the
+      // dispatcher routes the run through the same surface-and-retry path a thrown run uses (see
+      // maybeDrain). expectResultFile is false for a no-thread health/rebase-only run, which need
+      // not write verdicts.
+      const outcome = classifyRunOutcome({
+        code, signal,
+        terminalEvent: parseTerminalResult(out),
+        resultFileValid: (await readWorkerResult(outPath)) !== null,
+        expectResultFile: newThreads.length > 0,
+      });
+      // Clear the interrupted flag + advance the re-grounding SHA ONLY on a clean run. A failed
+      // run (a) leaves `interrupted` set so the next dispatch hard-resets the worktree, and (b)
+      // does not move lastSeenSha past feedback it never addressed. A shutdown-drain kill
+      // (killedByDrain) is never clean, so it always leaves the flag set for recovery.
+      if (!child.killedByDrain && outcome.ok) { try { await setInterrupted(prKey, false); } catch {} }
+      if (outcome.ok) await recordSeenSha(prKey, worktreePath);
       try {
         await mkdir(DATA, { recursive: true });
-        await writeFile(logPath, `# ${prKey} session ${id} exit=${code} @ ${new Date().toISOString()}\n${out}`);
+        await writeFile(logPath, `# ${prKey} session ${id} exit=${code} outcome=${outcome.ok ? 'ok' : 'failed'} @ ${new Date().toISOString()}\n${out}`);
       } catch (e) { log.warn(`could not persist transcript ${logPath}`, String(e).slice(0, 160)); }
-      resolve({ spawned: true, sessionId: id, code, tail: out.slice(-500) });
+      resolve({ spawned: true, sessionId: id, code, outcome, tail: out.slice(-500) });
     });
   });
 }
@@ -324,6 +339,7 @@ const BRANCH_DISCUSS_OPENERS = {
   conflict: 'Can you help me figure out what to do with this rebase?',
   outOfSync: 'The branch is out of sync with the remote — can you help me reconcile it?',
   surfaced: 'You surfaced something on this PR for me — can you walk me through it and what you’d suggest?',
+  workerFailed: 'Your last automated run on this PR didn’t finish cleanly — can you pick it back up, figure out what went wrong, and carry on?',
   default: 'Can you help me with the branch issue you flagged on this PR?',
 };
 

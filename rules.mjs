@@ -269,3 +269,75 @@ export function classifyWorkerError(message = '') {
     return 'Could not reach the git remote — check the host, transport (gitProtocol), and repo access.';
   return `The worker run failed: ${m.slice(0, 200)}`;
 }
+
+// Extract the stream-json terminal `result` event from a worker's captured stdout+stderr.
+// `claude -p --output-format stream-json` emits newline-delimited JSON; the LAST line that
+// parses to `{ type: 'result' }` is the run's terminal verdict, carrying the richest failure
+// signal (subtype, is_error, stop_reason, api_error_status) that an exit code + a stdout tail
+// cannot see. stderr is interleaved into the same buffer, so we scan from the end for the last
+// cleanly-parseable result line rather than parsing the whole buffer. Returns the parsed event,
+// or null when absent — a SIGKILL'd or wedged run may emit none (claude-code#8126). Pure; tested.
+export function parseTerminalResult(out = '') {
+  const lines = String(out || '').split('\n');
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (!line || line[0] !== '{') continue;
+    try {
+      const ev = JSON.parse(line);
+      if (ev && ev.type === 'result') return ev;
+    } catch { /* not JSON (interleaved stderr / partial chunk) — keep scanning */ }
+  }
+  return null;
+}
+
+// Classify whether a worker run handed back a CLEAN, USABLE result, from the three signals the
+// daemon has at worker exit: the process exit code/signal, the parsed stream-json terminal
+// `result` event (parseTerminalResult), and whether the model actually wrote a parseable result
+// file (readWorkerResult !== null). Returns { ok, reason } — `reason` is a short, card-ready
+// string (classifyWorkerError's style) when not ok, else null. The dispatcher routes a not-ok
+// outcome through the SAME surface-and-retry path a thrown run uses, instead of letting its
+// threads silently revert to notYetReviewed.
+//
+// Why each signal: exit code 0 does NOT mean a clean task — a REFUSAL and an output-token
+// TRUNCATION both exit 0 with is_error:false, distinguishable only by stop_reason. So we branch
+// on subtype/is_error/stop_reason, fall back to exit code + file presence, and treat an unknown
+// non-success subtype conservatively as a failure (fail-loud beats fail-silent — a stuck PR that
+// surfaces is recoverable; one that looks idle is not).
+//
+// `expectResultFile` guards the one false-positive: a legitimately no-op run (branch-health- or
+// rebase-only, dispatched with NO threads) need not have written thread verdicts, so a missing/
+// empty file is NOT a failure there. A thread-bearing run that wrote nothing IS. Pure; tested.
+export function classifyRunOutcome({ code = 0, signal = null, terminalEvent = null, resultFileValid = false, expectResultFile = false } = {}) {
+  const fail = (reason) => ({ ok: false, reason });
+
+  // Non-zero exit or a signal kill — the reliable "process aborted" signal (crash, fatal
+  // config/auth, the max-turns floor, SIGTERM/SIGKILL). Exit code is trustworthy for "did it
+  // abort", just not for "did it finish the task cleanly".
+  if (signal) return fail(`The worker process was killed (${signal}) before finishing — re-run, or open it in a terminal.`);
+  if (typeof code === 'number' && code !== 0)
+    return fail(`The worker process exited abnormally (code ${code}) — see the run transcript (data/worker-*.log).`);
+
+  if (terminalEvent) {
+    const { subtype, is_error: isError, stop_reason: stopReason, api_error_status: apiStatus } = terminalEvent;
+    if (isError || (subtype && subtype !== 'success')) {
+      if (subtype === 'error_max_turns') return fail('The worker run hit its turn limit before finishing — re-run, or open it in a terminal.');
+      if (apiStatus) return fail(`The worker run hit an API error (status ${apiStatus}) and could not finish — re-run, or open it in a terminal.`);
+      return fail(`The worker run did not complete (${subtype || 'execution error'}) — see the run transcript.`);
+    }
+    // subtype 'success' but the model DECLINED — a completed turn that exits 0 with
+    // is_error:false; only stop_reason reveals it (the "exit-0 trap").
+    if (stopReason === 'refusal') return fail('The worker declined to act on this run — review it and handle it manually, or re-run.');
+    // Output cut off at the token limit AND no usable result landed -> truncated mid-write. A
+    // truncated-but-still-parseable file is treated as usable (falls through to the check below).
+    if (stopReason === 'max_tokens' && expectResultFile && !resultFileValid)
+      return fail('The worker run was cut short (output token limit) before writing a usable result — re-run.');
+  }
+
+  // No positive failure signal. The run is clean ONLY if a result the derivation can use exists —
+  // for a thread-bearing run that means a parseable result file. (A no-op health/rebase-only run,
+  // expectResultFile=false, is clean without one.) This also catches an exit-0 worker that emitted
+  // no terminal event and wrote nothing/garbage.
+  if (expectResultFile && !resultFileValid)
+    return fail('The worker run finished but produced no usable result — re-run, or open it in a terminal.');
+  return { ok: true, reason: null };
+}
