@@ -75,8 +75,8 @@ export function withCloneLock(clonePath, fn) {
 // own managed worktree (treeDir), NEVER a reused user clone — see setupWorktree.
 export async function recoverWorktree(dir, branch) {
   await git(dir, ['fetch', 'origin']);
-  await git(dir, ['rebase', '--abort']).catch(() => {});   // no-op (nonzero) if no rebase in progress
-  await git(dir, ['merge', '--abort']).catch(() => {});    // ditto for an interrupted merge
+  await git(dir, ['rebase', '--abort']).catch(() => {});   // no-op (nonzero) if no rebase/merge in progress
+  await git(dir, ['merge', '--abort']).catch(() => {});
   await git(dir, ['reset', '--hard', `origin/${branch}`]);
   await git(dir, ['clean', '-fd']);
 }

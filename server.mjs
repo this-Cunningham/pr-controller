@@ -197,7 +197,6 @@ dispatcher.init({
   events, ensureWorktree, runWorker, refreshOnePR, outPath: outPathFor,
   markOutOfSync: (prKey, v) => { if (v) outOfSyncPRs.add(prKey); else outOfSyncPRs.delete(prKey); },
   markAgentError: (prKey, reason) => { if (reason) agentErrorPRs.set(prKey, reason); else agentErrorPRs.delete(prKey); },
-  // True when the PR's last worker run didn't finish cleanly -> ensureWorktree recovers it.
   isInterrupted: wasInterrupted,
 });
 

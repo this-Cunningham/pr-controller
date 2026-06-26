@@ -268,13 +268,11 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
   // piped so we can capture the full transcript.
   const child = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
-  // Track the live child so a daemon shutdown can drain/kill it instead of orphaning
-  // it (see drainWorkers). Log on SPAWN — not only on completion — so a current worker
-  // is distinguishable from an orphan in the logs (e.g. when debugging a stuck run).
-  liveWorkers.add(child);
+  liveWorkers.add(child);   // tracked so a daemon shutdown can drain/kill it instead of orphaning it (see drainWorkers)
   let out = '';
   child.stdout.on('data', (d) => { out += d; });
   child.stderr.on('data', (d) => { out += d; });
+  // Log on SPAWN, not only on completion, so a current worker is distinguishable from an orphan in the logs.
   log.info(`${prKey}: worker spawned pid ${child.pid} session ${id} (${isNew ? 'new' : 'resume'})`);
   // Flag the run interrupted-until-proven-clean, durably, BEFORE we await it: if the
   // daemon dies (crash/kill -9) or we kill this worker on shutdown, the flag survives so
