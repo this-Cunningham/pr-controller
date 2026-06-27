@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    // allowJs so the frozen design-system + prototype-synced feature .jsx resolve and
+    // infer loosely; checkJs off so we never report errors inside those frozen bodies.
+    // Only our app-authored .ts/.tsx get full strict checking; the .jsx are consumed via
+    // their sibling .d.ts contracts.
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src", "dev", "vite.config.js"],
+  "exclude": ["node_modules", "dist"]
+}

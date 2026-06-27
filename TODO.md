@@ -1,7 +1,7 @@
 # TODO
 
 ## Ingestion hardening — smoke-tested 2026-06-21 (mostly cleared; 2 residuals)
-The `scanner.mjs` rework was live-smoke-tested read-only against real github.com PRs
+The `scanner.ts` rework was live-smoke-tested read-only against real github.com PRs
 (no daemon / no worker dispatch / no mutations). Cleared the two cases the TODO called
 out (cross-org set + closed/merged PR). Two residuals can't be force-induced safely here.
 
@@ -16,18 +16,18 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       of blanket `--permission-mode bypassPermissions` for workers — least-privilege, and it sidesteps
       the claude root-guard on any host without IS_SANDBOX (proven viable: a scoped
       `--allowedTools 'Bash(gh:*)'` worker ran with permission_denials:[] and no
-      --dangerously-skip-permissions). Worth considering for worker.mjs runWorker.
+      --dangerously-skip-permissions). Worth considering for worker.ts runWorker.
 - [ ] Explore/design a first-run + settings **config UI panel** ("setup mode"). Feasibility
       confirmed: serve the React UI while the poll/dispatch loop is GATED on a valid config —
       the HTTP server and poll loop are already decoupled (poll() only starts in the
-      `server.listen` callback, server.mjs:359-364). Scope to explore:
-      - `validateConfig()` (config.mjs/rules.mjs) + gate the poll() kickoff (server.mjs:362);
+      `server.listen` callback, server.ts:359-364). Scope to explore:
+      - `validateConfig()` (config.ts/rules.ts) + gate the poll() kickoff (server.ts:362);
         render a `SetupPanel` vs the lanes (App.jsx:87), reusing the existing `lastPollError`/
         "⚠ scan failing" plumbing (Header.jsx:23) + EmptyState/Callout/Button DS components
         (no form components exist in the design system yet).
       - SAME panel does first-run AND ongoing edits (first-run is just the empty state).
-      - Persist edits via a daemon-owned, gitignored `data/config.local.json` that config.mjs
-        merges UNDER env (env > file > profile) — NOT by rewriting config.mjs in place; maybe an
+      - Persist edits via a daemon-owned, gitignored `data/config.local.json` that config.ts
+        merges UNDER env (env > file > profile) — NOT by rewriting config.ts in place; maybe an
         "export to .env/committed" action for durability on ephemeral hosts. New `/config` +
         per-check preflight endpoints (server-authoritative; React just renders/POSTs).
       - Live red/green preflight steps for the real first-run blockers: gh auth/host/login,
@@ -45,15 +45,15 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       config.local.json → `process.exit(0)`), and a reconnect-after-restart UX (the React app
       already has SSE auto-reconnect + /state.json polling). This is the blocker for the
       restart-required settings-panel fields (host, port, clone folder, ssh/https) — see TODO_UX.md.
-- [x] Orphaned `claude` worker processes on daemon process-termination. **DONE:** worker.mjs
+- [x] Orphaned `claude` worker processes on daemon process-termination. **DONE:** worker.ts
       now tracks every spawned child in a `liveWorkers` set (`liveWorkerCount`/`killAllWorkers`)
       and exposes a bounded `drainWorkers()` policy (wait ≤`config.shutdownGraceMs` for in-flight
-      workers to finish, then SIGTERM, then SIGKILL stragglers). server.mjs wires SIGTERM/SIGINT
+      workers to finish, then SIGTERM, then SIGKILL stragglers). server.ts wires SIGTERM/SIGINT
       to a `shutdown()` that stops polling, closes the HTTP server, and drains — so a kill behaves
       like the disarm toggle instead of orphaning workers (a second signal forces immediate exit).
       Dispatch is now logged on SPAWN (pid + session) so a current worker is distinguishable from
       an orphan. Grace is `PRC_SHUTDOWN_GRACE_MS`-overridable (default 15s). Tested:
-      `test/worker.test.mjs` locks the drain/escalation policy.
+      `test/worker.test.ts` locks the drain/escalation policy.
       Original report: the graceful winding-down drain was wired ONLY to the disarm toggle
       (stopPolling); a process kill (pkill to redeploy, Ctrl-C, crash, reboot) bypassed it and
       orphaned in-flight workers (reparented to launchd). Effects while orphaned: kept acting on the

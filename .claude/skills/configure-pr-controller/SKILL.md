@@ -3,7 +3,7 @@ name: configure-pr-controller
 version: 3.2.0
 description: >-
   Help a user configure pr-controller and get it unblocked (first run or new device). Lists
-  the dependencies needed, then points Claude at config.mjs / config.local.json to help the
+  the dependencies needed, then points Claude at config.ts / config.local.json to help the
   user fill in their non-secret config. Assumes claude + GitHub already work on the machine;
   auth/tokens are set up by the USER in their terminal, never in chat. Use for first-time
   setup, re-setup on a new machine, an empty / "scan failing" dashboard, or workers that no-op.
@@ -11,7 +11,7 @@ description: >-
 
 # Configure pr-controller
 
-Assumes `claude` and GitHub already work on the machine. `config.mjs` auto-loads a gitignored
+Assumes `claude` and GitHub already work on the machine. `config.ts` auto-loads a gitignored
 `config.local.json` — Claude helps the user write or **edit** it. Auth/token setup is done by the
 user in their own terminal (never paste secrets in chat).
 
@@ -38,7 +38,7 @@ user in their own terminal (never paste secrets in chat).
   actually validated — so watch the daemon log on the first worker run, or pre-clone under `cloneRoot`.
 
 ## Write config.local.json (Claude helps)
-Every field is documented in [config.mjs](config.mjs); validate against
+Every field is documented in [config.ts](config.ts); validate against
 [config.local.schema.json](config.local.schema.json) (its `$schema` ref gives editors live validation).
 
 **If `config.local.json` already exists** (the usual case for re-setup / "scan failing" / workers
@@ -61,7 +61,7 @@ EOF
 ```
 
 **Gotchas — each has bitten a real setup:**
-- **Strict JSON, no comments / trailing commas.** A parse error is NOT fatal: `config.mjs` logs
+- **Strict JSON, no comments / trailing commas.** A parse error is NOT fatal: `config.ts` logs
   `[config] config.local.json failed to parse` and falls back to built-in defaults — silently dropping
   your whole local config (host, cloneRoot, gitProtocol, and the `onlyPRs` circuit-breaker). Because
   empty `onlyPRs` = ALL your PRs, a dropped config doesn't blank the dashboard — it quietly scans
@@ -70,17 +70,17 @@ EOF
   expansion). A literal `~/src` matches nothing, so the daemon silently skips your local clones and
   re-clones every repo fresh under `worktrees/`. Example: `/Users/you/src`.
 - **Profile selection.** Active profile = `PRC_PROFILE` env, else the top-level `profile` key, else
-  `prod` (an unknown name also falls back to `prod`). A bare `node server.mjs` uses the top-level
+  `prod` (an unknown name also falls back to `prod`). A bare `node --import tsx server.ts` uses the top-level
   `profile` key — the example pins `dev`. The built-in `prod` ships with EMPTY `onlyPRs`, and discovery
   uses your authed `gh` user (`--author @me`), NOT the config — so removing/mistyping the `profile` key
   silently falls back to `prod` and watches ALL your PRs (breaker OFF), not an empty board. Set it to
-  the profile you want, or pass `PRC_PROFILE=<name> node server.mjs`.
+  the profile you want, or pass `PRC_PROFILE=<name> node --import tsx server.ts`.
 - **`onlyPRs` is the circuit-breaker** — empty = ALL your open PRs. Keep it tight (see Run).
 
 ## Run — start with a throwaway PR
 Validate each PR is open (`GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`), then build + run:
 ```bash
-( cd pr-controller-react && yarn install && yarn build ) && node server.mjs   # http://localhost:4317
+( cd pr-controller-react && yarn install && yarn build ) && node --import tsx server.ts   # http://localhost:4317
 ```
 For the **very first run on a new machine**, set `onlyPRs` to a SINGLE throwaway/sandbox PR (the
 README's "hardening sandbox") and watch one full cycle succeed — the first poll acts for real
@@ -88,7 +88,7 @@ README's "hardening sandbox") and watch one full cycle succeed — the first pol
 PRs once a sandbox cycle is clean.
 
 ## Confirm it worked
-After `node server.mjs`, open http://localhost:4317:
+After `node --import tsx server.ts`, open http://localhost:4317:
 - **Success** — the header shows your open count and (for a scoped/non-empty config) your PRs appear;
   the daemon log prints `N PRs, M need you (scanned as @<account>)`.
 - **Scan failing** — a red `⚠ scan failing` badge in the header (hover for the error). CLI check:

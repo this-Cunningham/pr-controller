@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src && node scripts/check-motion.mjs",
-    "ds-drift": "node scripts/check-ds-drift.mjs"
+    "ds-drift": "node scripts/check-ds-drift.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -18,8 +19,12 @@
   },
   "devDependencies": {
     "@babel/parser": "^7.29.7",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/parser": "^8.18.0",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "9.15.0",
+    "typescript": "^5.7.2",
     "vite": "^5.4.8"
   }
 }

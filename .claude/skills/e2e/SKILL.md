@@ -66,17 +66,17 @@ simulates fresh real-world cases:
 
 ## 2. Build, launch, and ARM — in a visible browser
 
-The daemon starts **idle**: `node server.mjs` does **not** scan or dispatch until
-polling is armed (`server.mjs` — "polling is OFF by default"). The natural, watchable
+The daemon starts **idle**: `node --import tsx server.ts` does **not** scan or dispatch until
+polling is armed (`server.ts` — "polling is OFF by default"). The natural, watchable
 way to arm it is the dashboard's header **arm toggle** (drive it with the
 `chrome-devtools-cli` skill).
 
 ```bash
 cd <repo-root>
 ( cd pr-controller-react && yarn install --silent && yarn build )   # 503 until dist/ exists
-pkill -f "node server.mjs" 2>/dev/null; pkill -f worker-guard 2>/dev/null; sleep 1  # also kill ORPHAN workers
+pkill -f "server.ts" 2>/dev/null; pkill -f worker-guard 2>/dev/null; sleep 1  # also kill ORPHAN workers
 PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_PORT=4317 PRC_LOG_LEVEL=debug \
-  node server.mjs > /tmp/prc-server.log 2>&1 &
+  node --import tsx server.ts > /tmp/prc-server.log 2>&1 &
 # Banner: [e2e @ github.com] ... "polling is OFF by default".
 ```
 
@@ -184,8 +184,8 @@ URL=$(gh pr create --repo this-Cunningham/pr-controller --base main --head fix/<
         --title "<realistic title>" --body "<realistic description>")   # prints the PR URL
 PR="${URL##*/}"                                            # trailing number
 .claude/skills/e2e/whitelist-add.sh "pr-controller#$PR"    # appends to profiles.e2e.onlyPRs
-pkill -f "node server.mjs"; pkill -f worker-guard; sleep 1   # restart (config read once); also kill orphan workers
-PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_LOG_LEVEL=debug node server.mjs >> /tmp/prc-server.log 2>&1 &
+pkill -f "server.ts"; pkill -f worker-guard; sleep 1   # restart (config read once); also kill orphan workers
+PRC_PROFILE=e2e PRC_WORKER_MODEL=haiku PRC_LOG_LEVEL=debug node --import tsx server.ts >> /tmp/prc-server.log 2>&1 &
 # re-arm (dashboard toggle or curl POST /polling) and inject as needed.
 ```
 
@@ -203,11 +203,11 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
   (grep for the sensitivity text or `--model`). Settings apply LIVE — sensitivity/onlyPRs at
   the next poll/dispatch, model at the next NEW session; no restart needed.
 - **PR side-effects:** `gh pr view <num> --repo this-Cunningham/pr-controller --comments`.
-- **Pure-layer regressions** (if you touched routing/verdict/derivation): `node --test "test/**/*.test.mjs"`.
+- **Pure-layer regressions** (if you touched routing/verdict/derivation): `node --import tsx --test "test/**/*.test.ts"`.
 
 ## Gotchas
 
-- **Idle until armed.** `node server.mjs` scans/dispatches nothing until you arm polling
+- **Idle until armed.** `node --import tsx server.ts` scans/dispatches nothing until you arm polling
   (dashboard toggle or `POST /polling {on:true}`). `/state.json` shows `prs:[]` before that.
 - **`@claude-debug` only re-attributes on an UNRESOLVED review thread** (top-level comments +
   resolved threads are ignored) — use `inject-debug.sh`; see §4.
@@ -215,7 +215,7 @@ worker); **review thread** (add a module, then `inject-debug.sh $PR "<feedback>"
   own signals; `@claude-debug` is only for review threads.
 - **New whitelist entries / `PRC_*` need a daemon restart** — config is read once at load.
 - **Watch in a REAL browser** — don't run chrome-devtools headless when the user wants to watch.
-- **Restarting the daemon ORPHANS in-flight workers.** `pkill -f "node server.mjs"` kills only
+- **Restarting the daemon ORPHANS in-flight workers.** `pkill -f "server.ts"` kills only
   the daemon; its `claude` workers reparent to launchd and keep running. They show up in
   `pgrep -f worker-guard` and masquerade as the new daemon's workers (a worker "running" while
   the fresh log shows no dispatch = an orphan). Always `pkill -f worker-guard` on restart.

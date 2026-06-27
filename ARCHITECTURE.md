@@ -12,9 +12,9 @@ This doc is HOW the system is built. For WHAT it should do (behavior rules), see
 > **The daemon decides which lane every item of a PR belongs to. The frontend derives
 > no routing — it FILTERS the daemon's decisions and renders them.**
 
-Routing lives in exactly one pure, tested function: `placementsFor` in `placements.mjs`.
+Routing lives in exactly one pure, tested function: `placementsFor` in `placements.ts`.
 If you are tempted to compute "which tab does this go in?" in the React app, stop — that
-decision belongs in `placements.mjs`.
+decision belongs in `placements.ts`.
 
 ## Lanes are for items; PR-level state is a badge
 
@@ -36,32 +36,32 @@ render it as a badge (or a header filter/sort) — not a lane.
 
 Each hop is small, pure where it can be, and tested:
 
-1. **`scanner.mjs`** — `gh`-only, no Claude. Lists your open PRs (`gh search prs
+1. **`scanner.ts`** — `gh`-only, no Claude. Lists your open PRs (`gh search prs
    --author @me`), filters to `config.onlyPRs`, and per PR fetches unresolved review
    threads, `mergeable`/`mergeStateStatus`, `baseRefName`, and the CI rollup. Raw
    GitHub data, no opinions.
-2. **`rules.mjs`** — pure decision logic, no I/O (tested: `test/rules.test.mjs`):
+2. **`rules.ts`** — pure decision logic, no I/O (tested: `test/rules.test.ts`):
    `deriveDisposition` (per-thread verdict from the worker's `response`), `dispatchable`
    / `dispatchDecision` / `nextSeenThreads` (when a worker runs; how a conflict defers
    threads), `isWorkerResultStale` (whether a persisted verdict is stale).
-3. **`derive.mjs`** — `deriveRecord(pr, { workerResult, outOfSync })`, pure (tested:
-   `test/derive.test.mjs`). Builds the canonical per-PR record: each thread's
+3. **`derive.ts`** — `deriveRecord(pr, { workerResult, outOfSync })`, pure (tested:
+   `test/derive.test.ts`). Builds the canonical per-PR record: each thread's
    disposition + branch flags (`needsRebase`/`outOfSync`/`workerSurfaced`) + `needsJira`.
    THE place where raw scan + stored worker verdict become "everything known about this PR."
-4. **`placements.mjs`** — `placementsFor`, `LANE_OF_DISPOSITION`, `DISPOSITION_RANK`,
-   `prSortRank`, pure (tested: `test/placements.test.mjs`). **The single source of truth
+4. **`placements.ts`** — `placementsFor`, `LANE_OF_DISPOSITION`, `DISPOSITION_RANK`,
+   `prSortRank`, pure (tested: `test/placements.test.ts`). **The single source of truth
    for routing.** Maps each item to a lane and emits flat placement rows.
-5. **`server.mjs`** — the persistent `node:http` daemon. Polls on an interval, runs
+5. **`server.ts`** — the persistent `node:http` daemon. Polls on an interval, runs
    `deriveAndSetPrFields` (reads the worker verdict file + calls `deriveRecord`),
    computes placements, writes `state.json`. Per-PR ordering is the single `sortRank`.
    Serves the built dashboard + `/state.json` + `/events` (SSE) + `/decision` + `/poll`.
-6. **`dispatcher.mjs` / `worker.mjs` / `worktree.mjs`** — per-PR worker serialization
+6. **`dispatcher.ts` / `worker.ts` / `worktree.ts`** — per-PR worker serialization
    (one in-flight worker per PR, a coalescing pending set); the headless `claude -p`
    worker runs in a per-PR git worktree.
-7. **`pr-controller-react/src/features/dashboard/adapt.js`** — `buildLanes(prs,
+7. **`pr-controller-react/src/features/dashboard/adapt.ts`** — `buildLanes(prs,
    placements, overlays)` FILTERS the placement rows into the three lanes, applies
    client-only overlays, and builds the render `items`. `PRCard` is a pure renderer of
-   `items` (tested: `test/adapt.test.mjs`).
+   `items` (tested: `test/adapt.test.ts`).
 
 ## The wire: `state.json`
 
@@ -140,11 +140,11 @@ The Wabi-Sabi design system (baseline `design/.upstream/wabi-sabi-foundation/`,
 vendored into `pr-controller-react/src/design-system/`) is brand source-of-truth. Its
 components RENDER; they do not route. Keep the theme/tokens intact; don't restyle ad
 hoc — sync it only via `/pull-new-designs` (mapping in `.design-sync.json`). The only
-client-side translation is `DISPOSITION_TO_TAG` (disposition → DS tag) in `adapt.js`.
+client-side translation is `DISPOSITION_TO_TAG` (disposition → DS tag) in `adapt.ts`.
 
 ## Config
 
-`config.mjs` is env-overridable so the daemon can run against a different GitHub without
+`config.ts` is env-overridable so the daemon can run against a different GitHub without
 editing the committed defaults: `PRC_HOST`, `PRC_OWNER`, `PRC_LOGIN`, `PRC_PORT`,
 `PRC_POLL_MINUTES`, `PRC_ONLY_PRS` (`""` = all your open PRs; unset = the committed
 defaults). `config.onlyPRs` is the scope primitive + circuit-breaker: a non-empty list

@@ -5,13 +5,19 @@
   "description": "Local daemon + dashboard that watches your open PRs and dispatches headless Claude workers to address feedback, fix CI, and rebase.",
   "type": "module",
   "bin": {
-    "pr-controller": "server.mjs"
+    "pr-controller": "server.ts"
   },
   "scripts": {
-    "start": "node server.mjs",
-    "test": "node --test \"test/**/*.test.mjs\""
+    "start": "tsx server.ts",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.2"
   }
 }

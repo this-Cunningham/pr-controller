@@ -1,0 +1,124 @@
+// Locks the canonical-record builder (derive.mjs) — the exact production derivation
+// from a scanned PR + the worker's stored verdict into the dashboard-rendered shape.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { deriveRecord } from '../derive.ts';
+import { DEBUG_REVIEWER } from '../rules.ts';
+import { config } from '../config.ts';
+import type { Pr, Thread, ThreadWithDisposition, BranchHealth } from '../types.ts';
+
+// Loose test fixtures: builders craft partial PRs/threads/branch-health so each test only
+// supplies the fields it exercises. The partials are cast up to the canonical shapes at the
+// boundary (deriveRecord is strictly typed) without padding every literal with all fields:
+// the enum-valued health fields are widened to string and CI checks to bare {name} stubs.
+type BranchHealthFixture = {
+  mergeable?: string;
+  mergeState?: string;
+  checkState?: string;
+  failingChecks?: { name: string }[];
+  complianceChecks?: { name: string }[];
+};
+type PrOverrides = {
+  title?: string;
+  branchHealth?: BranchHealthFixture;
+  threads?: Partial<Thread>[];
+};
+
+function scannedPr(over: PrOverrides = {}): Pr {
+  return {
+    repo: 'r', number: 1, title: over.title ?? 'Test PR',
+    branchHealth: over.branchHealth ?? { mergeable: 'MERGEABLE', mergeState: 'CLEAN', failingChecks: [], complianceChecks: [] },
+    threads: over.threads ?? [],
+  } as Pr;  // partial scanned PR — only the fields under test are populated
+}
+
+// deriveRecord attaches a disposition to every thread; narrow the returned union for asserts.
+const threadsOf = (pr: Pr): ThreadWithDisposition[] => (pr.threads ?? []) as ThreadWithDisposition[];
+
+test('deriveRecord: no worker verdict -> disposition by who-spoke-last', () => {
+  const pr = deriveRecord(scannedPr({ threads: [
+    { threadId: 'a', lastAuthor: 'reviewer' },
+    { threadId: 'b', lastAuthor: config.login },   // the configured user spoke last
+  ] }), { workerResult: null });
+  const threads = threadsOf(pr);
+  assert.equal(threads[0].disposition, 'notYetReviewed');   // reviewer spoke last
+  assert.equal(threads[1].disposition, 'awaitingReviewer'); // I spoke last
+});
+
+// The @claude-debug re-attribution now lives HERE (derive), not the scanner: a token-carrying
+// comment from your OWN account is rewritten to a synthetic reviewer, so your own last word
+// reads as reviewer feedback (notYetReviewed) instead of awaitingReviewer. Locks the relocation
+// AND keeps the e2e harness's reviewer simulation working.
+test('deriveRecord: a @claude-debug comment from the user is re-attributed to a reviewer', () => {
+  const pr = deriveRecord(scannedPr({ threads: [
+    { threadId: 'a', author: config.login, lastAuthor: config.login, lastBody: `nit: rename this ${config.debugToken}` },
+  ] }), { workerResult: null });
+  const threads = threadsOf(pr);
+  assert.equal(threads[0].lastAuthor, DEBUG_REVIEWER);       // rewritten in derive
+  assert.equal(threads[0].disposition, 'notYetReviewed');   // now reads as reviewer feedback
+});
+
+test('deriveRecord: a worker fix/surface verdict drives disposition + carries the aids', () => {
+  const pr = deriveRecord(scannedPr({ threads: [
+    { threadId: 'a', lastAuthor: 'reviewer' },
+    { threadId: 'b', lastAuthor: 'reviewer' },
+  ] }), { workerResult: { actions: [
+    { threadId: 'a', response: 'surface', reason: 'risky', suggestedReply: 'PTAL', suggestedApproach: 'extract a helper' },
+    { threadId: 'b', response: 'fix', reason: 'mechanical' },
+  ] } });
+  const threads = threadsOf(pr);
+  assert.equal(threads[0].disposition, 'needsYourApproval');
+  assert.equal(threads[0].suggestedReply, 'PTAL');
+  assert.equal(threads[0].suggestedApproach, 'extract a helper');
+  assert.equal(threads[1].disposition, 'agentAutoFixed');
+});
+
+test('deriveRecord: needsRebase + behindBase derived from branch health', () => {
+  const pr = deriveRecord(scannedPr({ branchHealth: { mergeable: 'CONFLICTING', mergeState: 'DIRTY', failingChecks: [], complianceChecks: [] } }));
+  assert.equal(pr.needsRebase, true);
+  assert.equal(pr.behindBase, true);
+});
+
+test('deriveRecord: needsJira when compliance fails and the title has no ticket', () => {
+  const pr = deriveRecord(scannedPr({ title: 'no ticket here', branchHealth: { failingChecks: [], complianceChecks: [{ name: 'compliance/sox' }] } }));
+  assert.equal(pr.needsJira, true);
+});
+
+test('deriveRecord: surfaced honored only while the branch still conflicts (stale-safe)', () => {
+  const conflicting = { mergeable: 'CONFLICTING', mergeState: 'DIRTY', failingChecks: [], complianceChecks: [] };
+  const clean = { mergeable: 'MERGEABLE', mergeState: 'CLEAN', failingChecks: [], complianceChecks: [] };
+  const wr = { branchHealth: { surfaced: 'rebase too risky' } };
+  assert.equal(deriveRecord(scannedPr({ branchHealth: conflicting }), { workerResult: wr }).workerSurfaced, 'rebase too risky');
+  assert.equal(deriveRecord(scannedPr({ branchHealth: clean }), { workerResult: wr }).workerSurfaced, undefined);
+});
+
+test('deriveRecord: ciReran honored until CI goes green — survives the PENDING re-run window', () => {
+  // The worker bounced a flaky check (ciReran). Gated on "not green", NOT on ciFailing —
+  // a bounced run goes PENDING (no failing checks) before it re-fails, and gating on
+  // ciFailing would clear the flag mid-flight and let it bounce again forever.
+  const wr = { branchHealth: { ciReran: true } };
+  const failing = { checkState: 'FAILURE', failingChecks: [{ name: 'ci' }], complianceChecks: [] };
+  const pending = { checkState: 'PENDING', failingChecks: [], complianceChecks: [] };  // re-run in flight
+  const green   = { checkState: 'SUCCESS', failingChecks: [], complianceChecks: [] };
+  assert.equal(deriveRecord(scannedPr({ branchHealth: failing }), { workerResult: wr }).ciReran, true);
+  assert.equal(deriveRecord(scannedPr({ branchHealth: pending }), { workerResult: wr }).ciReran, true);   // survives PENDING
+  assert.equal(deriveRecord(scannedPr({ branchHealth: green }),   { workerResult: wr }).ciReran, undefined); // clears on green
+});
+
+test('deriveRecord: outOfSync flows through from the dispatcher flag', () => {
+  assert.equal(deriveRecord(scannedPr({}), { outOfSync: true }).outOfSync, true);
+  assert.equal(deriveRecord(scannedPr({}), { outOfSync: false }).outOfSync, false);
+});
+
+test('deriveRecord: agentError flows through to workerError from the dispatcher set', () => {
+  assert.equal(deriveRecord(scannedPr({}), { agentError: 'Git SSH auth failed.' }).workerError, 'Git SSH auth failed.');
+  assert.equal(deriveRecord(scannedPr({}), {}).workerError, null);
+});
+
+test('deriveRecord: readyToMerge follows GitHub mergeState === CLEAN (PR-level badge)', () => {
+  const bh = (mergeState: string): BranchHealthFixture => ({ mergeable: 'MERGEABLE', mergeState, failingChecks: [], complianceChecks: [] });
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('CLEAN') })).readyToMerge, true);
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('BLOCKED') })).readyToMerge, false); // required reviews/checks not met
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('BEHIND') })).readyToMerge, false);  // behind base is its own state
+  assert.equal(deriveRecord(scannedPr({ branchHealth: bh('DIRTY') })).readyToMerge, false);   // conflict
+});

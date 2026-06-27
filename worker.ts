@@ -1,0 +1,448 @@
+// Worker dispatch: spawns a headless `claude -p` scoped to ONE PR. Scope is
+// enforced upstream by `config.onlyPRs` (the poller only ever hands us in-scope PRs).
+import { execFile, spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { promisify } from 'node:util';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { config, ghEnv } from './config.ts';
+import { DATA, workerLogFor } from './paths.ts';
+import { loadSessions, updateSessions } from './sessions.ts';
+import { fetchDiff } from './scanner.ts';
+import { validateWorkerResult, parseTerminalResult, classifyRunOutcome } from './rules.ts';
+import { sensitivityPrompt } from './sensitivity.ts';
+import { logger } from './log.ts';
+import type { Logger } from './log.ts';
+import type { Pr, Thread, WorkerResult, BranchHealth, Check } from './types.ts';
+
+const exec = promisify(execFile);
+const log = logger('worker');
+
+// A spawned `claude` child, tagged with our shutdown-drain marker. `killedByDrain` is
+// set on the live ChildProcess before we signal it (see killAllWorkers) so its close
+// handler can distinguish a drain-kill from a self-completed exit.
+type WorkerChild = ChildProcess & { killedByDrain?: boolean };
+
+// Options object threaded through runWorker — every field is set by the dispatcher
+// caller per-run (none required; an empty {} is a valid first-sight run).
+interface RunWorkerOpts {
+  lastSeenSha?: string | null;
+  detached?: boolean;
+  pushRefspec?: string;
+  applyApproved?: boolean;
+  recovered?: boolean;
+  branchHealth?: BranchHealth;
+  rebase?: boolean;
+  permissionMode?: string;
+}
+
+// The result runWorker resolves with once the spawned child closes.
+interface RunWorkerResult {
+  spawned: boolean;
+  sessionId: string;
+  code: number | null;
+  outcome: { ok: boolean; reason: string | null };
+  tail: string;
+}
+
+// ── Live worker registry + shutdown drain ───────────────────────────────────
+// Every spawned `claude` child is tracked here so a daemon shutdown (SIGTERM from a
+// redeploy/launchd, SIGINT from Ctrl-C, etc.) can wind it down instead of orphaning
+// it. An orphan (reparented to launchd) keeps acting on the PR unsupervised
+// (commit/push/force-push under bypassPermissions), burns API $, may die mid-action
+// on a broken stdout pipe, and — worst — can collide with a fresh same-PR worker
+// after restart on the SAME session UUID + worktree (the dispatcher's in-memory
+// `running` lock doesn't survive a restart). server.mjs wires SIGTERM/SIGINT to
+// drainWorkers() so a kill behaves like the disarm toggle, just bounded + terminal.
+const liveWorkers = new Set<WorkerChild>();
+export function liveWorkerCount() { return liveWorkers.size; }
+// Signal every in-flight worker; returns how many were signalled. Tag each as
+// `killedByDrain` BEFORE signalling so its close handler knows WE killed it mid-run
+// (and must leave the durable interrupted flag set) vs. a self-completed exit.
+export function killAllWorkers(signal: NodeJS.Signals = 'SIGTERM') {
+  let n = 0;
+  for (const c of liveWorkers) { try { c.killedByDrain = true; c.kill(signal); n += 1; } catch {} }
+  return n;
+}
+
+const realSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+// Wind down in-flight workers for a clean shutdown: wait up to graceMs for them to
+// finish on their own (most actions are a commit/push away from done), then SIGTERM
+// any stragglers, give them killGraceMs to exit, and SIGKILL whatever survives — so
+// the process never exits leaving an orphan. The I/O (count/kill/sleep) is injected
+// so the policy is unit-testable without spawning a real `claude`.
+export async function drainWorkers({
+  graceMs = 15000, killGraceMs = 2000, pollMs = 200,
+  count = liveWorkerCount, kill = killAllWorkers, sleep = realSleep, log: l = log,
+}: {
+  graceMs?: number;
+  killGraceMs?: number;
+  pollMs?: number;
+  count?: () => number;
+  kill?: (signal?: NodeJS.Signals) => number;
+  sleep?: (ms: number) => Promise<void>;
+  log?: Logger;
+} = {}) {
+  let waited = 0;
+  while (count() > 0 && waited < graceMs) { await sleep(pollMs); waited += pollMs; }
+  if (count() === 0) return { drained: true, terminated: 0, killed: 0 };
+  const terminated = kill('SIGTERM');
+  l.warn(`${terminated} worker(s) still running after ${graceMs}ms — sent SIGTERM`);
+  await sleep(killGraceMs);
+  const killed = count() > 0 ? kill('SIGKILL') : 0;
+  if (killed) l.warn(`${killed} worker(s) ignored SIGTERM — sent SIGKILL`);
+  return { drained: false, terminated, killed };
+}
+
+// One durable Claude session per PR, kept in sessions.json (owned by sessions.mjs — the one
+// home for that file's path + lock + read-modify-write). First sight -> mint uuid
+// (--session-id); later diffs -> --resume that uuid, so the worker remembers prior rounds.
+//
+// Compute the session for a PR WITHOUT persisting. Persisting before a worker actually
+// launches creates a phantom session that --resume can't find, so we only commit it via
+// persistSession() once the spawn really happens.
+export async function getOrCreateSession(prKey: string) {
+  const map = await loadSessions();
+  const existing = map[prKey];
+  if (existing) return { id: existing.id, isNew: false, lastSeenSha: existing.lastSeenSha || null };
+  return { id: randomUUID(), isNew: true, lastSeenSha: null };
+}
+
+async function persistSession(prKey: string, id: string) {
+  // Only the FIRST spawn for a PR writes the entry; a resume keeps the existing one.
+  await updateSessions((map) => {
+    if (map[prKey]) return false;
+    map[prKey] = { id, createdAt: new Date().toISOString() };
+  });
+}
+
+// Durable "this PR's worker run did not finish cleanly" flag, kept in sessions.json
+// next to the session id. Set true right after a worker spawns; cleared ONLY on a
+// self-completed exit. So a daemon crash / kill -9 / shutdown-kill leaves it set, and
+// the next dispatch resets the worktree before resuming (see ensureWorktree's `recover`
+// + the recovered-resume note in runWorker). Survives a restart — that's the point.
+export async function wasInterrupted(prKey: string) {
+  const map = await loadSessions();
+  return !!map[prKey]?.interrupted;
+}
+async function setInterrupted(prKey: string, v: boolean) {
+  await updateSessions((map) => {
+    if (!map[prKey]) return false;   // no session yet -> the worker hasn't truly started; nothing to flag
+    map[prKey].interrupted = v;
+  });
+}
+
+// Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`. The
+// git read stays OUTSIDE the lock (it touches the worktree, not sessions.json); only the
+// file read-modify-write is serialized (via updateSessions).
+async function recordSeenSha(prKey: string, worktreePath: string) {
+  try {
+    const { stdout } = await exec('git', ['-C', worktreePath, 'rev-parse', 'HEAD']);
+    await updateSessions((map) => {
+      if (!map[prKey]) return false;
+      map[prKey].lastSeenSha = stdout.trim();
+    });
+  } catch {}
+}
+
+// Read back the last worker run's result JSON for a PR (the file the worker was
+// told to write). Returns `{ result, parseError }`:
+//   result      — the validated worker verdict, or null when the file is absent/unusable.
+//   parseError  — a human message when the file EXISTS but could not be parsed (even after
+//                 repair); null otherwise. The caller surfaces it as a Needs-you agentError
+//                 so a lost verdict can't masquerade as notYetReviewed ("still reviewing")
+//                 forever — the unchanged thread is already `seen` and never re-dispatches.
+// The file is model-written and not schema-enforced, so a hard JSON.parse failure must NOT
+// be swallowed: log it at error and return parseError (the old code returned null silently,
+// indistinguishable from "never ran" — the original stuck-in-progress bug). Before giving
+// up we attempt one repair of the single invalid-JSON case the model keeps emitting: a
+// backslash-escaped backtick (`\`` is legal in a JS template literal but illegal in JSON,
+// which allows only \" \\ \/ \b \f \n \r \t \uXXXX) inside suggestedReply/suggestedApproach
+// example code. Past that, we validate the shape deriveRecord depends on and log any drift
+// loudly. Malformed individual actions are dropped; the rest of the result still merges.
+export async function readWorkerResult(
+  outPath: string,
+  { log: l = log }: { log?: Logger } = {},
+): Promise<{ result: WorkerResult | null; parseError: string | null }> {
+  let text: string;
+  try { text = await readFile(outPath, 'utf8'); }
+  catch { return { result: null, parseError: null }; }   // file absent — the worker genuinely never wrote a verdict
+
+  let raw: unknown;
+  try { raw = JSON.parse(text); }
+  catch (err) {
+    // One-shot repair of the common `\`` -> ``` ` ``` failure, then retry once. If it still
+    // won't parse, surface the failure instead of dropping the whole verdict on the floor.
+    const msg = err instanceof Error ? err.message : String(err);
+    try { raw = JSON.parse(text.replace(/\\`/g, '`')); l.warn(`repaired invalid JSON in ${outPath} (unescaped backtick)`); }
+    catch {
+      l.error(`could not parse worker result ${outPath}`, msg);
+      return { result: null, parseError: `The worker finished but its result JSON was unparseable (${msg}); its verdict was lost.` };
+    }
+  }
+  const { result, problems } = validateWorkerResult(raw);
+  if (problems.length) l.warn(`result drift in ${outPath}`, problems.join('; '));
+  return { result, parseError: null };
+}
+
+// Dispatch the per-PR worker for only the NEW/changed threads.
+// First sight: --session-id <uuid>. Later diffs: --resume <uuid>.
+export async function runWorker(
+  pr: Pr,
+  newThreads: Thread[],
+  worktreePath: string,
+  outPath: string,
+  opts: RunWorkerOpts = {},
+): Promise<RunWorkerResult> {
+  const prKey = `${pr.repo}#${pr.number}`;
+  const { id, isNew, lastSeenSha } = await getOrCreateSession(prKey);
+  opts.lastSeenSha = lastSeenSha;
+
+  const rules = await readFile(new URL('./worker-prompt.md', import.meta.url), 'utf8');
+  const pushNote = opts.detached
+    ? `\nPush mode: DETACHED HEAD — commit then \`git push origin ${opts.pushRefspec}\`. Do not switch branches.`
+    : `\nPush mode: on branch ${pr.headRefName} — commit then \`git push\`.`;
+
+  let head;
+  if (isNew) {
+    // First run: build durable understanding of the whole PR. This intelligence
+    // carries to every future resume, so we never re-send the full diff again.
+    const diff = await fetchDiff(pr.nameWithOwner, pr.number);
+    const diffBlock = diff?.diff
+      ? `\n## Familiarize yourself with this PR FIRST\nThis is the PR diff. Read it and open the changed files in the worktree so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\n\`\`\`diff\n${diff.diff}\n\`\`\``
+      : diff?.truncated
+        ? `\n## Familiarize yourself with this PR FIRST\nThe diff is too large to inline. Open these changed files in the worktree and read them so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\nChanged files:\n${(diff.files || []).join('\n')}`
+        : '';
+    head = [rules, diffBlock];
+  } else if (opts.applyApproved) {
+    // Apply-approved resume: the user signed off on an approach you proposed on
+    // the threads below. This is NOT fresh triage — carry out that approach as a
+    // normal fix (pick up your own prior analysis); re-ground on volatile state first.
+    const since = opts.lastSeenSha;
+    head = [
+      'APPLY-APPROVED RUN. The user APPROVED an approach you previously proposed on the thread(s) below — it is no longer a surface. Carry it out NOW as a normal fix (make the change, commit, push, reply `fixed`, leave the thread open). You already reasoned about these threads; pick up that analysis rather than re-deriving it.',
+      since
+        ? `To re-ground first: run \`git diff ${since}..HEAD\` in the worktree to see what moved since your last run, then re-read the files for these threads as they are NOW.`
+        : `To re-ground first: re-read the files for these threads as they are NOW (the branch may have moved).`,
+    ];
+  } else {
+    // Resume: the session already understands the PR. Send only the delta and
+    // re-ground on volatile state — the worktree was just `git pull`ed, and
+    // `git diff <since>..HEAD` shows what moved since you last looked.
+    const since = opts.lastSeenSha;
+    head = [
+      'RESUME RUN. New reviewer feedback arrived on this PR. You already understand this PR from earlier rounds — do NOT re-read everything; just re-ground on the delta.',
+      since
+        ? `Run \`git diff ${since}..HEAD\` in the worktree to see ONLY what moved since your last run, then re-read just the files touched by the new threads as they are NOW.`
+        : `Re-read just the files referenced by the new threads, as they are NOW (the branch may have moved).`,
+    ];
+  }
+
+  // Recovered resume: the daemon found this PR flagged as interrupted and hard-reset the
+  // worktree to the remote tip before relaunching (see ensureWorktree recover). Tell the
+  // session up front so it doesn't trust a stale memory of edits that are no longer on disk.
+  if (opts.recovered && !isNew)
+    head.unshift(`NOTE: your previous run on this PR was interrupted before it finished and the worktree was reset to origin/${pr.headRefName}, so any uncommitted changes from that run are gone — re-read the current files before acting.`);
+
+  const bh: Partial<BranchHealth> = opts.branchHealth || {};
+  // The PR's base branch (from the scan). The worker MUST rebase onto the REMOTE
+  // base (origin/<base>), not a local ref — the long-lived clone's local base
+  // branch lags origin, so `git rebase main` rebases onto a stale base and misses
+  // the real conflict GitHub reports. Default to main only if the scan lacked it.
+  const base = pr.baseRefName || 'main';
+  const healthBlock = (bh.mergeState || bh.checkState)
+    ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
+      + ((bh.failingChecks || []).length ? `\nfailing checks:\n${(bh.failingChecks || []).map((c: Check) => {
+        // Surface the GitHub Actions run id (parsed from the check's detailsUrl) + the
+        // exact rerun command, so the worker can bounce a flaky/infra failure without
+        // hand-parsing the URL. Non-Actions checks (no run id) just omit the hint.
+        const runId = (c.url || '').match(/\/actions\/runs\/(\d+)/)?.[1];
+        return `- ${c.name} [${c.state}] ${c.url || ''}${runId ? ` — rerun: gh run rerun ${runId} --failed` : ''}`;
+      }).join('\n')}` : '')
+      + (opts.rebase
+        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git rebase origin/${base}\` — onto the REMOTE base origin/${base}, NOT a local ref (your local ${base} would be stale and hide the conflict). Do NOT run \`git fetch\` yourself: the daemon already fetched origin/${base} for you under a per-clone lock, and a second concurrent fetch on the shared clone would race on its refs. Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
+        : `\nREBASE this run: NO — do not rebase. Fix CI only if it's caused by your changes (see "Branch health" in the house rules).`)
+    : '';
+  const threadsHeading = opts.applyApproved
+    ? `\n## Approved threads — execute the approach you proposed on each`
+    : `\n## New/changed unresolved threads`;
+  const threadsBlock = newThreads.length
+    ? `${threadsHeading}\n${JSON.stringify(newThreads, null, 2)}`
+    : `\n## No new review threads this run — you were dispatched for branch health only.`;
+  // Worker-sensitivity dial (config.workerSensitivity, set live from Settings): tunes how
+  // much this run resolves itself vs. surfaces. Injected EVERY run (new + resume) so a
+  // changed level takes effect on the next dispatch; the level's own text restates the
+  // rebase floor so a high level can't read as "ignore the floor". See sensitivity.mjs.
+  const sensBlock = `\n## How much to surface vs. handle yourself\n${sensitivityPrompt(config.workerSensitivity)}`;
+  const task = [
+    ...head,
+    `\n## This task`,
+    `PR: ${pr.nameWithOwner}#${pr.number} — ${pr.title}`,
+    `Worktree: ${worktreePath}`,
+    pushNote.trimStart(),
+    `Write your result JSON to: ${outPath}`,
+    sensBlock,
+    healthBlock,
+    threadsBlock,
+  ].join('\n');
+
+  const args = isNew
+    ? ['--session-id', id, '-p', task]
+    : ['--resume', id, '-p', task];
+  args.push('--output-format', 'stream-json', '--verbose');
+  // bypassPermissions = full autonomy for an unattended go-live (the default). NOTE: do NOT wire a
+  // `plan` / `default` / `acceptEdits` mode here for the headless daemon — in `claude -p` with stdin
+  // closed, plan mode WEDGES waiting for plan-approval that never comes, and the ask-modes abort on
+  // the first permission prompt. `opts.permissionMode` stays as a hook, but no caller sets it.
+  args.push('--permission-mode', opts.permissionMode || 'bypassPermissions');
+  // Worker model is configurable (config.workerModel): haiku for fast/cheap testing,
+  // sonnet for prod. Unset -> the CLI default. Only passed on a NEW session — the
+  // model is fixed at session birth; --resume keeps the session's original model.
+  if (isNew && config.workerModel) args.push('--model', config.workerModel);
+
+  // PreToolUse hook denying destructive PR-lifecycle/branch actions (close/merge a PR,
+  // delete a branch, bare force-push). It must be a hook, not --disallowedTools: under
+  // bypassPermissions the allow/deny system is skipped, but PreToolUse hooks still fire.
+  // Headless runs only; the interactive discuss terminal is human-driven.
+  const guardPath = join(config.baseDir, 'scripts', 'worker-guard.mjs');
+  args.push('--settings', JSON.stringify({
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `node ${JSON.stringify(guardPath)}` }] }] },
+  }));
+
+  if (isNew) await persistSession(prKey, id);
+  // Full per-run transcript (stdout+stderr) persisted to data/worker-<repo>-<num>.log.
+  // The console only ever kept tail(-500); the full transcript is exactly what's needed
+  // to diagnose a worker that misbehaved (workers run --permission-mode bypassPermissions
+  // against real PRs). Overwritten each run, so it stays bounded to the last run.
+  const logPath = workerLogFor(pr.repo, pr.number);
+  // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
+  // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
+  // input it will never get ("no stdin data received in 3s, proceeding without it"),
+  // stalling every single dispatch. Closing it skips that wait. stdout/stderr stay
+  // piped so we can capture the full transcript.
+  const child: WorkerChild = spawn('claude', args, { cwd: worktreePath, env: ghEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  liveWorkers.add(child);   // tracked so a daemon shutdown can drain/kill it instead of orphaning it (see drainWorkers)
+  let out = '';
+  child.stdout?.on('data', (d) => { out += d; });
+  child.stderr?.on('data', (d) => { out += d; });
+  // Log on SPAWN, not only on completion, so a current worker is distinguishable from an orphan in the logs.
+  log.info(`${prKey}: worker spawned pid ${child.pid} session ${id} (${isNew ? 'new' : 'resume'})`);
+  // Flag the run interrupted-until-proven-clean, durably, BEFORE we await it: if the
+  // daemon dies (crash/kill -9) or we kill this worker on shutdown, the flag survives so
+  // the next dispatch recovers the worktree. Cleared below ONLY on a self-completed exit.
+  await setInterrupted(prKey, true);
+  return await new Promise<RunWorkerResult>((resolve) => {
+    child.on('close', async (code, signal) => {
+      liveWorkers.delete(child);
+      // Did this run hand back a CLEAN, usable result? Parse the stream-json terminal `result`
+      // event (the richest failure signal — refusal / token-cutoff / api-error — which the exit
+      // code and a stdout tail can't see), and check whether the model actually wrote a parseable
+      // result file. A non-clean outcome must NOT look like success: runWorker reports it so the
+      // dispatcher routes the run through the same surface-and-retry path a thrown run uses (see
+      // maybeDrain). expectResultFile is false for a no-thread health/rebase-only run, which need
+      // not write verdicts.
+      const outcome = classifyRunOutcome({
+        code, signal,
+        terminalEvent: parseTerminalResult(out),
+        resultFileValid: (await readWorkerResult(outPath)).result !== null,
+        expectResultFile: newThreads.length > 0,
+      });
+      // Clear the interrupted flag + advance the re-grounding SHA ONLY on a clean run. A failed
+      // run (a) leaves `interrupted` set so the next dispatch hard-resets the worktree, and (b)
+      // does not move lastSeenSha past feedback it never addressed. A shutdown-drain kill
+      // (killedByDrain) is never clean, so it always leaves the flag set for recovery.
+      if (!child.killedByDrain && outcome.ok) { try { await setInterrupted(prKey, false); } catch {} }
+      if (outcome.ok) await recordSeenSha(prKey, worktreePath);
+      try {
+        await mkdir(DATA, { recursive: true });
+        await writeFile(logPath, `# ${prKey} session ${id} exit=${code} outcome=${outcome.ok ? 'ok' : 'failed'} @ ${new Date().toISOString()}\n${out}`);
+      } catch (e) { log.warn(`could not persist transcript ${logPath}`, String(e).slice(0, 160)); }
+      resolve({ spawned: true, sessionId: id, code, outcome, tail: out.slice(-500) });
+    });
+  });
+}
+
+// Short, generic conversation-openers for a branch-health discuss (no thread). The
+// resumed session already holds the detailed blocker; these just kick off the chat.
+const BRANCH_DISCUSS_OPENERS: Record<string, string> = {
+  rebase: 'Can you help me figure out what to do with this rebase?',
+  conflict: 'Can you help me figure out what to do with this rebase?',
+  outOfSync: 'The branch is out of sync with the remote — can you help me reconcile it?',
+  surfaced: 'You surfaced something on this PR for me — can you walk me through it and what you’d suggest?',
+  workerFailed: 'Your last automated run on this PR didn’t finish cleanly — can you pick it back up, figure out what went wrong, and carry on?',
+  default: 'Can you help me with the branch issue you flagged on this PR?',
+};
+
+// Open an INTERACTIVE Claude in a native Terminal — for a disputed review thread
+// (thread given) or a branch-health/rebase conflict the agent surfaced (no thread).
+// The seed prompt is free-form prose (apostrophes, quotes, slashes, newlines), so
+// we do NOT interpolate it into the AppleScript/shell string — that breaks osascript
+// (silent syntax errors). Instead we write the seed and a tiny launcher script to
+// temp files and have AppleScript run the launcher; the only value crossing into
+// AppleScript is a safe temp path.
+export async function spawnDiscussTerminal(
+  pr: Pr,
+  thread: Thread | null,
+  worktreePath: string,
+  branchKind: string | null = null,
+) {
+  // A seed is only useful when it tells the session something it doesn't already
+  // know. For a review THREAD it disambiguates which of (possibly many) threads you
+  // clicked. For branch-health (no thread) we inject only a SHORT, generic opener
+  // keyed by what you clicked on — not the detailed blocker text, which the resumed
+  // session already holds (so it can't go stale). It's a conversation starter, not
+  // a re-statement of the problem.
+  let seed = null;
+  if (thread) {
+    const quote = (thread.body || '').slice(0, 400);
+    // Neutral pointer, not a verdict: the thread was surfaced for judgment, which
+    // could be a disagreement, a scope/product call, or something the worker
+    // couldn't classify. Point the resumed session at the right thread and let it
+    // recall its own take rather than pre-framing it as a "disagreement".
+    seed = `Let's think through the surfaced thread on ${pr.nameWithOwner}#${pr.number}, `
+      + `file ${thread.path}:${thread.line}. ${thread.author} said: "${quote}". `
+      + `Remind me why you surfaced it and what you'd suggest; if we land on a reply, post it.`;
+  } else if (branchKind) {
+    seed = BRANCH_DISCUSS_OPENERS[branchKind] || BRANCH_DISCUSS_OPENERS.default;
+  }
+
+  // Continue the PR's DURABLE session so the interactive terminal picks up the
+  // headless worker's prior analysis (--resume), instead of a cold Claude. Fall back
+  // to a fresh `claude` if no session exists yet (the PR was never worked).
+  const prKey = `${pr.repo}#${pr.number}`;
+  const { id, isNew } = await getOrCreateSession(prKey);
+  const claudeCmd = isNew ? 'claude' : `claude --resume ${id}`;
+
+  const tmp = tmpdir();
+  const tag = `pr-controller-discuss-${pr.repo}-${pr.number}-${randomUUID().slice(0, 8)}`;
+  const seedFile = join(tmp, `${tag}.txt`);
+  const launchFile = join(tmp, `${tag}.sh`);
+  // Launcher: with a seed, pass it as the opening prompt via a file (no quoting of
+  // prose anywhere); without one, just open the (resumed) session for free input.
+  // Either way it self-removes its temp files once Claude exits.
+  // Single-quote paths for bash, not JSON.stringify's double quotes: inside double quotes
+  // $, $(...) and backticks still expand, so a worktree path containing any would break
+  // (or inject into) the launcher. Single quotes disable expansion; '\'' escapes a quote.
+  const sh = (s: string) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const rmTargets = (seed ? `${sh(seedFile)} ` : '') + sh(launchFile);
+  const claudeLine = seed ? `${claudeCmd} "$(cat ${sh(seedFile)})"` : claudeCmd;
+  const launcher = `#!/bin/bash\ncd ${sh(worktreePath)}\n${claudeLine}\nrm -f ${rmTargets}\n`;
+  try {
+    if (seed) await writeFile(seedFile, seed);
+    await writeFile(launchFile, launcher);
+    // The launch path is our own safe slug, so this AppleScript string is stable.
+    const osa = `tell application "Terminal" to do script "bash ${launchFile}"`;
+    const child = spawn('osascript', ['-e', osa]);
+    let err = '';
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('close', (code) => {
+      if (code !== 0) log.error(`discuss ${prKey}: osascript exited ${code}`, err.trim());
+    });
+  } catch (e) {
+    log.error(`discuss ${prKey}: failed to stage terminal launch`, e instanceof Error ? e.message : String(e));
+    return { spawned: false, reason: 'could not stage terminal launch' };
+  }
+  return { spawned: true, resumed: !isNew };
+}

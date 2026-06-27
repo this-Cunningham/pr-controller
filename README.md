@@ -7,7 +7,7 @@ feedback, fix CI, and rebase — while surfacing anything that needs your judgme
 ## How it works
 
 ```
-node server.mjs (one persistent process on your awake laptop)
+node server.ts (one persistent process on your awake laptop)
 │
 ├─ every 15 min: POLL (pure Node + gh, no Claude)
 │    gh search prs --author @me --state open      → all your open PRs
@@ -60,7 +60,7 @@ it can see.
 ## Run
 
 ```
-node server.mjs        # then open http://localhost:4317
+node server.ts        # then open http://localhost:4317
 ```
 
 Requires `gh` authenticated against the enterprise host (see `config.host`).
@@ -69,17 +69,17 @@ Requires `gh` authenticated against the enterprise host (see `config.host`).
 
 The UI is a Vite + React app in `pr-controller-react/` (design system is the
 source of truth; do not restyle the components ad hoc). The backend is the single
-source of truth for both data AND routing — the daemon (`placements.mjs`) emits a flat
+source of truth for both data AND routing — the daemon (`placements.ts`) emits a flat
 `placements` list assigning each item to a lane.
-`pr-controller-react/src/features/dashboard/adapt.js`
+`pr-controller-react/src/features/dashboard/adapt.ts`
 (`buildLanes`) only FILTERS those placements into lanes and maps each disposition to the
 design system's tag vocabulary; it derives no routing. The card (`PRCard`) is a pure
 renderer of the items it's handed. See [ARCHITECTURE.md](ARCHITECTURE.md).
 
 - **Develop:** `cd pr-controller-react && yarn && yarn dev` — Vite serves on 5173
-  and proxies `/state.json` + `/decision` to `server.mjs` on 4317 (run the backend
+  and proxies `/state.json` + `/decision` to `server.ts` on 4317 (run the backend
   too). Hot-reload for design work.
-- **Production:** `yarn build` → `pr-controller-react/dist/`. `server.mjs` serves the
+- **Production:** `yarn build` → `pr-controller-react/dist/`. `server.ts` serves the
   built app at http://localhost:4317 (it returns a "build the dashboard first" notice
   until `dist/index.html` exists).
 
