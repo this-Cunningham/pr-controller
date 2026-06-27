@@ -8,6 +8,7 @@
   },
   "limits": {
     "maxItems": 100,
-    "maxDepth": 32
+    "maxDepth": 32,
+    "retentionDays": 90
   }
 }
