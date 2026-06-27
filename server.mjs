@@ -232,6 +232,9 @@ async function poll() {
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
         needsRebase: pr.needsRebase, healthChanged, rebaseSurfaced: !!pr.workerSurfaced,
+        // A prior rebase that ERRORED (workerError set, conflict still here, not surfaced) should
+        // re-attempt even without a health change — bounded by the dispatcher's retry breaker.
+        rebaseErrored: !!pr.workerError,
         ciReran: !!pr.ciReran,
       });
 

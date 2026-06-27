@@ -208,11 +208,11 @@ test('a genuinely new signal (fresh feedback or manual Re-run) resets a tripped 
   dispatcher.forget('newsig#1');
 });
 
-// Rebase behavior is NOT governed by the feedback retry breaker. A pure rebase-only run (no
-// threads) that keeps erroring still surfaces + re-stages (Phase 1, unchanged) but NEVER trips the
-// cap — its retry suppression is owned by dispatchDecision (rebaseSurfaced / healthChanged). So a
-// repeatedly-failing rebase keeps being retried, well past workerMaxRetries.
-test('a repeatedly-failing rebase-only run is exempt from the breaker (no cap)', async () => {
+// An ERRORED rebase is a worker-run failure (distinct from a deliberate rebaseSurfaced) and is
+// retry-worthy — but BOUNDED by the same breaker as feedback. The poll re-attempts an errored
+// conflict each tick (dispatchDecision rebaseErrored); here we simulate those re-enqueues and
+// confirm the dispatcher stops auto-retrying after the cap and parks it as terminal workerFailed.
+test('a repeatedly-erroring rebase retries then parks at the cap (bounded by the breaker)', async () => {
   const runs = [];
   const errors = [];
   dispatcher.init({
@@ -225,13 +225,13 @@ test('a repeatedly-failing rebase-only run is exempt from the breaker (no cap)',
     markAgentError: (prKey, reason) => errors.push(reason),
   });
   const pr = { repo: 'reb', number: 1, threads: [], branchHealth: {} };
-  // Drive far more rebase attempts than the cap — each throws, each retries (rebase is exempt).
+  // Each poll that sees the still-erroring conflict re-enqueues the rebase — bounded by the cap.
   for (let i = 0; i < config.workerMaxRetries + 3; i += 1) {
     dispatcher.enqueueRebase(pr, {});
     await flush();
   }
-  assert.equal(runs.length, config.workerMaxRetries + 3, 'every rebase attempt ran — the breaker never capped it');
-  assert.ok(!errors.some((e) => /kept failing after/.test(e || '')), 'no breaker-trip surface for a rebase');
+  assert.equal(runs.length, config.workerMaxRetries, 'errored rebase retries are capped like any worker error');
+  assert.match(errors.at(-1), /kept failing after \d+ attempts/);  // parked as terminal workerFailed
   dispatcher.forget('reb#1');
 });
 

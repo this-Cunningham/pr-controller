@@ -137,12 +137,6 @@ async function maybeDrain(prKey) {
   const drainedThreads = [...e.threads.values()];
   const applyApproved = e.approved.size > 0;
   const rebase = e.rebase;
-  // A PURE rebase run (resolve a conflict, NO threads) is governed by dispatchDecision
-  // (rebaseSurfaced / healthChanged), NOT this feedback retry breaker. Exempt it: an erroring
-  // rebase still surfaces + re-stages (Phase 1, unchanged) but never increments/trips the cap, and
-  // a clean rebase doesn't reset the feedback streak. So rebase behavior is unchanged. (A
-  // rebase BUNDLED with threads — rebaseOnConflict — still counts; it's doing feedback work.)
-  const rebaseOnly = rebase && drainedThreads.length === 0;
   const opts = { ...e.opts };
   e.threads = new Map();
   e.approved = new Set();
@@ -158,10 +152,11 @@ async function maybeDrain(prKey) {
   // enqueue clears it — UNLESS the breaker has now tripped (e.failures hit the cap), in which
   // case the surface becomes terminal and only a new signal lifts it (see enqueueEntry).
   const recordFailure = (reason) => {
-    // Count toward the circuit-breaker for feedback/CI work only; a rebase-only run is exempt
-    // (its retry suppression lives in dispatchDecision), so it surfaces + re-stages but never caps.
-    if (!rebaseOnly) e.failures += 1;
-    const tripped = !rebaseOnly && !shouldRetryWorker(e.failures);
+    // Every errored run counts toward the per-PR breaker — feedback, CI, AND an errored rebase
+    // (a worker-run failure, distinct from a deliberate rebaseSurfaced, which is a CLEAN run that
+    // never lands here). dispatchDecision re-attempts an errored conflict each poll; this bounds it.
+    e.failures += 1;
+    const tripped = !shouldRetryWorker(e.failures);
     // Augment the log (don't replace the per-reason warnings above) so a tripped breaker is
     // visible in the daemon log, not just on the card.
     if (tripped) log.warn(`${prKey}: worker failed ${e.failures}x (>= workerMaxRetries) — tripping retry breaker; parking as Needs-you until a new signal (manual Re-run or fresh feedback)`);
@@ -209,8 +204,8 @@ async function maybeDrain(prKey) {
         if (r.outcome && !r.outcome.ok) {
           log.warn(`${prKey}: worker run did not produce a clean result — ${r.outcome.reason}`);
           recordFailure(r.outcome.reason);
-        } else if (!rebaseOnly) {
-          e.failures = 0;  // a clean feedback/CI result ends the streak — re-arm the budget (rebase-only is exempt)
+        } else {
+          e.failures = 0;  // a clean result (incl. a resolved/surfaced rebase) ends the streak — re-arm the budget
         }
       }
     }

@@ -81,14 +81,15 @@ export const config = {
   debugToken: '@claude-debug',
   workerModel: env.PRC_WORKER_MODEL || local.workerModel || 'sonnet',
 
-  // Circuit-breaker for the worker-result seam: how many CONSECUTIVE failed FEEDBACK/CI runs the
-  // dispatcher auto-retries for a PR before parking it as a terminal "Needs you" workerFailed card
-  // — instead of re-dispatching a failing worker forever on every routine enqueue (CI/health
-  // churn), burning API spend. Rebase-only runs are EXEMPT (their retry suppression lives in
-  // rules.dispatchDecision — rebaseSurfaced / healthChanged). A clean run or a genuinely new signal
-  // (manual Re-run, brand-new reviewer feedback) resets the count. See dispatcher.recordFailure +
-  // rules.shouldRetryWorker. Falls to the default for 0/blank/non-numeric (the `||` pattern, like
-  // reenrichFloor) — set 1 for the most aggressive cap.
+  // Circuit-breaker for the worker-result seam: how many CONSECUTIVE ERRORED runs the dispatcher
+  // auto-retries for a PR before parking it as a terminal "Needs you" workerFailed card — instead
+  // of re-dispatching a failing worker forever on every routine enqueue (CI/health churn) or
+  // errored-rebase re-attempt, burning API spend. Counts feedback, CI, AND errored rebases (a
+  // worker-run failure); a deliberately rebaseSurfaced conflict is a CLEAN run and never counts.
+  // A clean run or a genuinely new signal (manual Re-run, brand-new reviewer feedback) resets the
+  // count. See dispatcher.recordFailure + rules.shouldRetryWorker / dispatchDecision. Falls to the
+  // default for 0/blank/non-numeric (the `||` pattern, like reenrichFloor) — set 1 for the most
+  // aggressive cap.
   workerMaxRetries: Number(env.PRC_WORKER_MAX_RETRIES) || local.workerMaxRetries || 3,
 
   // Worker sensitivity dial (0=surface everything … 4=fully autonomous; default 2).

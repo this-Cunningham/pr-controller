@@ -441,6 +441,16 @@ test('dispatchDecision: standing idle conflict (health unchanged) -> none (no re
   assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false }).kind, 'none');
 });
 
+test('dispatchDecision: an ERRORED (not surfaced) conflict re-attempts even without a health change', () => {
+  // an errored rebase is a worker-run failure, not a deliberate surface — retry it (the dispatcher
+  // breaker bounds the attempts), even though nothing about the PR's health changed this poll.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: true }).kind, 'rebase');
+  // SURFACED still wins over errored — a too-risky conflict is never auto-retried.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: true, rebaseSurfaced: true }).kind, 'none');
+  // no error + no health change -> still none (the existing no-respin behavior is preserved).
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: false }).kind, 'none');
+});
+
 test('dispatchDecision: nothing actionable -> none', () => {
   assert.equal(dispatchDecision({}).kind, 'none');
 });
