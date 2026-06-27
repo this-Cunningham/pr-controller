@@ -200,15 +200,20 @@ export function needsRebase(mergeState, mergeable) {
 //    auto-resolve (rebaseSurfaced), the daemon stops auto-retrying entirely and leaves
 //    it in Needs you for the user — re-spinning would just bail again (or force-push
 //    something risky). Normal flow resumes once the conflict clears (surfaced drops).
+//    A rebase that ERRORED (the worker run failed/crashed — distinct from a deliberate
+//    surface) IS retry-worthy: re-attempt it on the next poll even without a health
+//    change (rebaseErrored), bounded by the dispatcher's per-PR retry breaker, which
+//    parks the PR as workerFailed once the cap is hit. So: surfaced → give up; errored →
+//    retry (bounded); clean success → the conflict clears.
 //  - NO CONFLICT -> normal feedback path: dispatch threads/CI only when there's work
 //    AND something changed this poll (new threads, or health changed). Feedback runs
 //    NEVER rebase — the branch is already mergeable. Once the worker has already RE-RUN
 //    ("bounced") a flaky-looking CI failure (ciReran), CI alone stops counting as work —
 //    the daemon won't bounce it again, mirroring rebaseSurfaced. It re-engages only when
 //    new threads arrive, or CI goes green and later fails afresh (ciReran clears in derive).
-export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false, rebaseSurfaced = false, ciReran = false }) {
+export function dispatchDecision({ newThreadCount = 0, ciFailing = false, needsRebase = false, healthChanged = false, rebaseSurfaced = false, rebaseErrored = false, ciReran = false }) {
   if (needsRebase)
-    return rebaseSurfaced ? { kind: 'none' } : healthChanged ? { kind: 'rebase' } : { kind: 'none' };
+    return rebaseSurfaced ? { kind: 'none' } : (healthChanged || rebaseErrored) ? { kind: 'rebase' } : { kind: 'none' };
   const workToDo = newThreadCount > 0 || (ciFailing && !ciReran);
   if (workToDo && (newThreadCount > 0 || healthChanged))
     return { kind: 'feedback' };
@@ -341,4 +346,15 @@ export function classifyRunOutcome({ code = 0, signal = null, terminalEvent = nu
   if (expectResultFile && !resultFileValid)
     return fail('The worker run finished but produced no usable result — re-run, or open it in a terminal.');
   return { ok: true, reason: null };
+}
+
+// Should the dispatcher AUTO-retry a worker that has now failed `failures` consecutive
+// times? Retries are allowed until the count reaches config.workerMaxRetries — then the
+// circuit-breaker trips and the PR parks in a terminal workerFailed ("Needs you") state
+// instead of re-dispatching a failing worker forever (burning API spend) on every routine
+// re-enqueue (CI/health churn). A clean run or a genuinely new signal (the user's manual
+// Re-run, brand-new reviewer feedback) resets the counter and re-arms the full budget — so
+// this gates ONLY the automatic refire, never a human/feedback-driven retry. Pure; tested.
+export function shouldRetryWorker(failures = 0, max = config.workerMaxRetries) {
+  return failures < max;
 }

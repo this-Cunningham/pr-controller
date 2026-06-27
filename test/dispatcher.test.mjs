@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as dispatcher from '../dispatcher.mjs';
+import { config } from '../config.mjs';
 
 function harness() {
   const runs = [];
@@ -125,6 +126,113 @@ test('a spawned-but-failed run surfaces an error and re-stages its batch', async
   assert.equal(runs[0].threadCount, 2);                      // t1 (re-staged) + t2
   assert.equal(dispatcher.pendingCount('softfail#1'), 0);    // a clean run drains the batch
   dispatcher.forget('softfail#1');
+});
+
+// Shared harness for the circuit-breaker tests: runWorker echoes a MUTABLE `ctl.outcome` (so a
+// test can flip a PR from failing to clean mid-stream), counts every call, and captures every
+// surfaced error reason. Mirrors the soft-fail harness above.
+function failHarness() {
+  const runs = [];
+  const errors = [];
+  const ctl = { outcome: { ok: false, reason: 'boom' } };
+  dispatcher.init({
+    events: { markStarted() {}, markFinished() {}, notifyStateUpdated() {} },
+    ensureWorktree: async () => ({ path: '/tmp/wt', outOfSync: false }),
+    runWorker: async (pr, threads) => { runs.push(threads.length); return { spawned: true, sessionId: 's', code: 0, outcome: ctl.outcome }; },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: (prKey, reason) => errors.push(reason),
+  });
+  return { runs, errors, ctl };
+}
+
+// Phase 2 — bounded retry + circuit-breaker. A run that fails N times IN A ROW must stop
+// auto-retrying once failures reach config.workerMaxRetries (no further runWorker calls), and
+// the terminal workerFailed surface must persist — instead of re-dispatching a failing worker
+// forever every time a ROUTINE enqueue (the same unchanged thread, CI/health churn) arrives.
+test('a worker that keeps failing trips the breaker and stops auto-retrying after the cap', async () => {
+  const { runs, errors } = failHarness();   // outcome stays { ok:false } the whole time
+  const pr = { repo: 'cap', number: 1, threads: [{ threadId: 't1' }], branchHealth: {} };
+  // Re-enqueue the SAME unchanged thread well past the cap — each is a routine signal (not fresh
+  // feedback), so it would retry while the breaker is open, then stop cold once it trips.
+  for (let i = 0; i < config.workerMaxRetries + 3; i += 1) {
+    dispatcher.enqueue(pr, [{ threadId: 't1' }], {});
+    await flush();
+  }
+  assert.equal(runs.length, config.workerMaxRetries, 'auto-retry stops exactly at the cap');
+  assert.match(errors.at(-1), /kept failing after \d+ attempts/);  // terminal surface persists
+  assert.equal(dispatcher.isWorking('cap#1'), false);
+  assert.equal(dispatcher.pendingCount('cap#1'), 1);               // the batch stays staged, parked
+  dispatcher.forget('cap#1');
+});
+
+// The counter is a STREAK of consecutive failures, not a lifetime total: a clean run zeroes it,
+// so the next failing streak gets the FULL budget again rather than tripping early.
+test('a clean run resets the failure counter (restores the full retry budget)', async () => {
+  const { runs, ctl } = failHarness();
+  const pr = { repo: 'reset', number: 1, branchHealth: {} };
+  const ci = () => dispatcher.enqueue(pr, [], { ci: true });   // routine: no threads -> never "fresh feedback"
+  // Two CI-run failures (below the cap).
+  ci(); await flush();
+  ci(); await flush();
+  assert.equal(runs.length, 2);
+  // A clean run zeroes the streak.
+  ctl.outcome = { ok: true, reason: null };
+  ci(); await flush();
+  assert.equal(runs.length, 3);
+  // Fail routinely again: because the counter reset, the breaker trips only after the FULL cap
+  // once more (not after a single failure) — proving the clean run re-armed the budget.
+  ctl.outcome = { ok: false, reason: 'boom' };
+  for (let i = 0; i < config.workerMaxRetries + 2; i += 1) { ci(); await flush(); }
+  assert.equal(runs.length, 3 + config.workerMaxRetries);
+  dispatcher.forget('reset#1');
+});
+
+// A tripped breaker is not permanent: a genuinely NEW signal lifts it. Brand-new reviewer
+// feedback (a thread not already staged) and the user's manual Re-run (opts.reset) each reset
+// the counter and retry — that's the explicit recovery path.
+test('a genuinely new signal (fresh feedback or manual Re-run) resets a tripped breaker', async () => {
+  const { runs } = failHarness();   // every run fails
+  const pr = { repo: 'newsig', number: 1, threads: [{ threadId: 't1' }], branchHealth: {} };
+  for (let i = 0; i < config.workerMaxRetries + 2; i += 1) { dispatcher.enqueue(pr, [{ threadId: 't1' }], {}); await flush(); }
+  assert.equal(runs.length, config.workerMaxRetries, 'tripped: auto-retry stopped');
+
+  // Brand-new reviewer feedback (t2 not already staged) re-arms and retries past the breaker.
+  dispatcher.enqueue(pr, [{ threadId: 't2' }], {}); await flush();
+  assert.equal(runs.length, config.workerMaxRetries + 1, 'fresh feedback resets + retries');
+
+  // A manual Re-run (opts.reset) also resets — even though it re-sends only already-staged threads.
+  dispatcher.enqueue(pr, [{ threadId: 't1' }, { threadId: 't2' }], { reset: true }); await flush();
+  assert.equal(runs.length, config.workerMaxRetries + 2, 'manual Re-run resets + retries');
+  dispatcher.forget('newsig#1');
+});
+
+// An ERRORED rebase is a worker-run failure (distinct from a deliberate rebaseSurfaced) and is
+// retry-worthy — but BOUNDED by the same breaker as feedback. The poll re-attempts an errored
+// conflict each tick (dispatchDecision rebaseErrored); here we simulate those re-enqueues and
+// confirm the dispatcher stops auto-retrying after the cap and parks it as terminal workerFailed.
+test('a repeatedly-erroring rebase retries then parks at the cap (bounded by the breaker)', async () => {
+  const runs = [];
+  const errors = [];
+  dispatcher.init({
+    events: { markStarted() {}, markFinished() {}, notifyStateUpdated() {} },
+    ensureWorktree: async () => ({ path: '/tmp/wt', outOfSync: false }),
+    runWorker: async () => { runs.push('rebase'); throw new Error('git rebase failed: could not apply'); },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: (prKey, reason) => errors.push(reason),
+  });
+  const pr = { repo: 'reb', number: 1, threads: [], branchHealth: {} };
+  // Each poll that sees the still-erroring conflict re-enqueues the rebase — bounded by the cap.
+  for (let i = 0; i < config.workerMaxRetries + 3; i += 1) {
+    dispatcher.enqueueRebase(pr, {});
+    await flush();
+  }
+  assert.equal(runs.length, config.workerMaxRetries, 'errored rebase retries are capped like any worker error');
+  assert.match(errors.at(-1), /kept failing after \d+ attempts/);  // parked as terminal workerFailed
+  dispatcher.forget('reb#1');
 });
 
 // forget() while a worker is RUNNING must not drop the per-PR `running` lock: deleting the

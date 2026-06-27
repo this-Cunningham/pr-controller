@@ -70,6 +70,8 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       dead mid-run. Today any of these can leave a PR silently stuck instead of clearly flagged. A
       run should never leave a PR in a wrong or ambiguous state: its result is always usable, or its
       failure is clearly surfaced.
+- [ ] suggested approach could potentially be an array the agent can surface 1-3 approaches and we
+      can select the best one in the "needs you" cards
 - [ ] Convert the app to TypeScript — bugs are slipping through that static analysis would catch
       (e.g. the `readWorkerResult() !== null` always-true bug this session, where the return-shape
       contract drifted from object to nullable without a compile error). TS would catch contract
