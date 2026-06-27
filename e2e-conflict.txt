@@ -1,1 +1,1 @@
-shared value = MAIN version
+shared value = BRANCH version
