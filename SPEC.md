@@ -1,7 +1,7 @@
 # pr-controller — behavior specification
 
 The authoritative statement of what this system should do. Deterministic rules
-marked **[tested]** are locked by `test/rules.test.mjs`; judgment rules marked
+marked **[tested]** are locked by `test/rules.test.ts`; judgment rules marked
 **[prompt]** live in `worker-prompt.md` and are enforced by the worker model. For HOW
 the system is built — the data flow and the server-authoritative placement model — see
 [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -15,7 +15,7 @@ their judgment (disagreements, scope/product calls, or anything it can't safely
 decide) and decisions.
 
 ## Architecture
-- One persistent Node daemon (`server.mjs`) on the user's awake laptop. It dies on
+- One persistent Node daemon (`server.ts`) on the user's awake laptop. It dies on
   sleep/reboot by design — this is a drive-it-during-work tool, not a service.
 - Every 15 min it polls (pure Node + `gh`, no Claude), diffs against last poll, and
   dispatches a worker only for PRs that changed.
@@ -165,7 +165,7 @@ something as a question is not by itself a reason to surface.
 
 ## Live status & concurrency
 - **Per-PR serialization (the dispatcher).** All worker dispatch goes through
-  `dispatcher.mjs`, which keeps one in-flight worker per PR. Work arriving while a PR
+  `dispatcher.ts`, which keeps one in-flight worker per PR. Work arriving while a PR
   is busy — new poll-found dispatchable threads OR user-approved approaches — lands in
   that PR's **pending set** and **auto-fires** when the lock frees, draining everything
   pending into a single batched run (one re-ground + push, never a double-dispatch).
@@ -206,11 +206,11 @@ resolve / rebase) on the PRs it can see.
   can't find.
 - `lastSeenSha` records the worktree HEAD after each run for the resume delta diff.
 
-## Dashboard dispositions — derived from the worker's verdict [tested: `deriveDisposition` in test/rules.test.mjs]
+## Dashboard dispositions — derived from the worker's verdict [tested: `deriveDisposition` in test/rules.test.ts]
 Each thread's **disposition** (the per-item verdict) comes from the worker's
 code-grounded `response` (read from `data/worker-<repo>-<num>.json` and merged by
-`threadId` in `derive.mjs`/`deriveRecord`), NOT a keyword heuristic. The frontend
-(`adapt.js` `DISPOSITION_TO_TAG`) maps each disposition to the design system's short
+`threadId` in `derive.ts`/`deriveRecord`), NOT a keyword heuristic. The frontend
+(`adapt.ts` `DISPOSITION_TO_TAG`) maps each disposition to the design system's short
 tag vocabulary (`input | fixed | waiting | pending | praise | error`) for styling only:
 - **surface** → `needsYourApproval` (carries the worker's code-cited reason).
 - **fix** (incl. apply-approved) → `agentAutoFixed` — the worker changed code and
@@ -221,16 +221,16 @@ tag vocabulary (`input | fixed | waiting | pending | praise | error`) for stylin
   had the last word → `notYetReviewed` ("No feedback yet" — the worker hasn't judged it).
 - A thread scan error → `agentError`.
 
-There are no PR-level rollups: each item produces a placement row (`placements.mjs`),
+There are no PR-level rollups: each item produces a placement row (`placements.ts`),
 and a PR's lane ordering is its single `sortRank` (`prSortRank` — its most-urgent
 placement). Whether a PR "needs you" is simply whether it has any placement in the
 `needs` lane.
 
-## Dashboard lanes — server-authoritative routing [tested: `placements.placementsFor` in test/placements.test.mjs; `adapt.buildLanes` in test/adapt.test.mjs]
+## Dashboard lanes — server-authoritative routing [tested: `placements.placementsFor` in test/placements.test.ts; `adapt.buildLanes` in test/adapt.test.ts]
 The unit of placement is the **item** (a thread, or a PR-health signal), NOT the PR
-card — but routing is decided server-side. The daemon (`placements.mjs`/`placementsFor`)
+card — but routing is decided server-side. The daemon (`placements.ts`/`placementsFor`)
 emits one placement row per (PR, lane, item); a PR in several lanes is several rows. The
-frontend (`adapt.js`/`buildLanes`) FILTERS those rows into lanes and applies the
+frontend (`adapt.ts`/`buildLanes`) FILTERS those rows into lanes and applies the
 client-only overlays (the SSE in-flight set + the staged/dispatched "cart"); it derives
 no routing. The card is a pure renderer of the `items` it's handed. Lane membership
 (`LANE_OF_DISPOSITION`):

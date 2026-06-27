@@ -11,7 +11,7 @@ description: >-
 
 # Run pr-controller
 
-pr-controller is a local Node daemon (`server.mjs`) that serves a Vite + React dashboard
+pr-controller is a local Node daemon (`server.ts`) that serves a Vite + React dashboard
 from `pr-controller-react/dist/` at **http://localhost:4317**, polling your open GitHub PRs
 and dispatching headless `claude -p` workers that push to them. The driver is the one-shot
 harness [`.claude/skills/run-pr-controller/smoke.sh`](.claude/skills/run-pr-controller/smoke.sh)
@@ -22,7 +22,7 @@ interactive driving.
 > **Config note:** config comes from your gitignored `config.local.json` (or `PRC_*`) — run
 > `/configure-pr-controller` if it's missing. `PRC_PROFILE=dev` selects the sandbox profile.
 
-By default ([config.mjs](config.mjs)) a bare `node server.mjs` targets the **configured
+By default ([config.ts](config.ts)) a bare `node --import tsx server.ts` targets the **configured
 prod** host — which you do **not** want locally. The safe path is the **`dev` profile**: it
 scopes to a whitelist of disposable `[e2e] … safe to close` PRs on personal github.com
 (`this-Cunningham/pr-controller#1–3`). `config.onlyPRs` is the circuit-breaker — every PR
@@ -63,7 +63,7 @@ waits for the real GitHub scan, clicks the populated lane, screenshots to
 display-only — its threads are `awaitingReviewer`, so it dispatches no worker.)
 
 - **Keep it up to drive interactively:** `KEEP=1 .claude/skills/run-pr-controller/smoke.sh`
-  (leaves the server on :4317; stop with `pkill -f 'node server.mjs'`).
+  (leaves the server on :4317; stop with `pkill -f 'server.ts'`).
 - **Override** scope / port / screenshot:
   `SCOPE="pr-controller#1,pr-controller#2" PORT=4400 SHOT=/tmp/x.png .claude/skills/run-pr-controller/smoke.sh`.
 - **Run it for real (workers dispatch against the sandbox):** widen to
@@ -76,7 +76,7 @@ display-only — its threads are `awaitingReviewer`, so it dispatches no worker.
 ```bash
 # 1. Launch the daemon in the dev sandbox, scoped to one PR. Banner shows the blast radius.
 PRC_PROFILE=dev PRC_ONLY_PRS="pr-controller#1" PRC_POLL_MINUTES=1440 PRC_PORT=4317 \
-  node server.mjs > /tmp/prc-server.log 2>&1 &
+  node --import tsx server.ts > /tmp/prc-server.log 2>&1 &
 # 2. ARM POLLING — the daemon starts OFF and won't scan/dispatch until you do this.
 curl -fsS -X POST http://localhost:4317/polling -H 'content-type: application/json' -d '{"on":true}'
 # 3. After a few seconds, real data lands:
@@ -91,15 +91,15 @@ chrome-devtools take_screenshot --filePath /tmp/prc.png
 
 The three lane tabs (Needs you / In progress / Waiting on reviewer) are the
 server-authoritative placements filtered client-side — clicking them is the fastest way to QA
-a `placements.mjs` change. Stop with `pkill -f 'node server.mjs'`.
+a `placements.ts` change. Stop with `pkill -f 'server.ts'`.
 
 ## Direct invocation (most PRs need only this)
 
-The routing / verdict / derivation core is pure and I/O-free (`placements.mjs`, `rules.mjs`,
+The routing / verdict / derivation core is pure and I/O-free (`placements.ts`, `rules.mjs`,
 `derive.mjs`, `adapt.js`) and locked by tests. A PR touching those is verified without launching:
 
 ```bash
-node --test "test/**/*.test.mjs"     # 168 tests, ~0.3s
+node --import tsx --test "test/**/*.test.ts"     # 168 tests, ~0.3s
 ```
 
 Run the test suite first; only build + launch the app for UI / lane / rendering work.
@@ -107,10 +107,10 @@ Run the test suite first; only build + launch the app for UI / lane / rendering 
 ## Run (human path) — REAL prod, touches live enterprise PRs
 
 ```bash
-node server.mjs        # then open http://localhost:4317, toggle polling ON in the header
+node --import tsx server.ts        # then open http://localhost:4317, toggle polling ON in the header
 ```
 
-⚠️ A bare `node server.mjs` (no env) uses `config.local.json`'s top-level `profile` — or the
+⚠️ A bare `node --import tsx server.ts` (no env) uses `config.local.json`'s top-level `profile` — or the
 built-in `prod` if unset. If that resolves to a prod-type profile with **empty `config.onlyPRs`**,
 arming polling means it **scans ALL your open PRs and spawns real workers that push/comment/rebase**.
 The startup banner shows `[<profile> @ <host>]` and the daemon warns when unconfigured + unscoped.
@@ -119,7 +119,7 @@ There is no dry-run — `config.onlyPRs` is the only circuit-breaker.
 ## Test
 
 ```bash
-node --test "test/**/*.test.mjs"     # pure layers — 168 pass
+node --import tsx --test "test/**/*.test.ts"     # pure layers — 168 pass
 cd pr-controller-react && yarn lint  # design-system token/prop adherence — 0 errors (2 known no-view-model-prop warnings)
 ```
 
@@ -134,13 +134,13 @@ cd pr-controller-react && yarn lint  # design-system token/prop adherence — 0 
   thread counts as "new." Scope #1 dispatches nothing (`awaitingReviewer`); **#2** (`@claude-debug`
   → synthetic reviewer → feedback worker) and **#3** (`needsRebase` → rebase worker) spawn real
   workers on the first armed poll — against the sandbox, by design.
-- **Launch the daemon in a persistent shell.** `node server.mjs &` as a child of a transient
+- **Launch the daemon in a persistent shell.** `node --import tsx server.ts &` as a child of a transient
   wrapper shell gets reaped when that shell exits. `smoke.sh` keeps its own shell alive; for
   manual runs use an interactive shell or `nohup`.
 - **`PRC_POLL_MINUTES` overflows `setInterval`.** `pollMinutes*60_000` must stay < 2,147,483,647 ms.
   A value like `99999` → Node clamps the interval to **1 ms** and the log floods with
   `[poll] already running, skipped`. Use `1440` (what `smoke.sh` does).
-- **Config is read once at module load.** Set `PRC_*` *before* `node server.mjs`; no runtime host switch.
+- **Config is read once at module load.** Set `PRC_*` *before* `node --import tsx server.ts`; no runtime host switch.
 - **Dashboard 503 before build.** `GET /` returns `503 Dashboard not built` until `dist/index.html` exists.
 - **Render races the scan.** After `navigate_page` the app fetches `/state.json` and renders
   lane counts a beat later — retry before clicking a lane by name (`smoke.sh` retries ~4s).

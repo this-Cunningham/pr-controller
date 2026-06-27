@@ -34,10 +34,10 @@ fi
 # 2. Launch the daemon in the dev SANDBOX profile, scoped to SCOPE. PRC_PROFILE=dev is pinned
 #    explicitly so the sandbox is used regardless of config.local.json's top-level `profile`.
 #    PRC_POLL_MINUTES=1440 dodges the 32-bit setInterval overflow huge values trigger (see SKILL.md).
-pkill -f "node server.mjs" 2>/dev/null || true
+pkill -f "server.ts" 2>/dev/null || true
 sleep 1
 PRC_PROFILE=dev PRC_ONLY_PRS="$SCOPE" PRC_POLL_MINUTES=1440 PRC_PORT="$PORT" \
-  node server.mjs > "$LOG" 2>&1 &
+  node --import tsx server.ts > "$LOG" 2>&1 &
 SERVER_PID=$!
 echo "[smoke] server pid $SERVER_PID, profile=dev scope=$SCOPE (sandbox on github.com)"
 
@@ -87,7 +87,7 @@ fi
 
 # 8. Stop, unless KEEP=1 (then leave it up for interactive driving).
 if [ "${KEEP:-0}" = "1" ]; then
-  echo "[smoke] KEEP=1 -> server left on http://localhost:$PORT (stop: pkill -f 'node server.mjs')"
+  echo "[smoke] KEEP=1 -> server left on http://localhost:$PORT (stop: pkill -f 'server.ts')"
 else
   kill "$SERVER_PID" 2>/dev/null || true
   echo "[smoke] server stopped."

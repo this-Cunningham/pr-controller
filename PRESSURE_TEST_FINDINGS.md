@@ -30,9 +30,9 @@ These are fixed and code-confirmed, but were **not** driven live (a live test of
 readFile guard caught a real bug in that fix, so I'm flagging these rather than asserting
 them as proven):
 
-- **`cleanup isWorking` guard** (`server.mjs`) — skips poll cleanup while a worker still
+- **`cleanup isWorking` guard** (`server.ts`) — skips poll cleanup while a worker still
   holds the worktree; needs a PR vanishing mid-worker to drive.
-- **branch-terminal opener** (`adapt`/`PRCard`/`cardProps` → `worker.mjs`) — the
+- **branch-terminal opener** (`adapt`/`PRCard`/`cardProps` → `worker.ts`) — the
   `osascript` Terminal opener end-to-end spawns a desktop window, so it wasn't clicked;
   the data flow (`kind` through adapt → cardProps → discussRebase) is unit-tested.
 - **queued-overlay client filter** (`useDashboard.js`) — the one-line

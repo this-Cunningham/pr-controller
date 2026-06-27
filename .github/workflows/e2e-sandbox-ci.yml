@@ -18,4 +18,4 @@ jobs:
           node-version: '22'
       - name: Run sandbox tests
         working-directory: e2e-sandbox
-        run: node --test "test/**/*.test.mjs"
+        run: node --import tsx --test "test/**/*.test.ts"

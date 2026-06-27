@@ -7,8 +7,27 @@ import react from '@vitejs/plugin-react';
 //
 // The Wabi-Sabi design system is vendored into the app (src/design-system/) and
 // imported with normal relative paths — no alias or out-of-root file access.
+// The app-authored logic (useDashboard, cardProps, adapt) and SwimlaneBoard migrated to
+// .ts/.tsx, but the frozen, prototype-synced components (e.g. App.jsx) import them with the
+// TypeScript ".js"/".jsx" specifier convention (`import './useDashboard.js'`). tsc and tsx
+// resolve those to the .ts/.tsx source; Rollup (vite build) does NOT. This resolver closes
+// that gap WITHOUT editing any frozen .jsx: a relative import ending in .js/.jsx whose
+// literal file is absent falls through to its .ts/.tsx sibling (else default resolution).
+const resolveTsFromJs = {
+  name: 'resolve-ts-from-js',
+  async resolveId(source, importer, options) {
+    if (!importer || !(source.startsWith('./') || source.startsWith('../'))) return null;
+    const remap = source.endsWith('.jsx') ? source.slice(0, -4) + '.tsx'
+      : source.endsWith('.js') ? source.slice(0, -3) + '.ts'
+      : null;
+    if (!remap) return null;
+    const resolved = await this.resolve(remap, importer, { ...options, skipSelf: true });
+    return resolved || null;
+  },
+};
+
 export default {
-  plugins: [react()],
+  plugins: [resolveTsFromJs, react()],
   server: {
     proxy: {
       '/state.json': 'http://localhost:4317',
