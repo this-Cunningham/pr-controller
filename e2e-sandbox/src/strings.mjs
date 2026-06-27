@@ -1,3 +1,4 @@
+// slug helpers
 // Small string helpers.
 
 // Turn arbitrary text into a url-safe slug.
