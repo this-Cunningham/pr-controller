@@ -17,3 +17,7 @@ cd e2e-sandbox && node --test "test/**/*.test.mjs"
 ```
 
 > Safe to delete once the pressure test is done.
+
+## Contributing
+
+See CLA + DCO.
