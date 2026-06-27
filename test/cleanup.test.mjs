@@ -1,47 +1,17 @@
 // Locks the PURE decisions behind per-PR cleanup (cleanup.mjs + worktree.mjs's
 // isManagedWorktree). cleanupPr() itself is I/O and not unit-tested here (it removes
 // real git worktrees + files); these tests pin the pure logic it composes:
-//   - pruneSession: removing exactly one PR's session entry, immutably
 //   - parsePrKey:   splitting "repo#number" into repo + numeric number
-//   - workerFileFor: the worker verdict filename for a PR
+//   - workerFileFor (paths.mjs): the worker verdict filename for a PR
 //   - isManagedWorktree: the SAFETY guard that we only ever delete OUR worktree paths
+// (Session pruning moved to sessions.mjs/removeSessionEntry — see test/sessions.test.mjs.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { config } from '../config.mjs';
-import { pruneSession, parsePrKey, workerFileFor } from '../cleanup.mjs';
+import { parsePrKey } from '../cleanup.mjs';
+import { workerFileFor } from '../paths.mjs';
 import { isManagedWorktree } from '../worktree.mjs';
-
-test('pruneSession removes the right key and leaves others', () => {
-  const map = {
-    'repo-a#1': { id: 'x', createdAt: 't1' },
-    'repo-a#2': { id: 'y', createdAt: 't2' },
-    'repo-b#7': { id: 'z', createdAt: 't3' },
-  };
-  const next = pruneSession(map, 'repo-a#1');
-  assert.deepEqual(Object.keys(next).sort(), ['repo-a#2', 'repo-b#7']);
-  assert.equal(next['repo-a#2'].id, 'y');
-  assert.equal(next['repo-b#7'].id, 'z');
-});
-
-test('pruneSession is a no-op (but a copy) when the key is missing', () => {
-  const map = { 'repo-a#1': { id: 'x' } };
-  const next = pruneSession(map, 'repo-z#99');
-  assert.deepEqual(next, map);
-  // Returns a NEW object, never mutates the input.
-  assert.notEqual(next, map);
-});
-
-test('pruneSession does not mutate its input', () => {
-  const map = { 'repo-a#1': { id: 'x' }, 'repo-a#2': { id: 'y' } };
-  pruneSession(map, 'repo-a#1');
-  assert.deepEqual(Object.keys(map).sort(), ['repo-a#1', 'repo-a#2']);
-});
-
-test('pruneSession tolerates null/garbage maps', () => {
-  assert.deepEqual(pruneSession(null, 'a#1'), {});
-  assert.deepEqual(pruneSession(undefined, 'a#1'), {});
-});
 
 test('parsePrKey splits repo#number with a numeric number', () => {
   assert.deepEqual(parsePrKey('site-vdp-remix#835'), { repo: 'site-vdp-remix', number: 835 });

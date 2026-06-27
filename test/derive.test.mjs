@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveRecord } from '../derive.mjs';
+import { DEBUG_REVIEWER } from '../rules.mjs';
 import { config } from '../config.mjs';
 
 function scannedPr(over = {}) {
@@ -20,6 +21,18 @@ test('deriveRecord: no worker verdict -> disposition by who-spoke-last', () => {
   ] }), { workerResult: null });
   assert.equal(pr.threads[0].disposition, 'notYetReviewed');   // reviewer spoke last
   assert.equal(pr.threads[1].disposition, 'awaitingReviewer'); // I spoke last
+});
+
+// The @claude-debug re-attribution now lives HERE (derive), not the scanner: a token-carrying
+// comment from your OWN account is rewritten to a synthetic reviewer, so your own last word
+// reads as reviewer feedback (notYetReviewed) instead of awaitingReviewer. Locks the relocation
+// AND keeps the e2e harness's reviewer simulation working.
+test('deriveRecord: a @claude-debug comment from the user is re-attributed to a reviewer', () => {
+  const pr = deriveRecord(scannedPr({ threads: [
+    { threadId: 'a', author: config.login, lastAuthor: config.login, lastBody: `nit: rename this ${config.debugToken}` },
+  ] }), { workerResult: null });
+  assert.equal(pr.threads[0].lastAuthor, DEBUG_REVIEWER);       // rewritten in derive
+  assert.equal(pr.threads[0].disposition, 'notYetReviewed');   // now reads as reviewer feedback
 });
 
 test('deriveRecord: a worker fix/surface verdict drives disposition + carries the aids', () => {

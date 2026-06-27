@@ -131,7 +131,7 @@ since threads get resolved and conflicts get rebased between runs.
 ## 4. Inject realistic reviewer feedback (`@claude-debug`)
 
 A `@claude-debug` comment **from your own account** on an **unresolved review thread** is
-re-attributed to a synthetic reviewer (`scanner.mjs`/`rules.mjs` → `applyDebugReviewer` →
+re-attributed to a synthetic reviewer (`derive.mjs`/`rules.mjs` → `applyDebugReviewer` →
 `DEBUG_REVIEWER`), so the pipeline treats it as real reviewer feedback — exercising
 dispatch → worker response → disposition without a second account. It must be a
 **review-thread** comment (top-level `gh pr comment` is **not** re-attributed; resolved

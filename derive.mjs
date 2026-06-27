@@ -6,7 +6,7 @@
 // branch flag, which can't live on the GitHub-rebuilt PR object). Extracted from
 // server.deriveAndSetPrFields so the exact production derivation is unit-testable and
 // reusable (the e2e scan script runs this same code). Mutates and returns `pr`.
-import { isBehindBase, needsRebase, needsJira, deriveDisposition } from './rules.mjs';
+import { isBehindBase, needsRebase, needsJira, deriveDisposition, applyDebugReviewer } from './rules.mjs';
 
 export function deriveRecord(pr, { workerResult = null, outOfSync = false, agentError = null } = {}) {
   const h = pr.branchHealth || {};
@@ -22,7 +22,13 @@ export function deriveRecord(pr, { workerResult = null, outOfSync = false, agent
   // so those are already gone from the scan; what's left is surfaced (needs you),
   // waiting on the reviewer, or not yet judged. Match worker actions by threadId.
   const actions = new Map((workerResult?.actions || []).map((a) => [a.threadId, a]));
-  pr.threads = (pr.threads || []).map((t) => {
+  pr.threads = (pr.threads || []).map((raw) => {
+    // TEMP (debug): re-attribute a @claude-debug comment from your own account to a synthetic
+    // reviewer HERE — the canonical-record boundary — NOT in the scanner (which stays raw
+    // GitHub data). applyDebugReviewer is a no-op for real reviewer threads and when no debug
+    // token is configured. It preserves threadId/lastCommentId, so seen-fingerprints and the
+    // action match below are unaffected. Remove with the rest of the debug path.
+    const t = applyDebugReviewer(raw);
     const a = actions.get(t.threadId);
     return { ...t, ...deriveDisposition(t, a), suggestedReply: a?.suggestedReply, suggestedApproach: a?.suggestedApproach };
   });

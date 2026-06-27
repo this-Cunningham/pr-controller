@@ -103,6 +103,7 @@ Non-thread pseudo-dispositions (from `placementsFor`):
 | `jiraNeeded`      | needs    | missing JIRA ticket (compliance check)         |
 | `branchOutOfSync` | needs    | branch diverged; agent never ran               |
 | `branchConflict`  | needs    | merge conflict (carries the agent's reason if it surfaced one) |
+| `workerFailed`    | needs    | a worker run failed (e.g. git transport/clone/push error) |
 | `agentWorking`    | progress | a worker is in flight (no other progress row)  |
 
 The client maps each disposition to the design-system short tag

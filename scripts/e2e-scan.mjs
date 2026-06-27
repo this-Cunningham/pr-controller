@@ -8,16 +8,15 @@
 //   PRC_ONLY_PRS="pr-controller#1,pr-controller#2" node scripts/e2e-scan.mjs
 //
 // PRC_ONLY_PRS="" scans ALL your open PRs (handy to validate cross-org enrichment).
-import { join } from 'node:path';
 import { scanAll } from '../scanner.mjs';
 import { readWorkerResult } from '../worker.mjs';
 import { deriveRecord } from '../derive.mjs';
 import { placementsFor, prSortRank } from '../placements.mjs';
 import { buildLanes } from '../pr-controller-react/src/features/dashboard/adapt.js';
 import { config } from '../config.mjs';
+import { workerFileFor } from '../paths.mjs';
 
-const DATA = join(config.baseDir, 'data');
-const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
+const outPathFor = (pr) => workerFileFor(pr.repo, pr.number);
 const short = (id) => (id ? String(id).slice(0, 8) : '—');
 
 console.log(`[e2e] host=${config.host} login=${config.login} scope=${JSON.stringify(config.onlyPRs)}`);

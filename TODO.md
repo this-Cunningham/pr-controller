@@ -72,3 +72,8 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       failure is clearly surfaced.
 - [ ] suggested approach could potentially be an array the agent can surface 1-3 approaches and we
       can select the best one in the "needs you" cards
+- [ ] Convert the app to TypeScript — bugs are slipping through that static analysis would catch
+      (e.g. the `readWorkerResult() !== null` always-true bug this session, where the return-shape
+      contract drifted from object to nullable without a compile error). TS would catch contract
+      drift across the module seams (sessions/paths/derive boundaries, worker-result shape,
+      dispatcher opts).

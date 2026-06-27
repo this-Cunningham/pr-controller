@@ -314,3 +314,48 @@ test('markFinished carries pending=true while a queued batch remains, false when
   assert.deepEqual(finishes, [true, false]);           // A: queued batch pending; B: drained
   dispatcher.forget('pend#1');
 });
+
+// rebaseOnConflict must be honored on EVERY enqueue path, not just enqueue(). Approving an
+// approach on a PR that also has a merge conflict has to rebase in the same run — else the
+// worker is told "do not rebase", the push can't land, and the conflict persists. The flag
+// is folded in by the shared enqueueEntry prologue so no path can silently drop it again.
+test('enqueueApproved honors rebaseOnConflict (an approved run on a conflicted PR rebases)', async () => {
+  const runs = harness();
+  const pr = { repo: 'conf', number: 7, threads: [{ threadId: 'a' }], branchHealth: {} };
+  dispatcher.enqueueApproved(pr, ['a'], { branchHealth: pr.branchHealth, rebaseOnConflict: true });
+  await flush();
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].applyApproved, true);
+  assert.equal(runs[0].rebase, true, 'an approved run on a conflicted PR must still rebase');
+  dispatcher.forget('conf#7');
+});
+
+// A failed CI-only run (no threads, ci:true) must re-stage its ci reason exactly like rebase,
+// so it can retry. Without the restore, e.ci is consumed-and-lost on failure and the next
+// (bare) enqueue can't re-fire it — the run is silently stuck. The 2nd enqueue passes NO ci,
+// so only the RESTORED reason can make it fire.
+test('a failed CI-only run restores its ci reason and retries on the next enqueue', async () => {
+  const runs = [];
+  let failNext = true;
+  dispatcher.init({
+    events: { markStarted() {}, markFinished() {}, notifyStateUpdated() {} },
+    ensureWorktree: async () => ({ path: '/tmp/wt', outOfSync: false }),
+    runWorker: async (pr, threads) => {
+      if (failNext) { failNext = false; return { spawned: true, code: 0, outcome: { ok: false, reason: 'CI-fix run failed' } }; }
+      runs.push({ threadCount: threads.length });
+      return { spawned: true, code: 0, outcome: { ok: true, reason: null } };
+    },
+    refreshOnePR: async () => {},
+    outPath: () => '/tmp/o.json',
+    markOutOfSync: () => {},
+    markAgentError: () => {},
+  });
+  const pr = { repo: 'cifail', number: 1, threads: [], branchHealth: {} };
+  dispatcher.enqueue(pr, [], { ci: true });   // CI-only run -> fails
+  await flush();
+  assert.equal(runs.length, 0);               // failed, no success yet
+  dispatcher.enqueue(pr, [], {});             // bare enqueue: only the RESTORED ci can fire this
+  await flush();
+  assert.equal(runs.length, 1, 'the restored ci reason lets a failed CI-only run retry');
+  dispatcher.forget('cifail#1');
+});

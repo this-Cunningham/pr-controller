@@ -2,7 +2,7 @@
 # Inject a simulated reviewer comment on a sandbox PR so the daemon dispatches a worker.
 #
 # A @claude-debug comment from YOUR OWN account on an UNRESOLVED review thread is re-attributed
-# to a synthetic reviewer (scanner.mjs -> applyDebugReviewer), making the thread dispatchable on
+# to a synthetic reviewer (derive.mjs -> applyDebugReviewer), making the thread dispatchable on
 # the next poll — exercising the full reviewer-last-word flow without a 2nd account. It must be a
 # REVIEW-THREAD comment (gh pr comment / top-level issue comments are NOT re-attributed), and the
 # thread must be UNRESOLVED (the scanner filters resolved threads before re-attribution).

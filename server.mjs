@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { config, ghEnv, hasLocalConfig, cloneRootDefaulted, clampPoll } from './config.mjs';
+import { DATA, STATE, DECISIONS, workerFileFor } from './paths.mjs';
 
 import { scanAll, scanOnePr } from './scanner.mjs';
 import { spawnDiscussTerminal, runWorker, readWorkerResult, drainWorkers, wasInterrupted } from './worker.mjs';
@@ -12,7 +13,7 @@ import { ensureWorktree } from './worktree.mjs';
 import { cleanupPr } from './cleanup.mjs';
 import { dispatchable, dispatchDecision, nextSeenThreads, isWorkerResultStale, isBranchHealthResultStale } from './rules.mjs';
 import { deriveRecord } from './derive.mjs';
-import { placementsFor, prSortRank } from './placements.mjs';
+import { placementsFor, prSortRank, LANES } from './placements.mjs';
 import * as events from './events.mjs';
 import * as dispatcher from './dispatcher.mjs';
 import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.mjs';
@@ -39,10 +40,6 @@ async function postThreadReply(threadId, body) {
   await exec('gh', ['api', 'graphql', '-f', `query=${REPLY_MUTATION}`,
     '-F', `threadId=${threadId}`, '-F', `body=${body}`], { env: ghEnv });
 }
-
-const DATA = join(config.baseDir, 'data');
-const STATE = join(DATA, 'state.json');
-const DECISIONS = join(DATA, 'decisions.json');
 
 // Serve the built React dashboard from pr-controller-react/dist. The React app is
 // the canonical client — build it (`yarn build`) before running in production.
@@ -84,7 +81,7 @@ let pollTimer = null;
 let account = null;
 
 const fp = (t) => `${t.threadId}:${t.lastCommentId}`;
-const outPathFor = (pr) => join(DATA, `worker-${pr.repo}-${pr.number}.json`);
+const outPathFor = (pr) => workerFileFor(pr.repo, pr.number);
 
 // Read back the last worker run's verdict for this PR and derive every dashboard
 // field from it: per-thread dispositions, branch-health flags, and the surfaced
@@ -157,7 +154,7 @@ async function writeState(prs) {
     updatedAt: new Date().toISOString(),
     scope: config.onlyPRs || [],
     account,         // the gh-authed account PR discovery ran as (@me) — scan provenance for the UI
-    lanes: ['needs', 'progress', 'waiting'],
+    lanes: LANES,
     prs,
     placements,
     lastPollError,   // null when the last scan succeeded; { at, message } on failure
