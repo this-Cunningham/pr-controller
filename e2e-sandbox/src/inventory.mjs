@@ -2,6 +2,7 @@
 import { MAX_ITEMS, DEFAULT_CURRENCY } from './version.mjs';
 
 export class Inventory {
+  // audit: log mutations (stub)
   constructor() {
     this.items = {};
   }
