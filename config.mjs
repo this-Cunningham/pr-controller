@@ -81,6 +81,16 @@ export const config = {
   debugToken: '@claude-debug',
   workerModel: env.PRC_WORKER_MODEL || local.workerModel || 'sonnet',
 
+  // Circuit-breaker for the worker-result seam: how many CONSECUTIVE failed FEEDBACK/CI runs the
+  // dispatcher auto-retries for a PR before parking it as a terminal "Needs you" workerFailed card
+  // — instead of re-dispatching a failing worker forever on every routine enqueue (CI/health
+  // churn), burning API spend. Rebase-only runs are EXEMPT (their retry suppression lives in
+  // rules.dispatchDecision — rebaseSurfaced / healthChanged). A clean run or a genuinely new signal
+  // (manual Re-run, brand-new reviewer feedback) resets the count. See dispatcher.recordFailure +
+  // rules.shouldRetryWorker. Falls to the default for 0/blank/non-numeric (the `||` pattern, like
+  // reenrichFloor) — set 1 for the most aggressive cap.
+  workerMaxRetries: Number(env.PRC_WORKER_MAX_RETRIES) || local.workerMaxRetries || 3,
+
   // Worker sensitivity dial (0=surface everything … 4=fully autonomous; default 2).
   // Tunes the instruction injected into every worker run (see sensitivity.mjs). Editable
   // live from the dashboard (Settings → Worker sensitivity, POST /config). 0 is a valid

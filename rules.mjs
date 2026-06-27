@@ -341,3 +341,14 @@ export function classifyRunOutcome({ code = 0, signal = null, terminalEvent = nu
     return fail('The worker run finished but produced no usable result — re-run, or open it in a terminal.');
   return { ok: true, reason: null };
 }
+
+// Should the dispatcher AUTO-retry a worker that has now failed `failures` consecutive
+// times? Retries are allowed until the count reaches config.workerMaxRetries — then the
+// circuit-breaker trips and the PR parks in a terminal workerFailed ("Needs you") state
+// instead of re-dispatching a failing worker forever (burning API spend) on every routine
+// re-enqueue (CI/health churn). A clean run or a genuinely new signal (the user's manual
+// Re-run, brand-new reviewer feedback) resets the counter and re-arms the full budget — so
+// this gates ONLY the automatic refire, never a human/feedback-driven retry. Pure; tested.
+export function shouldRetryWorker(failures = 0, max = config.workerMaxRetries) {
+  return failures < max;
+}
