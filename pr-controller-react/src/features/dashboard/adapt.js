@@ -53,6 +53,10 @@ function branchPresentation(row) {
   return { tone: 'attention', message: row.reason };
 }
 
+// The lane render config: KEYS mirror the server-authoritative vocabulary (placements.mjs
+// `LANES`, the one routing home); this file owns only the display TITLES. The app stays
+// self-contained (no out-of-root imports — see vite.config), so the keys are restated here
+// rather than imported from the backend; they must match placements.mjs's LANES order.
 const LANES = [
   { key: 'needs', title: 'Needs you' },
   { key: 'progress', title: 'In progress' },

@@ -12,7 +12,7 @@ import { cloneUrl } from './rules.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
-const log = logger('cleanup');
+const log = logger('worktree');
 const ROOT = join(config.baseDir, 'worktrees');
 const fallbackClone = (repo) => join(ROOT, `${repo}.git`);   // only if no local clone
 const treeDir = (repo, num) => join(ROOT, `${repo}-pr-${num}`); // worktree per PR

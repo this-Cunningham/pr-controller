@@ -8,10 +8,10 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { config } from './config.mjs';
 import { repoSlug } from './rules.mjs';
+import { REPO_MAP as CACHE } from './paths.mjs';
 
 const exec = promisify(execFile);
 const SEARCH_ROOT = config.cloneRoot;   // set via PRC_CLONE_ROOT / config.local.json
-const CACHE = join(config.baseDir, 'data', 'repo-map.json');
 
 // Recursively find git clones up to `maxDepth` below SEARCH_ROOT.
 // depth 0 = <cloneRoot>/<repo>, depth 1 = <cloneRoot>/<workspace>/<repo>, etc.

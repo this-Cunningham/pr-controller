@@ -22,18 +22,20 @@ import { logger } from './log.mjs';
 
 const log = logger('dispatch');
 let deps = null;
-// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, ci, opts }
+// prKey -> { running, pr, threads: Map<threadId,thread>, approved: Set<threadId>, rebase, ci, branchHealth }
 //   rebase: a rebase is pending for the next run — either folded into thread/CI
 //   work (rebaseOnConflict) or a standalone user-initiated rebase (enqueueRebase).
 //   ci: a newly-failing-CI feedback run is pending with NO review threads — like
 //   rebase, it must still fire one run (the worker fixes CI from branchHealth context).
+//   branchHealth: the latest scan's branch-health, the ONLY enqueue input the run itself
+//   reads (passed to runWorker); rebase/ci are consumed at enqueue time into the flags above.
 const state = new Map();
 
 export function init(d) { deps = d; }
 
 function entry(prKey) {
   let e = state.get(prKey);
-  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), rebase: false, ci: false, opts: {} }; state.set(prKey, e); }
+  if (!e) { e = { running: false, pr: null, threads: new Map(), approved: new Set(), rebase: false, ci: false, branchHealth: null }; state.set(prKey, e); }
   return e;
 }
 
@@ -54,27 +56,29 @@ export function forget(prKey) {
   state.delete(prKey);
 }
 
-// Shared prologue for every enqueue path. Clearing e.failed is the non-obvious bit:
-// new work means the prior failure isn't the last word, so let maybeDrain retry.
+// Shared prologue for every enqueue path. Honoring opts HERE (not per-path) is what keeps
+// the three enqueue* entrypoints from drifting on which flags they respect — a past omission
+// silently dropped rebaseOnConflict on the apply-approved path. Clearing e.failed is the
+// non-obvious bit: new work means the prior failure isn't the last word, so let maybeDrain retry.
+//   rebaseOnConflict -> fold a merge-conflict rebase into this run (any path).
+//   ci -> a feedback run warranted by failing CI alone (no review threads); the drain guard
+//     must still fire it. The poller only enqueues feedback when work CHANGED (rules.
+//     dispatchDecision gates on healthChanged), so this can't hot-loop on a standing failure.
 function enqueueEntry(pr, opts) {
   const prKey = `${pr.repo}#${pr.number}`;
   const e = entry(prKey);
   e.pr = pr;
-  e.opts = { ...e.opts, ...opts };
+  if (opts.branchHealth !== undefined) e.branchHealth = opts.branchHealth;
+  if (opts.rebaseOnConflict) e.rebase = true;
+  if (opts.ci) e.ci = true;
   e.failed = false;
   return { prKey, e };
 }
 
 // Poll-found work: new/changed dispatchable threads, optionally also resolving a
-// merge conflict in the same run (opts.rebaseOnConflict).
+// merge conflict in the same run (opts.rebaseOnConflict) or fixing failing CI (opts.ci).
 export function enqueue(pr, newThreads, opts = {}) {
   const { prKey, e } = enqueueEntry(pr, opts);
-  if (opts.rebaseOnConflict) e.rebase = true;
-  // A feedback run can be warranted by failing CI alone (no review threads). Mark it so
-  // the drain guard below doesn't treat an empty-thread CI run as "nothing to do" and
-  // silently drop it. The poller only enqueues feedback when work CHANGED (rules.
-  // dispatchDecision gates on healthChanged), so this can't hot-loop on a standing failure.
-  if (opts.ci) e.ci = true;
   mergePending(e.threads, newThreads);
   maybeDrain(prKey);
 }
@@ -118,7 +122,8 @@ async function maybeDrain(prKey) {
   const drainedThreads = [...e.threads.values()];
   const applyApproved = e.approved.size > 0;
   const rebase = e.rebase;
-  const opts = { ...e.opts };
+  const ci = e.ci;
+  const branchHealth = e.branchHealth;
   e.threads = new Map();
   e.approved = new Set();
   e.rebase = false;
@@ -136,6 +141,7 @@ async function maybeDrain(prKey) {
     mergePending(e.threads, drainedThreads);
     if (applyApproved) for (const t of drainedThreads) e.approved.add(t.threadId);
     if (rebase) e.rebase = true;
+    if (ci) e.ci = true;   // restore the CI-only reason too, else a failed CI-fix run never auto-retries
     e.failed = true;
   };
 
@@ -155,7 +161,7 @@ async function maybeDrain(prKey) {
       deps.markOutOfSync?.(prKey, false);  // synced cleanly — clear any prior flag
       const r = await deps.runWorker(pr, drainedThreads, wt.path, outPath, {
         detached: wt.detached, pushRefspec: wt.pushRefspec,
-        branchHealth: opts.branchHealth, rebase,
+        branchHealth, rebase,
         applyApproved, recovered: wt.recovered,
       });
       log.info(`${prKey}: ${drainedThreads.length} thread(s)${applyApproved ? ' (apply-approved)' : ''}${rebase ? ' +rebase' : ''} -> `

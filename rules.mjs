@@ -16,8 +16,9 @@ export const DEBUG_REVIEWER = 'claude-debug-reviewer';
 // if a different person reviewed the PR. When the latest comment is YOURS and has
 // the token, re-attribute lastAuthor (and author, if you also opened the thread) to
 // DEBUG_REVIEWER. Pure: returns a new thread (or the same one untouched). Applied in
-// the scanner so EVERY downstream consumer (dispatchable, deriveDisposition, the UI author
-// line) sees the simulated reviewer. Remove with the rest of the debug path.
+// derive.deriveRecord (the canonical-record boundary) — NOT the scanner, which stays raw —
+// so EVERY consumer (the daemon's dispatchable/deriveDisposition/UI + the e2e-scan script)
+// sees the simulated reviewer through the one derivation. Remove with the rest of the debug path.
 export function applyDebugReviewer(thread, login = config.login, debugToken = config.debugToken) {
   if (!debugToken || !thread || thread.error) return thread;
   if (thread.lastAuthor !== login || !(thread.lastBody || '').includes(debugToken)) return thread;
@@ -32,8 +33,8 @@ export function applyDebugReviewer(thread, login = config.login, debugToken = co
 // one (you're annotating or waiting on the reviewer) — except when you include the
 // trigger token, which opts that single thread back in.
 // TEMP (debug): config.debugToken (@claude-debug) also opts in, but note threads are
-// normally re-attributed to DEBUG_REVIEWER upstream (applyDebugReviewer), so they
-// already read as reviewer-authored here; the token check remains as a fallback.
+// normally re-attributed to DEBUG_REVIEWER in derive (applyDebugReviewer) before this runs,
+// so they already read as reviewer-authored here; the token check remains as a fallback.
 export function dispatchable(thread, login = config.login, token = config.triggerToken) {
   if (thread.lastAuthor !== login) return true;
   const body = thread.lastBody || '';

@@ -2,7 +2,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config, ghEnv } from './config.mjs';
-import { categorizeChecks, inScope, applyDebugReviewer } from './rules.mjs';
+import { categorizeChecks, inScope } from './rules.mjs';
 import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
@@ -191,11 +191,10 @@ export function parsePullRequest(pr) {
         lastBody: last.body || '',
         lastCommentId: last.databaseId,
       };
-    })
-    // TEMP (debug): a @claude-debug comment from your own account is re-attributed
-    // to a synthetic reviewer, so the whole pipeline treats it like real reviewer
-    // feedback. Remove with the rest of the debug path.
-    .map((t) => applyDebugReviewer(t));
+    });
+  // NOTE: threads are RAW here (no opinions). The @claude-debug reviewer re-attribution is
+  // applied downstream in derive.deriveRecord (the canonical-record boundary), not in this
+  // pure parse layer — so the scanner stays "raw GitHub data, no opinions".
   const rollup = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup;
   const failed = (rollup?.contexts?.nodes || [])
     .map((c) => c.__typename === 'CheckRun'
@@ -229,7 +228,10 @@ async function fetchOnePrRaw(nameWithOwner, num) {
     '-f', `name=${name}`,
     '-F', `num=${num}`,
   ]);
-  return JSON.parse(out).data.repository.pullRequest;
+  // Optional-chain the response shape (matches the batched path's d[`p${i}`]?.pullRequest):
+  // a `{ data: null }` GraphQL error yields null here instead of a "cannot read properties of
+  // null" throw. Both callers handle null/throw identically, so this just makes the contract explicit.
+  return JSON.parse(out).data?.repository?.pullRequest ?? null;
 }
 
 // PURE: is this raw `pullRequest` node a LIVE (open) PR? GitHub's

@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { config, ghEnv } from './config.mjs';
+import { DATA, workerLogFor } from './paths.mjs';
+import { loadSessions, updateSessions } from './sessions.mjs';
 import { fetchDiff } from './scanner.mjs';
 import { validateWorkerResult, parseTerminalResult, classifyRunOutcome } from './rules.mjs';
 import { sensitivityPrompt } from './sensitivity.mjs';
@@ -14,8 +16,6 @@ import { logger } from './log.mjs';
 
 const exec = promisify(execFile);
 const log = logger('worker');
-const DATA = join(config.baseDir, 'data');
-const SESSIONS = join(DATA, 'sessions.json');
 
 // ── Live worker registry + shutdown drain ───────────────────────────────────
 // Every spawned `claude` child is tracked here so a daemon shutdown (SIGTERM from a
@@ -58,38 +58,24 @@ export async function drainWorkers({
   return { drained: false, terminated, killed };
 }
 
-// One durable Claude session per PR. First sight -> mint uuid (--session-id);
-// later diffs -> --resume that uuid, so the worker remembers prior rounds.
-async function loadSessions() {
-  try { return JSON.parse(await readFile(SESSIONS, 'utf8')); } catch { return {}; }
-}
-// Compute the session for a PR WITHOUT persisting. Persisting before a worker
-// actually launches creates a phantom session that --resume can't find, so we
-// only commit it via persistSession() once the spawn really happens.
+// One durable Claude session per PR, kept in sessions.json (owned by sessions.mjs — the one
+// home for that file's path + lock + read-modify-write). First sight -> mint uuid
+// (--session-id); later diffs -> --resume that uuid, so the worker remembers prior rounds.
+//
+// Compute the session for a PR WITHOUT persisting. Persisting before a worker actually
+// launches creates a phantom session that --resume can't find, so we only commit it via
+// persistSession() once the spawn really happens.
 export async function getOrCreateSession(prKey) {
   const map = await loadSessions();
   if (map[prKey]) return { id: map[prKey].id, isNew: false, lastSeenSha: map[prKey].lastSeenSha || null };
   return { id: randomUUID(), isNew: true, lastSeenSha: null };
 }
 
-// Serialize every sessions.json read-modify-write: all PRs share this one file and
-// dispatch is concurrent across PRs, so racing load->mutate->write cycles would
-// lost-update — clobbering a freshly-minted UUID/lastSeenSha and stranding a session
-// `--resume` can no longer find. Mirrors withCloneLock in worktree.mjs.
-const swallow = () => {};
-let sessionsTail = Promise.resolve();
-function withSessionsLock(fn) {
-  const run = sessionsTail.then(fn, fn);   // run after the prior holder, resolved or not
-  sessionsTail = run.then(swallow, swallow);   // a rejection here must not poison the chain
-  return run;
-}
-
 async function persistSession(prKey, id) {
-  // mkdir data/ first: it's gitignored, so on a fresh clone it may not exist yet and an
-  // unguarded writeFile would throw ENOENT. Mirrors writeState/recordDecision/the transcript write.
-  await withSessionsLock(async () => {
-    const map = await loadSessions();
-    if (!map[prKey]) { map[prKey] = { id, createdAt: new Date().toISOString() }; await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+  // Only the FIRST spawn for a PR writes the entry; a resume keeps the existing one.
+  await updateSessions((map) => {
+    if (map[prKey]) return false;
+    map[prKey] = { id, createdAt: new Date().toISOString() };
   });
 }
 
@@ -103,24 +89,21 @@ export async function wasInterrupted(prKey) {
   return !!map[prKey]?.interrupted;
 }
 async function setInterrupted(prKey, v) {
-  await withSessionsLock(async () => {
-    const map = await loadSessions();
-    if (!map[prKey]) return;   // no session yet -> the worker hasn't truly started; nothing to flag
+  await updateSessions((map) => {
+    if (!map[prKey]) return false;   // no session yet -> the worker hasn't truly started; nothing to flag
     map[prKey].interrupted = v;
-    await mkdir(DATA, { recursive: true });
-    await writeFile(SESSIONS, JSON.stringify(map, null, 2));
   });
 }
 
-// Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`.
+// Record the worktree HEAD after a run, so the next resume can `git diff since..HEAD`. The
+// git read stays OUTSIDE the lock (it touches the worktree, not sessions.json); only the
+// file read-modify-write is serialized (via updateSessions).
 async function recordSeenSha(prKey, worktreePath) {
   try {
-    // The git read stays OUTSIDE the lock (it touches the worktree, not sessions.json);
-    // only the file read-modify-write is serialized.
     const { stdout } = await exec('git', ['-C', worktreePath, 'rev-parse', 'HEAD']);
-    await withSessionsLock(async () => {
-      const map = await loadSessions();
-      if (map[prKey]) { map[prKey].lastSeenSha = stdout.trim(); await mkdir(DATA, { recursive: true }); await writeFile(SESSIONS, JSON.stringify(map, null, 2)); }
+    await updateSessions((map) => {
+      if (!map[prKey]) return false;
+      map[prKey].lastSeenSha = stdout.trim();
     });
   } catch {}
 }
@@ -284,7 +267,7 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
   // The console only ever kept tail(-500); the full transcript is exactly what's needed
   // to diagnose a worker that misbehaved (workers run --permission-mode bypassPermissions
   // against real PRs). Overwritten each run, so it stays bounded to the last run.
-  const logPath = join(DATA, `worker-${pr.repo}-${pr.number}.log`);
+  const logPath = workerLogFor(pr.repo, pr.number);
   // stdio: close stdin ('ignore') — the prompt is passed via `-p`, so the worker has
   // no stdin input. Leaving stdin as an open pipe makes the `claude` CLI wait ~3s for
   // input it will never get ("no stdin data received in 3s, proceeding without it"),
@@ -314,7 +297,7 @@ export async function runWorker(pr, newThreads, worktreePath, outPath, opts = {}
       const outcome = classifyRunOutcome({
         code, signal,
         terminalEvent: parseTerminalResult(out),
-        resultFileValid: (await readWorkerResult(outPath)) !== null,
+        resultFileValid: (await readWorkerResult(outPath)).result !== null,
         expectResultFile: newThreads.length > 0,
       });
       // Clear the interrupted flag + advance the re-grounding SHA ONLY on a clean run. A failed

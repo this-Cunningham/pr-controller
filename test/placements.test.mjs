@@ -3,7 +3,7 @@
 // prSortRank); the daemon emits these placement rows and the frontend renders them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { placementsFor, prSortRank, laneOf, LANE_OF_DISPOSITION } from '../placements.mjs';
+import { placementsFor, prSortRank, laneOf, LANE_OF_DISPOSITION, DISPOSITION_RANK } from '../placements.mjs';
 
 // Build a derived-PR-shape record. `threads` take { id, disposition, reason, error }.
 function pr(over = {}) {
@@ -42,6 +42,16 @@ test('LANE_OF_DISPOSITION is total for the thread vocabulary; praise routes nowh
   assert.equal(LANE_OF_DISPOSITION.awaitingReviewer, 'waiting');
   assert.equal(LANE_OF_DISPOSITION.agentAcknowledged, null);
   assert.equal(LANE_OF_DISPOSITION.workerFailed, 'needs');
+});
+
+// The two routing tables must stay in lockstep: every disposition that routes to a lane
+// (LANE_OF_DISPOSITION value !== null) needs a DISPOSITION_RANK ordering weight, else its
+// rows silently fall back to rank 9 (sorted last). A drift here is exactly how `workerFailed`
+// could have been added to one table but not the other — this test would catch it.
+test('every routable disposition in LANE_OF_DISPOSITION has a DISPOSITION_RANK weight', () => {
+  const routable = Object.entries(LANE_OF_DISPOSITION).filter(([, lane]) => lane !== null).map(([d]) => d);
+  const missing = routable.filter((d) => !(d in DISPOSITION_RANK));
+  assert.deepEqual(missing, [], `dispositions routed to a lane but missing a rank: ${missing.join(', ')}`);
 });
 
 test('needsYourApproval (input) -> Needs you', () => {

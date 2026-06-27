@@ -12,6 +12,12 @@
 // awaitingReviewer | notYetReviewed | agentError. Non-thread subjects (a missing
 // JIRA ticket, branch health, a live worker) carry pseudo-dispositions defined here.
 
+// The lane vocabulary + display order — the canonical list of tabs, server-authoritative.
+// state.json ships this (server.writeState) and the client renders titles for these keys; the
+// only home for the lane names, so server.mjs + the client can't drift on a typo'd key. Every
+// non-null value in LANE_OF_DISPOSITION must be one of these.
+export const LANES = ['needs', 'progress', 'waiting'];
+
 // Lane for each disposition. A null lane means the item appears in NO tab
 // (agentAcknowledged = praise: the agent reacted, nothing for anyone to do).
 export const LANE_OF_DISPOSITION = {
