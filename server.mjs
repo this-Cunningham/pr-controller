@@ -232,6 +232,9 @@ async function poll() {
       const decision = dispatchDecision({
         newThreadCount: newThreads.length, ciFailing: pr.ciFailing,
         needsRebase: pr.needsRebase, healthChanged, rebaseSurfaced: !!pr.workerSurfaced,
+        // A prior rebase that ERRORED (workerError set, conflict still here, not surfaced) should
+        // re-attempt even without a health change — bounded by the dispatcher's retry breaker.
+        rebaseErrored: !!pr.workerError,
         ciReran: !!pr.ciReran,
       });
 
@@ -536,9 +539,10 @@ const server = createServer(async (req, res) => {
         }
       }
       // Manual retry of a run that came back without a usable result (the workerFailed card's
-      // Re-run). Re-dispatch the PR's open threads through the dispatcher — enqueue clears the
-      // failure gate (e.failed) and fires a fresh worker; on a clean run the workerFailed
-      // surface clears. Fold in CI/rebase so a health-only failure still re-fires.
+      // Re-run). Re-dispatch the PR's open threads through the dispatcher — `reset: true` lifts
+      // the failure gate (e.failed) AND the circuit-breaker (re-arms the retry budget) even after
+      // the breaker tripped, then fires a fresh worker; on a clean run the workerFailed surface
+      // clears. Fold in CI/rebase so a health-only failure still re-fires.
       if (payload.action === 'rerun') {
         const pr = state.prs.find((p) => `${p.repo}#${p.number}` === payload.prKey);
         const threads = (pr?.threads || []).filter((t) => !t.error && t.threadId);
@@ -547,7 +551,7 @@ const server = createServer(async (req, res) => {
           spawn = { spawned: false, reason: 'nothing to re-run — no open threads or branch work' };
         else {
           const queued = dispatcher.isWorking(payload.prKey);
-          dispatcher.enqueue(pr, threads, { branchHealth: pr.branchHealth, ci: pr.ciFailing, rebaseOnConflict: pr.needsRebase });
+          dispatcher.enqueue(pr, threads, { branchHealth: pr.branchHealth, ci: pr.ciFailing, rebaseOnConflict: pr.needsRebase, reset: true });
           spawn = { spawned: true, queued, action: queued ? 'queued for next run' : 'agent re-dispatched' };
         }
       }

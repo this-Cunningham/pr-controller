@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   dispatchable, categorizeChecks, needsJira, isBehindBase, needsRebase, repoSlug, inScope, deriveDisposition,
   validateWorkerResult, mergePending, dispatchDecision, nextSeenThreads, applyDebugReviewer, DEBUG_REVIEWER, isWorkerResultStale, isBranchHealthResultStale,
-  cloneUrl, classifyWorkerError, parseTerminalResult, classifyRunOutcome,
+  cloneUrl, classifyWorkerError, parseTerminalResult, classifyRunOutcome, shouldRetryWorker,
 } from '../rules.mjs';
 import { config } from '../config.mjs';
 
@@ -99,6 +99,27 @@ test('classifyRunOutcome: unknown non-success subtype -> fail (conservative)', (
 
 test('classifyRunOutcome: missing terminal event but a valid file landed -> ok (parse miss tolerated)', () => {
   assert.equal(classifyRunOutcome({ code: 0, terminalEvent: null, resultFileValid: true, expectResultFile: true }).ok, true);
+});
+
+// shouldRetryWorker: the dispatcher's circuit-breaker predicate. Auto-retry is allowed until
+// consecutive failures reach the cap; at/above it the breaker trips (terminal workerFailed).
+test('shouldRetryWorker: retries allowed below the cap, blocked at/above it', () => {
+  assert.equal(shouldRetryWorker(0, 3), true);   // fresh
+  assert.equal(shouldRetryWorker(1, 3), true);
+  assert.equal(shouldRetryWorker(2, 3), true);   // last allowed retry
+  assert.equal(shouldRetryWorker(3, 3), false);  // cap reached -> breaker trips
+  assert.equal(shouldRetryWorker(4, 3), false);  // and stays tripped
+});
+
+test('shouldRetryWorker: respects the cap value (1 = single attempt, then park)', () => {
+  assert.equal(shouldRetryWorker(0, 1), true);
+  assert.equal(shouldRetryWorker(1, 1), false);  // one failure exhausts a cap of 1
+});
+
+test('shouldRetryWorker: defaults max to config.workerMaxRetries', () => {
+  assert.equal(config.workerMaxRetries, 3);       // the shipped default (PRC_WORKER_MAX_RETRIES)
+  assert.equal(shouldRetryWorker(config.workerMaxRetries - 1), true);
+  assert.equal(shouldRetryWorker(config.workerMaxRetries), false);
 });
 
 test('dispatchable: reviewer had the last word -> dispatch', () => {
@@ -418,6 +439,16 @@ test('dispatchDecision: a SURFACED conflict does NOT re-rebase, even on a health
 
 test('dispatchDecision: standing idle conflict (health unchanged) -> none (no re-spin loop)', () => {
   assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false }).kind, 'none');
+});
+
+test('dispatchDecision: an ERRORED (not surfaced) conflict re-attempts even without a health change', () => {
+  // an errored rebase is a worker-run failure, not a deliberate surface — retry it (the dispatcher
+  // breaker bounds the attempts), even though nothing about the PR's health changed this poll.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: true }).kind, 'rebase');
+  // SURFACED still wins over errored — a too-risky conflict is never auto-retried.
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: true, rebaseSurfaced: true }).kind, 'none');
+  // no error + no health change -> still none (the existing no-respin behavior is preserved).
+  assert.equal(dispatchDecision({ needsRebase: true, healthChanged: false, rebaseErrored: false }).kind, 'none');
 });
 
 test('dispatchDecision: nothing actionable -> none', () => {
