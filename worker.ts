@@ -13,9 +13,11 @@ import { loadSessions, updateSessions } from './sessions.ts';
 import { fetchDiff } from './scanner.ts';
 import { validateWorkerResult, parseTerminalResult, classifyRunOutcome } from './rules.ts';
 import { sensitivityPrompt } from './sensitivity.ts';
+import { assembleWorkerPrompt, renderPrompt, renderFailingChecks } from './prompt.ts';
+import type { PromptContext } from './prompt.ts';
 import { logger } from './log.ts';
 import type { Logger } from './log.ts';
-import type { Pr, Thread, WorkerResult, BranchHealth, Check } from './types.ts';
+import type { Pr, Thread, WorkerResult, BranchHealth } from './types.ts';
 
 const exec = promisify(execFile);
 const log = logger('worker');
@@ -201,50 +203,16 @@ export async function runWorker(
   opts.lastSeenSha = lastSeenSha;
 
   const rules = await readFile(new URL('./worker-prompt.md', import.meta.url), 'utf8');
-  const pushNote = opts.detached
-    ? `\nPush mode: DETACHED HEAD — commit then \`git push origin ${opts.pushRefspec}\`. Do not switch branches.`
-    : `\nPush mode: on branch ${pr.headRefName} — commit then \`git push\`.`;
 
-  let head;
+  // First run only: build durable understanding of the whole PR from its full diff. This
+  // intelligence carries to every future resume, so we never re-send the diff again.
+  let diffMode: 'inline' | 'truncated' | 'none' = 'none';
+  let diffSlot = '';
   if (isNew) {
-    // First run: build durable understanding of the whole PR. This intelligence
-    // carries to every future resume, so we never re-send the full diff again.
     const diff = await fetchDiff(pr.nameWithOwner, pr.number);
-    const diffBlock = diff?.diff
-      ? `\n## Familiarize yourself with this PR FIRST\nThis is the PR diff. Read it and open the changed files in the worktree so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\n\`\`\`diff\n${diff.diff}\n\`\`\``
-      : diff?.truncated
-        ? `\n## Familiarize yourself with this PR FIRST\nThe diff is too large to inline. Open these changed files in the worktree and read them so you understand what this PR does and which choices are deliberate. You will REMEMBER this understanding for every future round — it is not sent again.\nChanged files:\n${(diff.files || []).join('\n')}`
-        : '';
-    head = [rules, diffBlock];
-  } else if (opts.applyApproved) {
-    // Apply-approved resume: the user signed off on an approach you proposed on
-    // the threads below. This is NOT fresh triage — carry out that approach as a
-    // normal fix (pick up your own prior analysis); re-ground on volatile state first.
-    const since = opts.lastSeenSha;
-    head = [
-      'APPLY-APPROVED RUN. The user APPROVED an approach you previously proposed on the thread(s) below — it is no longer a surface. Carry it out NOW as a normal fix (make the change, commit, push, reply `fixed`, leave the thread open). You already reasoned about these threads; pick up that analysis rather than re-deriving it.',
-      since
-        ? `To re-ground first: run \`git diff ${since}..HEAD\` in the worktree to see what moved since your last run, then re-read the files for these threads as they are NOW.`
-        : `To re-ground first: re-read the files for these threads as they are NOW (the branch may have moved).`,
-    ];
-  } else {
-    // Resume: the session already understands the PR. Send only the delta and
-    // re-ground on volatile state — the worktree was just `git pull`ed, and
-    // `git diff <since>..HEAD` shows what moved since you last looked.
-    const since = opts.lastSeenSha;
-    head = [
-      'RESUME RUN. New reviewer feedback arrived on this PR. You already understand this PR from earlier rounds — do NOT re-read everything; just re-ground on the delta.',
-      since
-        ? `Run \`git diff ${since}..HEAD\` in the worktree to see ONLY what moved since your last run, then re-read just the files touched by the new threads as they are NOW.`
-        : `Re-read just the files referenced by the new threads, as they are NOW (the branch may have moved).`,
-    ];
+    if (diff?.diff) { diffMode = 'inline'; diffSlot = diff.diff; }
+    else if (diff?.truncated) { diffMode = 'truncated'; diffSlot = (diff.files || []).join('\n'); }
   }
-
-  // Recovered resume: the daemon found this PR flagged as interrupted and hard-reset the
-  // worktree to the remote tip before relaunching (see ensureWorktree recover). Tell the
-  // session up front so it doesn't trust a stale memory of edits that are no longer on disk.
-  if (opts.recovered && !isNew)
-    head.unshift(`NOTE: your previous run on this PR was interrupted before it finished and the worktree was reset to origin/${pr.headRefName}, so any uncommitted changes from that run are gone — re-read the current files before acting.`);
 
   const bh: Partial<BranchHealth> = opts.branchHealth || {};
   // The PR's base branch (from the scan). The worker MUST rebase onto the REMOTE
@@ -252,41 +220,38 @@ export async function runWorker(
   // branch lags origin, so `git rebase main` rebases onto a stale base and misses
   // the real conflict GitHub reports. Default to main only if the scan lacked it.
   const base = pr.baseRefName || 'main';
-  const healthBlock = (bh.mergeState || bh.checkState)
-    ? `\n## Branch health\nmergeable=${bh.mergeable} mergeState=${bh.mergeState} checks=${bh.checkState}`
-      + ((bh.failingChecks || []).length ? `\nfailing checks:\n${(bh.failingChecks || []).map((c: Check) => {
-        // Surface the GitHub Actions run id (parsed from the check's detailsUrl) + the
-        // exact rerun command, so the worker can bounce a flaky/infra failure without
-        // hand-parsing the URL. Non-Actions checks (no run id) just omit the hint.
-        const runId = (c.url || '').match(/\/actions\/runs\/(\d+)/)?.[1];
-        return `- ${c.name} [${c.state}] ${c.url || ''}${runId ? ` — rerun: gh run rerun ${runId} --failed` : ''}`;
-      }).join('\n')}` : '')
-      + (opts.rebase
-        ? `\nREBASE this run: YES — the branch conflicts with its base (${base}). Run \`git rebase origin/${base}\` — onto the REMOTE base origin/${base}, NOT a local ref (your local ${base} would be stale and hide the conflict). Do NOT run \`git fetch\` yourself: the daemon already fetched origin/${base} for you under a per-clone lock, and a second concurrent fetch on the shared clone would race on its refs. Resolve the conflicts; if it applies cleanly, push with \`--force-with-lease\`. If the conflicts are NOT trivial to resolve safely, STOP and surface it via \`branchHealth.surfaced\` — do not guess through a messy merge.`
-        : `\nREBASE this run: NO — do not rebase. Fix CI only if it's caused by your changes (see "Branch health" in the house rules).`)
-    : '';
-  const threadsHeading = opts.applyApproved
-    ? `\n## Approved threads — execute the approach you proposed on each`
-    : `\n## New/changed unresolved threads`;
-  const threadsBlock = newThreads.length
-    ? `${threadsHeading}\n${JSON.stringify(newThreads, null, 2)}`
-    : `\n## No new review threads this run — you were dispatched for branch health only.`;
-  // Worker-sensitivity dial (config.workerSensitivity, set live from Settings): tunes how
-  // much this run resolves itself vs. surfaces. Injected EVERY run (new + resume) so a
-  // changed level takes effect on the next dispatch; the level's own text restates the
-  // rebase floor so a high level can't read as "ignore the floor". See sensitivity.mjs.
-  const sensBlock = `\n## How much to surface vs. handle yourself\n${sensitivityPrompt(config.workerSensitivity)}`;
-  const task = [
-    ...head,
-    `\n## This task`,
-    `PR: ${pr.nameWithOwner}#${pr.number} — ${pr.title}`,
-    `Worktree: ${worktreePath}`,
-    pushNote.trimStart(),
-    `Write your result JSON to: ${outPath}`,
-    sensBlock,
-    healthBlock,
-    threadsBlock,
-  ].join('\n');
+
+  // Build the net prompt in ONE place (prompt.ts) so the Prompt-tracer renders the exact
+  // same structure. We resolve the live slots here (diff, threads JSON, sensitivity text,
+  // failing-check lines); the assembler owns the skeleton + every situational branch
+  // (run type, recovered prepend, push mode, rebase yes/no, threads vs branch-health-only).
+  // The `${x}` casts preserve worker.ts's original string coercion of null/undefined refs.
+  const ctx: PromptContext = {
+    runType: isNew ? 'first' : opts.applyApproved ? 'applyApproved' : 'resume',
+    recovered: !!opts.recovered && !isNew,
+    rules,
+    diffMode, diffSlot,
+    since: opts.lastSeenSha ?? null,
+    prRef: `${pr.nameWithOwner}#${pr.number} — ${pr.title}`,
+    worktreePath,
+    outPath,
+    detached: !!opts.detached,
+    pushRefspec: `${opts.pushRefspec}`,
+    headRefName: `${pr.headRefName}`,
+    // Worker-sensitivity dial (config.workerSensitivity, set live from Settings): injected
+    // EVERY run so a changed level takes effect next dispatch; its text restates the rebase
+    // floor so a high level can't read as "ignore the floor". See sensitivity.ts.
+    sensitivityText: sensitivityPrompt(config.workerSensitivity),
+    health: {
+      present: !!(bh.mergeState || bh.checkState),
+      mergeable: `${bh.mergeable}`, mergeState: `${bh.mergeState}`, checkState: `${bh.checkState}`,
+      failingChecks: (bh.failingChecks || []).length ? renderFailingChecks(bh.failingChecks || []) : '',
+      rebase: !!opts.rebase,
+      base,
+    },
+    threadsSlot: newThreads.length ? JSON.stringify(newThreads, null, 2) : null,
+  };
+  const task = renderPrompt(assembleWorkerPrompt(ctx));
 
   const args = isNew
     ? ['--session-id', id, '-p', task]

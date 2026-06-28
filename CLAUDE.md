@@ -43,7 +43,9 @@ truth for how the system is built. [SPEC.md](SPEC.md) is the behavior spec.
 ## Keep fixes localized
 
 Each concern has one home: routing in `placements.ts`, per-thread verdicts in
-`rules.ts`, the canonical record in `derive.ts`, lane composition + rendering in
-`adapt.ts`/`PRCard`. A routing fix is one change in `placements.ts` + a test; a worker
-fix stays in the worker layer. If a fix starts spreading across layers, stop and
-reconsider — keeping each concern in one home is what keeps the system maintainable.
+`rules.ts`, the canonical record in `derive.ts`, the worker prompt in `prompt.ts`
+(`assembleWorkerPrompt` — the worker renders it and the Prompt-tracer mirrors it; the
+React `PromptTracer` only renders), lane composition + rendering in `adapt.ts`/`PRCard`.
+A routing fix is one change in `placements.ts` + a test; a worker fix stays in the worker
+layer. If a fix starts spreading across layers, stop and reconsider — keeping each concern
+in one home is what keeps the system maintainable.

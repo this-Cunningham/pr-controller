@@ -131,3 +131,36 @@ export interface StateJson {
   settings?: Record<string, unknown>;
   sensitivityLevels?: unknown;
 }
+
+// ── Prompt tracer (GET /prompt-traces) ───────────────────────────────────────────────
+// Mirror of the daemon's prompt.ts types — the Prompt-tracer tab renders these. The
+// daemon assembles every trace from the SAME function the real worker uses, so the UI is
+// a pure renderer (no prompt logic here). Keep in lockstep with prompt.ts.
+
+/** Where a prompt block comes from — drives the tracer's colour coding. */
+export type PromptSource = 'const' | 'settings' | 'state';
+
+/** One labelled block of an assembled prompt. */
+export interface PromptSegment {
+  id: string;
+  src: PromptSource;
+  label: string;
+  body: string;
+}
+
+/** One named worker situation (first run, resume, rebase, …), templated. */
+export interface PromptTrace {
+  key: string;
+  label: string;
+  sub: string;
+  segments: PromptSegment[];
+}
+
+/** GET /prompt-traces response. `sensitivity`/`detached` echo the preview dials. */
+export interface PromptTracesResponse {
+  ok: boolean;
+  model: string;
+  sensitivity: number;
+  detached: boolean;
+  traces: PromptTrace[];
+}
