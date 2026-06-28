@@ -84,3 +84,8 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       contract drifted from object to nullable without a compile error). TS would catch contract
       drift across the module seams (sessions/paths/derive boundaries, worker-result shape,
       dispatcher opts).
+- [ ] Prompt tracer has prebaked scenarios which misses potential combinations a worker may see —
+      instead, filter chips/system config chips should map to real system states so the caller
+      controls the state passed in (remove or demote the `approaches` array to common-use presets).
+      Known gap: "interrupted session" + "resume/applyApproach" combos may not be covered by
+      existing scenarios.
