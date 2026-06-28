@@ -72,6 +72,12 @@ out (cross-org set + closed/merged PR). Two residuals can't be force-induced saf
       failure is clearly surfaced.
 - [ ] suggested approach could potentially be an array the agent can surface 1-3 approaches and we
       can select the best one in the "needs you" cards
+      — UI + wire contract DONE (2026-06-28 design pull): ThreadRow renders `thread.approaches`
+      (1–3) as selectable sage radio-cards with trade-off tags; `Approach`/`approaches?` are on
+      types.ts ThreadWithDisposition + wire.ts WireThread + adapt.ts passthrough. REMAINING (backend):
+      have the worker emit `approaches[]` on its action (worker-prompt.md output schema + worker.ts),
+      let rules.validateWorkerResult accept it (+ test), and copy `a.approaches` in derive.ts (+ test).
+      Until then the multi-approach UI is dormant (the daemon only sets the single `suggestedApproach`).
 - [ ] setup tools for agent workers, can they use jira cli to pull in ticket context while investigating pr
 - [ ] Convert the app to TypeScript — bugs are slipping through that static analysis would catch
       (e.g. the `readWorkerResult() !== null` always-true bug this session, where the return-shape

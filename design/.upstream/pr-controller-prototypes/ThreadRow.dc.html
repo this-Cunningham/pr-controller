@@ -50,6 +50,49 @@
 
   <sc-if value="{{ isInput }}" hint-placeholder-val="{{ false }}">
     <div>
+      <sc-if value="{{ showApproaches }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-card);padding:12px 13px">
+          <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3);margin-bottom:9px">{{ approachesEyebrow }}</div>
+
+          <sc-if value="{{ approachesChoosing }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ approachList }}" as="a" hint-placeholder-count="3">
+                  <button onClick="{{ a.onPick }}" style="{{ a.cardStyle }}" style-hover="border-color:var(--line-2)">
+                    <div style="display:flex;align-items:flex-start;gap:10px">
+                      <span style="{{ a.dotOuter }}"><span style="{{ a.dotInner }}"></span></span>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+                          <span style="font:600 13px var(--font-sans);color:var(--ink)">{{ a.title }}</span>
+                          <sc-if value="{{ a.hasTrade }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.03em;color:var(--ink-3)">{{ a.trade }}</span></sc-if>
+                        </div>
+                        <div style="margin-top:5px;font-size:13px;line-height:1.5;color:var(--ink-2);text-wrap:pretty">{{ a.body }}</div>
+                      </div>
+                    </div>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="margin-top:11px">
+                <x-import component-from-global-scope="DesignSystem_220c99.Button" variant="primary" on-click="{{ onApprove }}" hint-size="auto,40px">Approve selected</x-import>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ approachesStaged }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <div style="background:var(--surface);border:1px solid var(--auto-bg);border-left:2px solid var(--auto-fg);border-radius:5px;padding:10px 12px">
+                <div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">
+                  <span style="font:600 13px var(--font-sans);color:var(--ink)">{{ chosenTitle }}</span>
+                  <sc-if value="{{ chosenHasTrade }}" hint-placeholder-val="{{ false }}"><span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.03em;color:var(--ink-3)">{{ chosenTrade }}</span></sc-if>
+                </div>
+                <div style="margin-top:6px;font-size:13px;line-height:1.5;color:var(--ink-2);text-wrap:pretty">{{ chosenBody }}</div>
+              </div>
+              <x-import component-from-global-scope="DesignSystem_220c99.Confirmation" text="{{ stagedConfirmText }}" fg="var(--auto-fg)" on-undo="{{ onUnstage }}" hint-size="100%,24px"></x-import>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
       <sc-if value="{{ showApproach }}" hint-placeholder-val="{{ false }}">
         <div style="margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-card);padding:12px 13px">
           <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3);margin-bottom:7px">Suggested approach</div>
@@ -139,7 +182,7 @@ class Component extends DCLogic {
   // the real controller — that's where state + setters get hooked up.
   stubController() {
     const F = () => false, Z = () => 0, N = () => {};
-    return { approachStaged: F, approveApproach: N, unstageApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
+    return { approachStaged: F, approveApproach: N, unstageApproach: N, approachChoice: Z, chooseApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
   }
 
   // Build a GitHub blob deeplink from a thread's repo + "path:line" loc, e.g.
@@ -164,8 +207,6 @@ class Component extends DCLogic {
     const locUrl = t.url || this.buildLocUrl(t) || "#";
     const isLong = (t.body || "").length > 150;
     const bodyClamped = isLong && !this.state.bodyOpen;
-    const reply = this.state.draft == null ? (t.reply || "") : this.state.draft;
-
     const isInput = t.tag === "input";
     const isError = t.tag === "error";
     const isPending = t.tag === "pending";
@@ -175,10 +216,25 @@ class Component extends DCLogic {
       : t.tag === "fixed" ? "No action needed — waiting on the reviewer to confirm."
       : "No action needed — waiting on the reviewer.";
 
-    const showApproach = isInput && !!t.approach;
-    const showReply = isInput && !!t.reply;
+    // Multi-approach variant: thread.approaches = [{title, body, trade?, reply?}, …] (1–3)
+    const approaches = (isInput && Array.isArray(t.approaches) && t.approaches.length) ? t.approaches : null;
+    const choiceRaw = (approaches && c.approachChoice) ? c.approachChoice(id) : 0;
+    const choice = approaches ? Math.max(0, Math.min(approaches.length - 1, choiceRaw || 0)) : 0;
+    const chosen = approaches ? approaches[choice] : null;
+    const approachesStagedB = !!approaches && c.approachStaged(id);
+
+    const showApproach = isInput && !approaches && !!t.approach;   // legacy single approach
+    const showReply = isInput && (!!t.reply || (approaches && approaches.some((a) => a.reply)));
     const approachStaged = isInput && c.approachStaged(id);
     const replySent = isInput && c.replySent(id);
+
+    const optBase = { textAlign: "left", cursor: "pointer", width: "100%", background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: "5px", padding: "11px 12px", transition: "border-color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease)" };
+    const optSel = { ...optBase, border: "1px solid var(--auto-fg)", background: "var(--auto-bg)" };
+    const dotOuter = (sel) => ({ flex: "none", marginTop: "2px", width: "13px", height: "13px", borderRadius: "50%", border: "1.5px solid " + (sel ? "var(--auto-fg)" : "var(--line-2)"), display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "border-color var(--dur-fast) var(--ease)" });
+    const dotInner = (sel) => ({ width: "6px", height: "6px", borderRadius: "50%", background: "var(--auto-fg)", opacity: sel ? 1 : 0, transition: "opacity var(--dur-fast) var(--ease)" });
+
+    const replyDefault = (chosen && chosen.reply) ? chosen.reply : (t.reply || "");
+    const reply = this.state.draft == null ? replyDefault : this.state.draft;
 
     return {
       // preview-only constraint when opened standalone (no real `thread` prop)
@@ -198,6 +254,24 @@ class Component extends DCLogic {
       showApproach,
       approachStaged,
       approachUnstaged: showApproach && !approachStaged,
+
+      // multi-approach
+      showApproaches: !!approaches,
+      approachesEyebrow: approachesStagedB ? "Approach staged" : "Suggested approaches · pick one",
+      approachesStaged: approachesStagedB,
+      approachesChoosing: !!approaches && !approachesStagedB,
+      approachList: approaches ? approaches.map((a, i) => ({
+        title: a.title, body: a.body, trade: a.trade, hasTrade: !!a.trade,
+        cardStyle: i === choice ? optSel : optBase,
+        dotOuter: dotOuter(i === choice),
+        dotInner: dotInner(i === choice),
+        onPick: () => { if (c.chooseApproach) c.chooseApproach(id, i); this.setState({ draft: null }); },
+      })) : [],
+      chosenTitle: chosen ? chosen.title : "",
+      chosenBody: chosen ? chosen.body : "",
+      chosenTrade: chosen ? chosen.trade : "",
+      chosenHasTrade: !!(chosen && chosen.trade),
+      stagedConfirmText: chosen ? ("\u2713 \u201c" + chosen.title + "\u201d staged \u2014 runs with this PR\u2019s next agent run.") : "\u2713 Approach staged.",
       showReply,
       replySent,
       replyUnsent: showReply && !replySent,

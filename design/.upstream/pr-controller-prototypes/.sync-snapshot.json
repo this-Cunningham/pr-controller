@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generatedFrom": "design/.upstream/pr-controller-prototypes",
+  "generatedFrom": "../../../../PR Controller prototypes (2)",
   "ds": {
     "format": 3,
     "sourceHashes": {
@@ -13,7 +13,7 @@
       "components/core/Toggle.jsx": "323769b914fe",
       "components/feedback/Confirmation.jsx": "9c81dd82ed06",
       "components/feedback/EmptyState.jsx": "ee1bbe09729e",
-      "components/feedback/OrganicLoader.jsx": "1228cfeae5f2",
+      "components/feedback/OrganicLoader.jsx": "1ed1d4feafa0",
       "components/feedback/Skeleton.jsx": "22537c52e63c",
       "components/feedback/Toast.jsx": "dcafec14413a",
       "components/navigation/ScopeBadge.jsx": "dccad81e40e0",
@@ -191,6 +191,6 @@
     }
   },
   "product": {
-    "changelogLatest": 3
+    "changelogLatest": 20
   }
 }

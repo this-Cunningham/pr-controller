@@ -1,14 +1,14 @@
-/* Settings overlay shell — a scrim-backed modal with a three-tab body, mirroring the
-   settings overlay in PR Controller.dc.html: 'Agent setup', 'Worker sensitivity', and
-   'Appearance' (default-view + theme cards). Each panel carries its own card chrome; this
-   file is the scrim + header + tab row + the Appearance preference cards. */
+/* Settings overlay shell — a scrim-backed modal with a four-tab body, mirroring the
+   settings overlay in PR Controller.dc.html: 'Agent setup', 'Worker sensitivity',
+   'Prompt tracer', and 'Appearance' (default-view + theme cards). Each panel carries its
+   own card chrome; this file is the scrim + header + tab row + the Appearance preference cards. */
 .backdrop {
   composes: ws-appear from global; /* scrim fade-in; keyframe lives in base.css */
   position: fixed;
   inset: 0;
   z-index: 80;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-start;
   justify-content: center;

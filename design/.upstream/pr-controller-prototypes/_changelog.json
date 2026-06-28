@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "latest": 20,
+  "entries": [
+    {
+      "v": 20,
+      "kind": "edit",
+      "files": [
+        { "path": "ThreadRow.dc.html", "op": "modified", "note": "Recolored the suggested-approaches selection from accent/persimmon to sage/green (--auto-fg/--auto-bg) for the option cards, radio dots, and staged block." }
+      ]
+    },
+    {
+      "v": 19,
+      "kind": "edit",
+      "files": [
+        { "path": "ThreadRow.dc.html", "op": "modified", "note": "Added a multi-approach variant: when a thread carries approaches[] (1-3), renders selectable radio-cards with trade-off tags; the chosen one drives the drafted reply and is staged on approve." },
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Added approachChoice/chooseApproach to the controller, taught stagedCount/runAgent to count approaches[], and gave the SSO dispute thread three suggested approaches." },
+        { "path": "PRCard.dc.html", "op": "modified", "note": "Extended the stub controller with approach-choice methods and updated the standalone sample thread to the multi-approach shape." }
+      ]
+    },
+    {
+      "v": 18,
+      "kind": "edit",
+      "files": [
+        { "path": "Prompt Tracer.dc.html", "op": "added", "note": "Renamed file Net Prompt.dc.html → Prompt Tracer.dc.html." },
+        { "path": "Net Prompt.dc.html", "op": "removed", "note": "Renamed to Prompt Tracer.dc.html." },
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Updated the dc-import to the renamed Prompt Tracer DC." }
+      ]
+    },
+    {
+      "v": 17,
+      "kind": "edit",
+      "files": [
+        { "path": "Net Prompt.dc.html", "op": "modified", "note": "Reverted the template/placeholder rework back to the original concrete-scenario version per user; kept the 'Prompt tracer' eyebrow name." }
+      ]
+    },
+    {
+      "v": 16,
+      "kind": "edit",
+      "files": [
+        { "path": "Net Prompt.dc.html", "op": "modified", "note": "Reworked live blocks to use template placeholder slots (<pr.thread> etc.) instead of baking in a specific PR, added a Template/Example-values toggle, and renamed the panel eyebrow to 'Prompt tracer'." },
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Renamed the settings tab to 'Prompt tracer' to match." }
+      ]
+    },
+    {
+      "v": 15,
+      "kind": "edit",
+      "files": [
+        { "path": "Net Prompt.dc.html", "op": "added", "note": "New settings tab showing the fully-assembled 'net prompt' a worker receives, with a scenario picker and source-tagged blocks (constant / from settings / live PR state) to reveal how it varies by PR, thread, CI and conflict state." },
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Added 'Net prompt' tab to the Settings modal wiring in the new Net Prompt DC." }
+      ]
+    },
+    {
+      "v": 14,
+      "kind": "edit",
+      "files": [
+        { "path": "PRCard.dc.html", "op": "modified", "note": "Enlarged the 'scan' Callout loader from 30px to 40px." }
+      ]
+    },
+    {
+      "v": 13,
+      "kind": "edit",
+      "files": [
+        { "path": "PRCard.dc.html", "op": "modified", "note": "Removed the manual loaderPhase workaround now that OrganicLoader self-staggers automatically per instance." }
+      ]
+    },
+    {
+      "v": 12,
+      "kind": "base-sync",
+      "baseUpdatedAt": "2026-06-27",
+      "note": "pulled base DS with the OrganicLoader desync fix (reads inline animation value, caches base delay) + rebuilt bundle — components, tokens, styles.css, _ds_bundle.js, manifest."
+    },
+    {
+      "v": 11,
+      "kind": "edit",
+      "files": [
+        { "path": "PRCard.dc.html", "op": "modified", "note": "Enlarged the 'scan' Callout loader from 22px to 30px." }
+      ]
+    },
+    {
+      "v": 10,
+      "kind": "base-sync",
+      "baseUpdatedAt": "2026-06-27",
+      "note": "pulled base DS after an upstream change — tokens, components, guidelines, assets, styles.css, _ds_bundle.js, manifest, readme, SKILL."
+    },
+    {
+      "v": 9,
+      "kind": "edit",
+      "files": [
+        { "path": "PRCard.dc.html", "op": "modified", "note": "Switched the agent-working/branch-conflict Callout OrganicLoader from 'ripple' to 'scan' blob variant; added a deterministic per-PR loader phase so cards desync." }
+      ]
+    },
+    {
+      "v": 8,
+      "kind": "base-sync",
+      "baseUpdatedAt": "2026-06-27",
+      "note": "pulled base DS — tokens, components, guidelines, assets, styles.css, _ds_bundle.js, manifest, readme, SKILL."
+    },
+    {
+      "v": 7,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Reverted all sticky settings-modal header/tab changes back to non-sticky." }
+      ]
+    },
+    {
+      "v": 6,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Made the whole settings modal header (title + close/esc) sticky along with the tab nav so none of it moves on scroll." }
+      ]
+    },
+    {
+      "v": 5,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Made the settings modal tab nav sticky to the top of the scroll area per Chris's comment." }
+      ]
+    },
+    {
+      "v": 4,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Increased settings modal backdrop blur from 2px to 8px per Chris's comment." }
+      ]
+    },
+    {
+      "v": 3,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Split settings modal into three tabs — 'Appearance' (default view + theme), 'Agent setup', and 'Worker sensitivity'." }
+      ]
+    },
+    {
+      "v": 2,
+      "kind": "edit",
+      "files": [
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Added tabs to the settings modal — 'General' (default view, theme, agent setup) and 'Worker sensitivity' — moving the sensitivity panel onto its own tab." }
+      ]
+    },
+    {
+      "v": 1,
+      "kind": "edit",
+      "files": [
+        { "path": "Header.dc.html", "op": "added", "note": "New 'actively working' On/Off header control with Off/On/winding-down states, stones loader for winding-down, toggle above a right-aligned subtext." },
+        { "path": "PR Controller.dc.html", "op": "modified", "note": "Swapped the On/Off working toggle into the dashboard and swimlanes headers, moved the Dashboard/Swimlanes view toggle into Settings as 'Default view', and moved Worker Sensitivity to the top of the settings panel under Theme." }
+      ]
+    }
+  ]
+}

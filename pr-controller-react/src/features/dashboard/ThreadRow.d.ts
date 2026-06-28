@@ -1,5 +1,17 @@
 import * as React from "react";
 
+/** One agent-drafted approach in the multi-approach variant (`input` threads). */
+export interface Approach {
+  /** Short label for the approach, e.g. "Keep the guard, add SSO above it". */
+  title: string;
+  /** The approach description. */
+  body: string;
+  /** Optional trade-off tag, e.g. "safest · +1 branch". */
+  trade?: string;
+  /** Optional drafted reply this approach pre-fills into the editable reply box. */
+  reply?: string;
+}
+
 export interface Thread {
   id: string;
   /** Agent disposition. Routes the item to a tab:
@@ -16,6 +28,9 @@ export interface Thread {
   reasonFull?: string;
   /** `input` only: an agent-drafted code approach. Approving stages it into the PR cart. */
   approach?: string;
+  /** `input` only: 1–3 agent-drafted approaches, rendered as selectable radio-cards.
+   *  Supersedes the single `approach` when present; the picked one is what onApprove stages. */
+  approaches?: Approach[];
   /** `input` only: an agent-drafted reply that pre-fills the (editable) reply box. */
   reply?: string;
 }
@@ -35,7 +50,8 @@ export interface ThreadRowProps {
   sentReplyText?: string;
   /** Whether a terminal session is open for this thread. */
   terminalOpen?: boolean;
-  onApprove?(): void;
+  /** Stage the approach. In the multi-approach variant the chosen index is passed. */
+  onApprove?(approachIndex?: number): void;
   onUnstage?(): void;
   /** Send the (edited) reply. Return false to reject (e.g. empty input). */
   onSendReply?(text: string): boolean | void;

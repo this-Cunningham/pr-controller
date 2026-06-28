@@ -56,7 +56,7 @@
             <div style="margin-top:13px">
               <x-import component-from-global-scope="DesignSystem_220c99.Callout" tone="active" hint-size="100%,56px">
                 <span style="display:flex;align-items:center;gap:11px">
-                  <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="ripple" size="{{ 22 }}" hint-size="22px,22px"></x-import>
+                  <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="scan" size="{{ 40 }}" hint-size="40px,40px"></x-import>
                   <span style="color:var(--auto-fg)">{{ item.agentText }}</span>
                 </span>
               </x-import>
@@ -68,7 +68,7 @@
               <sc-if value="{{ item.branchConflict }}" hint-placeholder-val="{{ false }}">
                 <x-import component-from-global-scope="DesignSystem_220c99.Callout" tone="active" hint-size="100%,56px">
                   <span style="display:flex;align-items:center;gap:11px">
-                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="ripple" size="{{ 22 }}" hint-size="22px,22px"></x-import>
+                    <x-import component-from-global-scope="DesignSystem_220c99.OrganicLoader" variant="scan" size="{{ 40 }}" hint-size="40px,40px"></x-import>
                     <span style="color:var(--auto-fg)">{{ item.conflictText }}</span>
                   </span>
                 </x-import>
@@ -178,15 +178,24 @@ class Component extends DCLogic {
   SAMPLE_ITEMS = [{ kind: "thread", thread: { id: "s1", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
     body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. Please keep the guard.",
     reasonSummary: "Reviewer disputes the change — needs your judgment.",
-    reasonFull: "The agent can’t tell whether SSO replaces that path or sits beside it — a product call, so it surfaced the thread with a drafted reply.",
-    approach: "Keep the expired-token guard and add the SSO branch above it, so silent re-auth keeps working alongside SSO.",
-    reply: "Good catch — SSO sits alongside the existing refresh path. I’ll keep the expired-token guard and add the SSO branch above it." }}];
+    reasonFull: "The agent can’t tell whether SSO replaces that path or sits beside it — a product call, so it drafted a few ways forward.",
+    approaches: [
+      { title: "Keep the guard, layer SSO above it", trade: "smallest change",
+        body: "Leave the expired-token guard as-is and add the SSO branch above it, so silent re-auth keeps working alongside SSO.",
+        reply: "Good catch — SSO sits alongside the existing refresh path. I’ll keep the expired-token guard and add the SSO branch above it." },
+      { title: "Unify both into one token resolver", trade: "cleanest long-term",
+        body: "Fold refresh and SSO into one resolver that tries SSO first, then falls back to refresh — one code path, no early return.",
+        reply: "I’ll unify both into one token resolver that tries SSO then falls back to refresh — same behavior, less to maintain." },
+      { title: "Gate SSO behind a feature flag", trade: "safest rollout",
+        body: "Land SSO behind a flag with the current refresh path as default, so nothing changes until we flip it on after verification.",
+        reply: "To de-risk, I’ll put SSO behind a flag with the current refresh path as default, and enable it once verified." },
+    ] }}];
   // No-op sample controller. The standalone file is a STATIC render (sample
   // data so it displays; durable actions are inert). The composed view passes
   // the real controller — that's where state + setters get hooked up.
   stubController() {
     const F = () => false, Z = () => 0, N = () => {};
-    return { approachStaged: F, approveApproach: N, unstageApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
+    return { approachStaged: F, approveApproach: N, unstageApproach: N, approachChoice: Z, chooseApproach: N, replySent: F, replyText: () => "", sendReply: N, undoReply: N, discuss: N, threadTerminalOpen: F, branchDetailsOpen: F, toggleBranchDetails: N, branchTerminalOpen: F, branchTerminal: N, jiraValue: () => null, setTicket: N, stagedCount: Z, running: F, runAgent: N };
   }
 
   renderVals() {

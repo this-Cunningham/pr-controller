@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/effects.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/tokens/base.css">
+  <link rel="stylesheet" href="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/styles.css">
+  <script src="_ds/wabi-sabi-design-system-b6b92dd7-9602-4f5c-8ee1-731fe945db55/_ds_bundle.js"></script>
+</helmet>
+<div style="{{ wrap }}">
+<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:24px 26px 22px">
+
+  <!-- header -->
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
+    <div style="min-width:0">
+      <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Prompt tracer</div>
+      <h2 style="margin:8px 0 0;font:600 19px/1.3 var(--font-sans);color:var(--ink);text-wrap:pretty">What each worker actually receives</h2>
+      <div style="margin-top:7px;font-size:13px;line-height:1.5;color:var(--ink-2);max-width:50ch;text-wrap:pretty">One assembled instruction, rebuilt per thread from a fixed skeleton, your settings, and the live state of the PR. Pick a situation to see what changes.</div>
+    </div>
+    <span style="flex:none;margin-top:2px"><x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="neutral" mono="{{ true }}" hint-size="auto,22px">{{ blockMeta }}</x-import></span>
+  </div>
+
+  <!-- scenario picker -->
+  <div style="margin-top:22px">
+    <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Pick a worker situation</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:8px;margin-top:11px">
+      <sc-for list="{{ scenarios }}" as="sc" hint-placeholder-count="5">
+        <button onClick="{{ sc.onPick }}" style="{{ sc.style }}" style-hover="border-color:var(--line-2)">
+          <span style="display:block;font:600 12.5px var(--font-sans);color:var(--ink)">{{ sc.label }}</span>
+          <span style="display:block;margin-top:4px;font-family:var(--font-mono);font-size:10px;line-height:1.4;color:var(--ink-3);text-wrap:pretty">{{ sc.sub }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- feeding chips -->
+  <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+    <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Feeding this prompt</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:11px">
+      <sc-for list="{{ feedChips }}" as="chip" hint-placeholder-count="5">
+        <x-import component-from-global-scope="DesignSystem_220c99.Badge" tone="{{ chip.tone }}" mono="{{ chip.mono }}" hint-size="auto,22px">{{ chip.label }}</x-import>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- sensitivity inline control -->
+  <div style="margin-top:18px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Sensitivity policy <span style="color:var(--ink-3);opacity:.7;text-transform:none;letter-spacing:0">· from your settings</span></div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--auto-fg)">rewrites the green block below</div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:10px;background:var(--surface-2);border-radius:var(--radius-control);padding:3px;width:max-content;max-width:100%">
+      <sc-for list="{{ levels }}" as="lv" hint-placeholder-count="5">
+        <button onClick="{{ lv.onPick }}" style="{{ lv.style }}">{{ lv.label }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- legend -->
+  <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:9px 18px">
+    <sc-for list="{{ legend }}" as="lg" hint-placeholder-count="3">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="{{ lg.swatch }}"></span>
+        <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)"><b style="{{ lg.nameStyle }}">{{ lg.name }}</b> — {{ lg.meaning }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- assembled prompt -->
+  <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:var(--tracking-eyebrow);text-transform:uppercase;color:var(--ink-3)">Net prompt sent to the worker</div>
+      <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--ink-2)">{{ promptMeta }}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px;margin-top:13px">
+      <sc-for list="{{ segments }}" as="seg" hint-placeholder-count="7">
+        <div style="{{ seg.cardStyle }}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 13px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+            <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)">{{ seg.label }}</span>
+            <span style="{{ seg.chipStyle }}">{{ seg.srcLabel }}</span>
+          </div>
+          <div style="padding:12px 14px;font-family:var(--font-mono);font-size:12px;line-height:1.65;color:var(--ink-2);white-space:pre-wrap;text-wrap:pretty">{{ seg.body }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- footnote -->
+  <div style="margin-top:14px;display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.5;color:var(--ink-3)">
+    <span style="flex:none;color:var(--accent)">◆</span>
+    <span style="text-wrap:pretty">Read-only — this is generated, not edited. Tune the green blocks in Worker sensitivity and Agent setup; the accent blocks come straight from each PR.</span>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:900},&quot;embedded&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  MODEL = "claude-sonnet-4";
+
+  LEVELS = [
+    { short: "Surface all", name: "Surface everything",
+      prompt: "For every reviewer thread, draft a reply but do NOT apply any change or send any response without explicit approval. Surface all feedback as “needs your input”, including mechanical nits. Never auto-resolve." },
+    { short: "Cautious", name: "Cautious",
+      prompt: "Auto-apply only purely mechanical changes (formatting, lint, renames, lockfile regen) and reply “fixed”. Surface everything that involves a judgment call as “needs your input” with a drafted reply." },
+    { short: "Balanced", name: "Balanced",
+      prompt: "Auto-apply mechanical changes and low-risk fixes the reviewer clearly requested. Surface product decisions, architecture changes, and anything altering runtime behavior as “needs your input”, with a drafted reply or proposed approach." },
+    { short: "Trusting", name: "Trusting",
+      prompt: "Resolve most review feedback end-to-end, including moderate refactors and config changes, and reply on my behalf. Only surface high-impact disputes (security, data integrity, public API or contract changes) and risky migrations." },
+    { short: "Autonomous", name: "Fully autonomous",
+      prompt: "Resolve, reply to, and push fixes for all reviewer feedback without asking. Make the product call yourself when intent is reasonably clear. Only stop and surface to me when a rebase is aborted or the conflict is too complex to resolve safely." },
+  ];
+
+  SCEN = [
+    {
+      key: "dispute", label: "Disputed change",
+      sub: "conflict · CI red · surfaced to you",
+      repo: "acme/web-app", num: 2412, title: "Refactor auth middleware to support SSO",
+      review: "Review required", baseText: "12 commits behind main", checksLine: "unit-api failing",
+      ci: [{ name: "unit-api", mode: "attention" }],
+      conflict: "This branch conflicts with main in src/auth/middleware.ts — the overlap is exactly the token-refresh guard the reviewer is defending. Non-trivial; do not auto-resolve.",
+      missingTicket: false,
+      thread: { author: "@dana-k", loc: "src/auth/middleware.ts:88",
+        body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard." },
+      output: "→ SURFACE — this is the human's call. Change nothing and post nothing to the reviewer yet. Return a one-line reason plus a drafted reply they can edit and send.\nOutcome on the board: “needs your input”.",
+      chips: [{ label: "12 behind base" }, { label: "CI red: unit-api" }, { label: "merge conflict" }],
+    },
+    {
+      key: "nit", label: "Mechanical nit",
+      sub: "clean PR · auto-applied",
+      repo: "acme/web-app", num: 2399, title: "Bump lodash to 4.17.21",
+      review: "Approved", baseText: "even with main", checksLine: "all green",
+      ci: [], conflict: null, missingTicket: false,
+      thread: { author: "@deps-bot", loc: "package.json:24",
+        body: "Lockfile is out of sync with package.json." },
+      output: "→ RESOLVE — mechanical and clearly requested. Regenerate the lockfile, reply “fixed” on the thread, and leave it open for @deps-bot to confirm.\nOutcome on the board: “agent fixed · waiting”.",
+      chips: [{ label: "clean · approved", tone: "active" }],
+    },
+    {
+      key: "arch", label: "Architecture call",
+      sub: "draft · ignored CI · drafts an approach",
+      repo: "acme/data-pipeline", num: 874, title: "Add backfill job for the events table",
+      review: "Draft", baseText: "even with main", checksLine: "lint failing (ignored by your rules)",
+      ci: [{ name: "lint", mode: "ignore" }], conflict: null, missingTicket: true,
+      thread: { author: "@priya", loc: "jobs/backfill.py:55",
+        body: "Backfilling synchronously will hold a lock on events for hours in prod. This needs to be chunked with checkpoints, or run against a replica. I’d block on this." },
+      output: "→ SURFACE with a proposed approach. The fix changes runtime behavior, so apply nothing. Return a one-line reason and a drafted approach — chunked checkpoints against a read replica — for approval.\nOutcome on the board: “needs your input · approach drafted”.",
+      chips: [{ label: "draft" }, { label: "CI: lint (ignored)" }, { label: "no ticket" }],
+    },
+    {
+      key: "rebase", label: "Rebase conflict",
+      sub: "rename clash · stopped at the floor",
+      repo: "acme/design-system", num: 561, title: "Tokenize the spacing scale",
+      review: "Review required", baseText: "3 commits behind main", checksLine: "all green",
+      ci: [],
+      conflict: "A rebase onto main surfaced a rename/rename conflict in tokens/spacing.json — both branches renamed the same keys. Choosing a side would silently drop one rename, so by the floor above you must stop and surface, not pick a winner.",
+      missingTicket: false,
+      thread: { author: "@lee", loc: "tokens/spacing.json:12",
+        body: "Base unit should be four px, not five — matches the grid." },
+      output: "→ SURFACE the rebase. The @lee nit is mechanical and you'd normally just fix it, but the rename clash blocks a clean rebase and trips the floor. Stop, summarize the conflict, and hand it back.\nOutcome on the board: “rebase — needs you”.",
+      chips: [{ label: "3 behind base" }, { label: "rebase conflict" }],
+    },
+    {
+      key: "error", label: "Unclassifiable failure",
+      sub: "CI parse error · agent stuck",
+      repo: "acme/api", num: 990, title: "Add rate limiting to the public API",
+      review: "Review required", baseText: "even with main", checksLine: "1 workflow failed to start",
+      ci: [], conflict: null, missingTicket: false,
+      thread: { author: "@ci-bot", loc: ".github/workflows/ci.yml:30",
+        body: "Step “cache restore” failed to parse — unexpected key “path” at line 30." },
+      output: "→ CANNOT CLASSIFY. The run failed before any review ran, with a YAML parse error you don't have enough context to fix safely. Don't guess. Mark agent-error and open a terminal for the human.\nOutcome on the board: “agent error”.",
+      chips: [{ label: "workflow parse error", tone: "error" }],
+    },
+  ];
+
+  SRC = {
+    const:    { label: "constant",        color: "var(--ink-3)",  bg: "var(--surface-2)", fg: "var(--ink-3)" },
+    settings: { label: "from settings",   color: "var(--auto-fg)", bg: "var(--auto-bg)",  fg: "var(--auto-fg)" },
+    state:    { label: "this PR’s state", color: "var(--accent)",  bg: "var(--accent-bg)", fg: "var(--accent)" },
+  };
+
+  state = { sel: "dispute", level: 2 };
+
+  buildSegments(sc, L) {
+    const segs = [];
+    segs.push({ src: "const", label: "Worker role",
+      body: `You are a PR-review worker on ${sc.repo}, running ${this.MODEL}. A teammate owns this pull request; you act on their behalf. Take the one open reviewer thread below and decide — under the policy — whether to resolve it yourself or bring it back for their judgment.` });
+
+    segs.push({ src: "settings", label: "Sensitivity policy — " + L.name, body: L.prompt });
+
+    segs.push({ src: "const", label: "Hard floor",
+      body: "An aborted or complex rebase always stops for the human. This floor sits above the policy — never resolve a conflict you are not certain of." });
+
+    if (sc.ci && sc.ci.length) {
+      const lines = sc.ci.map((c) => c.mode === "ignore"
+        ? `• ${c.name} is red — your rules mark it ignore, so don't block on it or comment about it.`
+        : `• ${c.name} is red — your rules mark it needs-you, so treat it as blocking.`);
+      segs.push({ src: "settings", label: "Status-check rules",
+        body: "Failing checks on this PR, read against your check rules:\n" + lines.join("\n") });
+    }
+
+    segs.push({ src: "state", label: "Pull-request state",
+      body: [`${sc.repo} #${sc.num} — “${sc.title}”`, `Review: ${sc.review}`, `Base: ${sc.baseText}`, `Checks: ${sc.checksLine}`].join("\n") });
+
+    if (sc.conflict) segs.push({ src: "state", label: "Merge / rebase state", body: sc.conflict });
+
+    if (sc.missingTicket) segs.push({ src: "state", label: "Tracker",
+      body: "No issue ticket is linked to this PR. Surface that to the human — do not invent or guess a ticket id." });
+
+    segs.push({ src: "state", label: "Reviewer thread",
+      body: `${sc.thread.author} commented at ${sc.thread.loc}:\n“${sc.thread.body}”` });
+
+    segs.push({ src: "const", label: "Expected output", body: sc.output });
+
+    return segs;
+  }
+
+  renderVals() {
+    const sel = this.SCEN.find((s) => s.key === this.state.sel) || this.SCEN[0];
+    const L = this.LEVELS[this.state.level];
+
+    const scenBase = { textAlign: "left", cursor: "pointer", background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: "7px", padding: "10px 12px", transition: "border-color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease)" };
+    const scenActive = { ...scenBase, borderColor: "var(--accent)", background: "var(--accent-soft)" };
+
+    const segBase = { cursor: "pointer", border: "none", font: "500 11px var(--font-mono)", padding: "5px 9px", borderRadius: "var(--radius-control)", background: "transparent", color: "var(--ink-2)", whiteSpace: "nowrap", transition: "background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)" };
+    const segActive = { ...segBase, background: "var(--surface)", color: "var(--ink)", boxShadow: "var(--shadow-seg)" };
+
+    const segs = this.buildSegments(sel, L);
+    const tokens = Math.round(segs.reduce((n, s) => n + s.body.length + s.label.length, 0) / 4 / 5) * 5;
+
+    const feedChips = [
+      { label: `${sel.repo} #${sel.num}`, tone: "neutral", mono: true },
+      { label: this.MODEL, tone: "neutral", mono: true },
+      { label: "sensitivity: " + L.name, tone: "neutral", mono: false },
+      ...sel.chips.map((c) => ({ label: c.label, tone: c.tone || "urgent", mono: false })),
+    ];
+
+    return {
+      wrap: this.props.embedded ? {} : { minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "48px 20px", boxSizing: "border-box" },
+
+      blockMeta: segs.length + " blocks",
+      promptMeta: segs.length + " blocks · ~" + tokens + " tokens",
+
+      scenarios: this.SCEN.map((s) => ({
+        label: s.label, sub: s.sub,
+        style: s.key === this.state.sel ? scenActive : scenBase,
+        onPick: () => this.setState({ sel: s.key }),
+      })),
+
+      feedChips,
+
+      levels: this.LEVELS.map((lv, i) => ({
+        label: lv.short,
+        style: i === this.state.level ? segActive : segBase,
+        onPick: () => this.setState({ level: i }),
+      })),
+
+      legend: ["const", "settings", "state"].map((k) => {
+        const meaning = { const: "the skeleton every worker shares", settings: "your sensitivity & check rules", state: "the live thread, CI & conflicts" }[k];
+        return {
+          name: this.SRC[k].label, meaning,
+          nameStyle: { color: this.SRC[k].fg, fontWeight: 600 },
+          swatch: { width: "10px", height: "10px", borderRadius: "3px", background: this.SRC[k].color, flex: "none" },
+        };
+      }),
+
+      segments: segs.map((sg) => {
+        const m = this.SRC[sg.src];
+        return {
+          label: sg.label, body: sg.body, srcLabel: m.label,
+          cardStyle: { background: "var(--surface)", border: "1px solid var(--line)", borderLeft: "3px solid " + m.color, borderRadius: "7px", overflow: "hidden" },
+          chipStyle: { fontFamily: "var(--font-mono)", fontSize: "9px", letterSpacing: ".06em", textTransform: "uppercase", padding: "2px 7px", borderRadius: "4px", background: m.bg, color: m.fg, whiteSpace: "nowrap", flex: "none" },
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -21,6 +21,7 @@ import type {
   WirePr,
   WireThread,
   StateJson,
+  Approach,
 } from './wire.ts';
 
 // ── Adapter-output shapes (the DS prop shapes this file produces; the DS components are
@@ -53,6 +54,9 @@ interface AdaptedThread {
   reasonSummary: string;
   reasonFull?: string;
   approach?: string;
+  /** Multi-approach alternatives (input threads) — rendered as selectable radio-cards;
+   *  supersede the single `approach` when present. */
+  approaches?: Approach[];
   reply?: string;
 }
 
@@ -233,6 +237,7 @@ export function adaptThread(t: WireThread, { dispatched = false }: { dispatched?
     reasonSummary: summary,
     reasonFull,
     approach: t.suggestedApproach || undefined,
+    approaches: t.approaches && t.approaches.length ? t.approaches : undefined,
     reply: t.suggestedReply || undefined,
   };
 }

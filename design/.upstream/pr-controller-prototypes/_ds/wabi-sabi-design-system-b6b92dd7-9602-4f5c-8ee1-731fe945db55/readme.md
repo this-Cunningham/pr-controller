@@ -96,10 +96,11 @@ A one-line "reach for this when…" map across the set. Pick by the job, not the
 **State & labels**
 - **Badge** — an object's overall state or a small signal pill (`mono` for tracked status, plain for inline signals). `outline` is the draft / de-emphasized treatment.
 - **DispositionTag** — a row-level disposition as an uppercase tracked mono chip; `pending` (dashed) for not-started. Badge = the object; DispositionTag = the row.
+- **Toggle** — a binary on/off switch for an immediate, self-applying setting; on (sage), off (quiet hairline), disabled (dashed). One toggle = one setting.
 
 **Status surfaces**
 - **Callout** — the workhorse ambient-status box (left rule + optional dot): `urgent` / `active` / `neutral`, `pulse` only for live states. For anything longer than a status line, it's the wrong tool.
-- **OrganicLoader** — a waiting / pending beat; pick a variant by meaning, one on screen at a time.
+- **OrganicLoader** — a waiting / pending beat; pick a variant by meaning, one on screen at a time. The `seeker` / `forage` / `ponder` / `meld` blobs (and their louder cousins `diviner` / `rove` / `scry` / `swarm`) read as active, intelligent “working” states — use them when something is reasoning or searching, not just idling.
 - **Skeleton** — first-load placeholder before content exists (it already embeds a neutral loader). Use OrganicLoader directly for in-place waits once content is present.
 
 **Acknowledgment**
@@ -120,8 +121,8 @@ Urgency is a budget, not a palette: `urgent` / accent (the seal), a `pulse`, and
 - `tokens/` — `colors.css`, `typography.css`, `spacing.css`, `effects.css`, `fonts.css`, `base.css` (resets + keyframes).
 - `guidelines/` — foundation specimen cards (Colors, Type, Spacing, Motion, Brand).
 - `components/`
-  - `core/` — **Button**, **TextButton**, **Badge**, **DispositionTag**, **Callout**, **ThemeSwitcher**
-  - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**, **OrganicLoader** (eight quiet pending states)
+  - `core/` — **Button**, **TextButton**, **Badge**, **DispositionTag**, **Toggle**, **Callout**, **ThemeSwitcher**
+  - `feedback/` — **Toast**, **Confirmation**, **EmptyState**, **Skeleton**, **OrganicLoader** (nineteen quiet pending states — eight ambient + eleven seeker/working blobs)
   - `navigation/` — **Tabs**, **ScopeBadge**
   - each: `<Name>.jsx` + `<Name>.d.ts` + `<Name>.prompt.md`, plus one `*.card.html` per group.
 - `SKILL.md` — makes this folder usable as an Agent Skill.
