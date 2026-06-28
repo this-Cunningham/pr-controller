@@ -1,7 +1,7 @@
 import * as React from "react";
 
 export interface AgentWorkingProps {
-  /** The status line shown beside the ripple loader. */
+  /** The status line shown beside the scan loader. */
   children?: React.ReactNode;
 }
 

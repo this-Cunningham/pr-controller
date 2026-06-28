@@ -8,7 +8,7 @@ import styles from "./BranchStatus.module.css";
 /**
  * PR-level branch health, separate from per-thread actions. Generic by design — it
  * renders whatever branch state it's handed, so a new state is data, not new code:
- *   - tone="agent"     → the AgentWorking treatment (ripple loader, e.g. a rebase
+ *   - tone="agent"     → the AgentWorking treatment (scan loader, e.g. a rebase
  *                        running now).
  *   - tone="attention" → a boxed ◆ callout with optional "Show details" and action
  *                        buttons (e.g. Open in terminal, Rebase) — a "needs you" state.

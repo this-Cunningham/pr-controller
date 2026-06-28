@@ -1,4 +1,4 @@
-/* OrganicLoader — eight quiet pending glyphs in the Wabi-sabi motion language.
+/* OrganicLoader — the eight AMBIENT pending glyphs in the Wabi-sabi motion language.
    Motion is GLOBAL: the keyframes AND each glyph's `animation` shorthand live in
    tokens/base.css as `.ws-loader-*` utility classes, and every animated rule here
    pulls its own in with `composes: ws-loader-* from global`. (A bare `animation:
@@ -6,7 +6,10 @@
    transform rescopes the keyframe name, so it matches no global @keyframes.)
    Each variant carries its own default tone via `color`; the `tone` prop overrides
    it inline. SVG strokes, dot fills and the brush gradient all draw with
-   currentColor. Per-glyph delays are dynamic (inline, set per index). */
+   currentColor. Per-glyph delays are dynamic (inline, set per index).
+   The "working" blob/eye variants (seeker … veil) are NOT here — they live as inline
+   styles in OrganicLoader.jsx so the per-instance `phase` self-stagger can read their
+   `animation` shorthand (their keyframes are still global, in tokens/base.css). */
 .root {
   display: inline-flex;
   flex-direction: column;

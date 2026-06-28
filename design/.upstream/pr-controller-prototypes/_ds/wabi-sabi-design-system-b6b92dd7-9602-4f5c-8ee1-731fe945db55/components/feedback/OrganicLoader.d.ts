@@ -8,7 +8,18 @@ export type OrganicLoaderVariant =
   | "motes"
   | "reeds"
   | "kintsugi"
-  | "stones";
+  | "stones"
+  | "seeker"
+  | "diviner"
+  | "swarm"
+  | "vigil"
+  | "wisp"
+  | "sentinel"
+  | "drowse"
+  | "scan"
+  | "saccade"
+  | "comet"
+  | "veil";
 
 /** Token names the loader may be tinted with. */
 export type OrganicLoaderTone = "ink-2" | "auto-fg" | "accent";
@@ -26,6 +37,14 @@ export interface OrganicLoaderProps
    * variants; `brush`/`kintsugi` are meant to be shown at full width.
    */
   size?: number;
+  /**
+   * Phase offset into the (long) animation loop, 0–1. Each instance is
+   * auto-randomized on mount so identical loaders on a page drift out of
+   * sync rather than blinking in unison — pass an explicit value only when
+   * you want deterministic, repeatable offsets. Ignored under
+   * prefers-reduced-motion.
+   */
+  phase?: number;
   /**
    * Override the glyph color. Each variant has a semantically correct
    * default (sage for active, accent for urgent, ink for neutral) — set

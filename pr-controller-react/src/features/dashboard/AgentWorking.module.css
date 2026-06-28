@@ -1,5 +1,5 @@
 /* The "agent is live on this PR" treatment: a Callout (active tone) wrapping a
-   ripple OrganicLoader + a line of copy. The row lays the loader beside the text. */
+   `scan` OrganicLoader + a line of copy. The row lays the loader beside the text. */
 .row {
   display: flex;
   align-items: center;

@@ -98,6 +98,96 @@
   margin-top: 11px; /* off-scale */
 }
 
+/* Multi-approach: 1–3 selectable radio-cards. The selected card / dot use the sage
+   "auto" tone (--auto-fg / --auto-bg), matching the staged-approach treatment. */
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px; /* off-scale */
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 5px; /* off-scale */
+  padding: 11px 12px; /* off-scale */
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.option:hover {
+  border-color: var(--line-2);
+}
+.option[data-selected="true"] {
+  border-color: var(--auto-fg);
+  background: var(--auto-bg);
+}
+.optionDot {
+  flex: none;
+  margin-top: 2px; /* off-scale */
+  width: 13px; /* off-scale */
+  height: 13px; /* off-scale */
+  border-radius: 50%;
+  border: 1.5px solid var(--line-2); /* off-scale */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.optionDot[data-selected="true"] {
+  border-color: var(--auto-fg);
+}
+.optionDotInner {
+  width: 6px; /* off-scale */
+  height: 6px; /* off-scale */
+  border-radius: 50%;
+  background: var(--auto-fg);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.optionDot[data-selected="true"] .optionDotInner {
+  opacity: 1;
+}
+.optionMain {
+  flex: 1;
+  min-width: 0;
+}
+.approachTitleRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.approachTitle {
+  font: 600 13px var(--font-sans); /* off-scale */
+  color: var(--ink);
+}
+.approachTrade {
+  font-family: var(--font-mono);
+  font-size: 10px; /* off-scale */
+  letter-spacing: 0.03em; /* off-scale */
+  color: var(--ink-3);
+}
+.approachBody {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 13px; /* off-scale */
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+/* The chosen approach, shown once staged (sage left-rule). */
+.stagedApproach {
+  background: var(--surface);
+  border: 1px solid var(--auto-bg);
+  border-left: 2px solid var(--auto-fg);
+  border-radius: 5px; /* off-scale */
+  padding: 10px 12px; /* off-scale */
+}
+
 .replyQuote {
   margin-top: 11px; /* off-scale */
   background: var(--surface-2);

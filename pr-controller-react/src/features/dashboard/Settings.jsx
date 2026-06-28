@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ThemeSwitcher } from '../../design-system/core/ThemeSwitcher.jsx';
 import SettingsSetup from './SettingsSetup.jsx';
 import WorkerSensitivity from './WorkerSensitivity.jsx';
+import PromptTracer from './PromptTracer.jsx';
 import styles from './Settings.module.css';
 
 const THEME_KEY = 'pr-controller-theme';
@@ -10,13 +11,15 @@ const THEME_KEY = 'pr-controller-theme';
 const TABS = [
   { key: 'agent', label: 'Agent setup' },
   { key: 'sensitivity', label: 'Worker sensitivity' },
+  { key: 'prompt', label: 'Prompt tracer' },
   { key: 'appearance', label: 'Appearance' },
 ];
 
 /**
  * Settings overlay — opened by the header gear. Mirrors the settings overlay in the
- * PR Controller prototype: a scrim-backed modal whose body is a three-tab control —
- * 'Agent setup' (default), 'Worker sensitivity', and 'Appearance' (default view + theme).
+ * PR Controller prototype: a scrim-backed modal whose body is a four-tab control —
+ * 'Agent setup' (default), 'Worker sensitivity', 'Prompt tracer' (a read-only explainer
+ * of the net worker prompt), and 'Appearance' (default view + theme).
  * Each embedded panel is its own bordered card and POSTs its own save via `saveConfig`
  * (server-authoritative state.json `settings`). This shell owns only theme persistence,
  * the active tab, and dismissal. Closes on backdrop click / Escape / Close.
@@ -74,6 +77,8 @@ export default function Settings({ settings, sensitivityLevels, saveConfig, onCl
             {tab === 'sensitivity' && (
               <WorkerSensitivity sensitivityLevels={sensitivityLevels} settings={settings} saveConfig={saveConfig} />
             )}
+
+            {tab === 'prompt' && <PromptTracer />}
 
             {tab === 'appearance' && (
               <div className={styles.panel}>

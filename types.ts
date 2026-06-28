@@ -87,12 +87,25 @@ export interface Thread {
   errorKind?: 'rateLimit' | 'auth' | 'forbidden' | 'graphql' | 'other';
 }
 
+/** One agent-drafted approach in the multi-approach variant — 1–3 alternatives the
+ *  reviewer picks between on a `needsYourApproval` thread (the picked one is staged).
+ *  Supersedes the single `suggestedApproach` when present. The worker does not emit
+ *  these yet (see TODO.md); the wire contract carries them so the UI is reachable. */
+export interface Approach {
+  title: string;
+  body: string;
+  trade?: string;
+  reply?: string;
+}
+
 /** A thread after derive.deriveRecord has attached the worker's verdict. */
 export interface ThreadWithDisposition extends Thread {
   disposition: Disposition;
   reason: string;
   suggestedReply?: string;
   suggestedApproach?: string;
+  /** Multi-approach alternatives (supersede `suggestedApproach` when present). */
+  approaches?: Approach[];
 }
 
 /** One entry in the worker's result JSON `actions[]` (validated by rules.validateWorkerResult). */

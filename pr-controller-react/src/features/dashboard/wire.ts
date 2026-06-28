@@ -23,6 +23,16 @@ export type SubjectKind = 'thread' | 'jira' | 'branch' | 'live';
 /** Design-system short tag (styling only). */
 export type Tag = 'input' | 'fixed' | 'waiting' | 'pending' | 'praise' | 'error';
 
+/** One agent-drafted approach (multi-approach variant). Mirror of types.ts Approach —
+ *  keep in lockstep. The worker does not emit these yet; the contract is here so the
+ *  ThreadRow multi-approach UI is reachable the moment the daemon does. */
+export interface Approach {
+  title: string;
+  body: string;
+  trade?: string;
+  reply?: string;
+}
+
 export type LiveStatus = 'working' | 'rebasing';
 
 export interface Check {
@@ -56,6 +66,8 @@ export interface WireThread {
   reason?: string;
   suggestedReply?: string;
   suggestedApproach?: string;
+  /** Multi-approach alternatives (supersede `suggestedApproach` when present). */
+  approaches?: Approach[];
   error?: string;
   /** Set on a scan-error stub; the daemon emits it (root types.ts Thread) and adapt reads it
    *  to build the scan-error caption. Mirror of Thread.errorKind — keep in lockstep. */

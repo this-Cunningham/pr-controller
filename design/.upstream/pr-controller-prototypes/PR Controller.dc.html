@@ -129,7 +129,7 @@
   </sc-if>
 
   <sc-if value="{{ settingsOpen }}" hint-placeholder-val="{{ false }}">
-    <div onClick="{{ onCloseSettings }}" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 20px;animation:ws-appear .18s ease;overflow-y:auto">
+    <div onClick="{{ onCloseSettings }}" style="position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 20px;animation:ws-appear .18s ease;overflow-y:auto">
       <div onClick="{{ stopProp }}" style="position:relative;width:100%;max-width:640px;animation:modal-rise .22s var(--ease-out)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
           <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)">Settings</span>
@@ -170,6 +170,9 @@
         <sc-if value="{{ isSensitivityTab }}" hint-placeholder-val="{{ false }}">
           <dc-import name="Worker Sensitivity" embedded="{{ true }}" hint-size="100%,560px"></dc-import>
         </sc-if>
+        <sc-if value="{{ isNetPromptTab }}" hint-placeholder-val="{{ false }}">
+          <dc-import name="Prompt Tracer" embedded="{{ true }}" hint-size="100%,900px"></dc-import>
+        </sc-if>
       </div>
     </div>
   </sc-if>
@@ -207,8 +210,18 @@ class Component extends DCLogic {
         { id: "t1", tag: "input", loc: "src/auth/middleware.ts:88", author: "@dana-k",
           body: "This breaks the existing token-refresh path — we short-circuit on expired tokens so the client can silently re-auth. If you drop the early return, every expired request 500s instead of refreshing. Please keep the guard.",
           reasonSummary: "Reviewer disputes the change — needs your judgment.",
-          reasonFull: "The reviewer is right that the early return powers silent re-auth. The agent can’t tell whether SSO is meant to replace that path or sit beside it — that’s a product call, so it surfaced the thread with a drafted reply rather than guessing.",
-          reply: "Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it. Pushing a fix shortly." },
+          reasonFull: "The reviewer is right that the early return powers silent re-auth. The agent can’t tell whether SSO is meant to replace that path or sit beside it — that’s a product call, so it drafted three ways forward rather than guessing.",
+          approaches: [
+            { title: "Keep the guard, layer SSO above it", trade: "smallest change",
+              body: "Leave the expired-token guard exactly as-is and add the SSO branch above it, so silent re-auth keeps working untouched alongside SSO.",
+              reply: "Good catch — SSO sits alongside the existing refresh path, it doesn’t replace it. I’ll keep the expired-token guard and add the SSO branch above it. Pushing a fix shortly." },
+            { title: "Unify both into one token resolver", trade: "cleanest long-term",
+              body: "Fold the refresh and SSO paths into a single resolver that tries SSO first and falls back to refresh — one code path, no early return to reason about.",
+              reply: "Rather than branch, I’ll unify both into one token resolver that tries SSO then falls back to silent refresh — same behavior, less to maintain. Will push for another look." },
+            { title: "Gate SSO behind a feature flag", trade: "safest rollout",
+              body: "Land SSO behind a flag with the current refresh path as the default, so nothing changes for existing clients until we flip it on after verification.",
+              reply: "To de-risk, I’ll put SSO behind a flag with the current refresh path as default — no change to the guard now, and we enable it once it’s verified in staging." },
+          ] },
         { id: "t2", tag: "fixed", loc: "src/auth/sso.ts:142", author: "@marco",
           body: "Nit: use const here and destructure the config object instead of repeated property access.",
           reasonSummary: "Mechanical refactor — fixed and replied to the reviewer.",
@@ -276,16 +289,16 @@ class Component extends DCLogic {
       const n = this.activeRunCount();
       if (n > 0) {
         this.setState({ working: false, winding: true });
-        this.toast("Paused — finishing " + n + " task" + (n === 1 ? "" : "s"));
+        this.toast("Paused \u2014 finishing " + n + " task" + (n === 1 ? "" : "s"));
         clearTimeout(this._w);
         this._w = setTimeout(() => this.setState({ winding: false }), 3600);
       } else {
         this.setState({ working: false });
-        this.toast("Paused — resting");
+        this.toast("Paused \u2014 resting");
       }
     } else {
       this.setState({ working: true, winding: false });
-      this.toast("On — watching your PRs");
+      this.toast("On \u2014 watching your PRs");
     }
   }
 
@@ -337,6 +350,8 @@ class Component extends DCLogic {
       approachStaged: (id) => !!(st().ts[id] && st().ts[id].approachStaged),
       approveApproach: (id) => { self.tset(id, { approachStaged: true }); self.toast("Approach staged for the next agent run"); },
       unstageApproach: (id) => self.tset(id, { approachStaged: false }),
+      approachChoice: (id) => (st().ts[id] && st().ts[id].approachChoice) || 0,
+      chooseApproach: (id, idx) => self.tset(id, { approachChoice: idx }),
       replySent: (id) => !!(st().ts[id] && st().ts[id].replySent),
       replyText: (id) => (st().ts[id] || {}).replyText,
       sendReply: (id, text) => { const v = (text || "").trim(); if (!v) return false; self.tset(id, { replySent: true, replyText: v }); self.toast("Reply sent to the reviewer"); },
@@ -349,9 +364,9 @@ class Component extends DCLogic {
       branchTerminal: (prId) => self.bset(prId, { terminalOpen: true }),
       jiraValue: (prId) => st().jira[prId],
       setTicket: (prId, value) => { const v = (value || "").trim().toUpperCase(); if (!v) return false; self.setState({ jira: { ...st().jira, [prId]: v } }); self.toast("Linked to " + v); },
-      stagedCount: (prId) => { const pr = self.PRS.find((p) => p.id === prId); if (!pr) return 0; return (pr.threads || []).filter((t) => t.tag === "input" && t.approach && st().ts[t.id] && st().ts[t.id].approachStaged).length; },
+      stagedCount: (prId) => { const pr = self.PRS.find((p) => p.id === prId); if (!pr) return 0; return (pr.threads || []).filter((t) => t.tag === "input" && (t.approach || (Array.isArray(t.approaches) && t.approaches.length)) && st().ts[t.id] && st().ts[t.id].approachStaged).length; },
       running: (prId) => st().runs[prId] === "running",
-      runAgent: (prId) => { const n = (self.PRS.find((p) => p.id === prId).threads || []).filter((t) => t.tag === "input" && t.approach && st().ts[t.id] && st().ts[t.id].approachStaged).length; self.setState({ runs: { ...st().runs, [prId]: "running" } }); self.toast("Running agent — " + n + " staged item" + (n === 1 ? "" : "s") + " queued"); },
+      runAgent: (prId) => { const n = (self.PRS.find((p) => p.id === prId).threads || []).filter((t) => t.tag === "input" && (t.approach || (Array.isArray(t.approaches) && t.approaches.length)) && st().ts[t.id] && st().ts[t.id].approachStaged).length; self.setState({ runs: { ...st().runs, [prId]: "running" } }); self.toast("Running agent — " + n + " staged item" + (n === 1 ? "" : "s") + " queued"); },
       // header
       working: () => st().working,
       winding: () => st().winding,
@@ -359,12 +374,12 @@ class Component extends DCLogic {
       workingSecondary: () => {
         if (st().working) return "Watching your PRs";
         if (st().winding) { const n = self.activeRunCount(); return "finishing " + (n || 1) + " task" + ((n || 1) === 1 ? "" : "s"); }
-        return "Paused · resting";
+        return "Paused \u00b7 resting";
       },
       toggleWorking: () => self.toggleWorking(),
       scope: () => st().scope,
       scopeN: () => 3,
-      scopedLabel: () => "Scoped · 3 PRs",
+      scopedLabel: () => "Scoped \u00b7 3 PRs",
       toggleScope: () => self.toggleScope(),
       updated: () => st().updated,
       openSettings: () => self.setState({ settingsOpen: true }),
@@ -451,9 +466,11 @@ class Component extends DCLogic {
       isGeneralTab: s.settingsTab === "general",
       isAgentTab: s.settingsTab === "agent",
       isSensitivityTab: s.settingsTab === "sensitivity",
+      isNetPromptTab: s.settingsTab === "netprompt",
       settingsTabs: [
         { key: "agent", label: "Agent setup" },
         { key: "sensitivity", label: "Worker sensitivity" },
+        { key: "netprompt", label: "Prompt tracer" },
         { key: "general", label: "Appearance" },
       ].map((t) => {
         const on = s.settingsTab === t.key;
