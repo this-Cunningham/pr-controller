@@ -19,6 +19,7 @@ import { placementsFor, prSortRank, LANES } from './placements.ts';
 import * as events from './events.ts';
 import * as dispatcher from './dispatcher.ts';
 import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.ts';
+import { buildPromptTraces } from './prompt.ts';
 import { logger } from './log.ts';
 
 const exec = promisify(execFile);
@@ -429,6 +430,28 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   if (req.method === 'GET' && url.pathname === '/state.json') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify(state));
+    return;
+  }
+  // Prompt tracer (Settings → Prompt tracer): the EXACT prompt skeleton a worker receives
+  // in each situation, templated with <placeholder> slots (no live PR data). Built from the
+  // SAME assembler the real worker uses (prompt.ts → assembleWorkerPrompt), so it can never
+  // drift from what workers actually get. `sensitivity` + `detached` are preview dials
+  // (query params) — read-only, they do NOT mutate config. Lazy: fetched when the tab opens.
+  if (req.method === 'GET' && url.pathname === '/prompt-traces') {
+    try {
+      const sensitivity = url.searchParams.has('sensitivity')
+        ? clampSensitivity(url.searchParams.get('sensitivity'))
+        : config.workerSensitivity;
+      const detached = url.searchParams.get('detached') === '1';
+      const rules = await readFile(new URL('./worker-prompt.md', import.meta.url), 'utf8');
+      const traces = buildPromptTraces({ rules, sensitivity, detached });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, model: config.workerModel, sensitivity, detached, traces }));
+    } catch (e) {
+      httpLog.error('/prompt-traces failed', (e as ErrLike).message);
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: String((e as ErrLike).message || e) }));
+    }
     return;
   }
   // Live status channel. Pushes worker-started/worker-finished (the in-flight

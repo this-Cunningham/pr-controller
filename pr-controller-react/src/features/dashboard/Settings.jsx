@@ -78,7 +78,7 @@ export default function Settings({ settings, sensitivityLevels, saveConfig, onCl
               <WorkerSensitivity sensitivityLevels={sensitivityLevels} settings={settings} saveConfig={saveConfig} />
             )}
 
-            {tab === 'prompt' && <PromptTracer />}
+            {tab === 'prompt' && <PromptTracer sensitivityLevels={sensitivityLevels} settings={settings} />}
 
             {tab === 'appearance' && (
               <div className={styles.panel}>
