@@ -32,7 +32,8 @@ they touch (the sandbox), never "no workers."
 
 > **Just want to eyeball the UI?** This skill runs the *app*. For pure component checks in
 > every disposition state — no daemon, no GitHub, no workers — use the client-side fixture
-> [`pr-controller-react/dev/inject-demo-state.js`](pr-controller-react/dev/inject-demo-state.js).
+> [`pr-controller-react/dev/inject-demo-state.ts`](pr-controller-react/dev/inject-demo-state.ts).
+> It's written as the JS∩TS subset, so inject it raw: `--initScript "$(cat dev/inject-demo-state.ts)"`.
 
 ## Prerequisites
 
