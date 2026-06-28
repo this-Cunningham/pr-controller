@@ -13,7 +13,9 @@
 // USAGE (chrome-devtools CLI — daemon-free, just the Vite dev server):
 //   cd pr-controller-react && yarn dev &           # Vite on http://localhost:5173
 //   chrome-devtools navigate_page --url "http://localhost:5173" \
-//     --initScript "$(cat dev/inject-demo-state.js)"
+//     --initScript "$(cat dev/inject-demo-state.ts)"
+// (This .ts is deliberately written as the JS∩TS subset, so `cat`-ing it raw into the
+//  init script evals directly in the browser — no build/emit step needed.)
 //
 // It runs before the app's scripts and intercepts the /state.json fetch, returning
 // FIX below — so no backend (and no Vite proxy target) is needed. Switch lanes with
@@ -68,10 +70,15 @@ const FIX = {
     { prKey: "demo/api#90", lane: "waiting", subjectKind: "thread", subjectId: "t4", disposition: "agentError", reason: "", sortRank: 2 }
   ]
 };
-const _f = window.fetch;
-window.fetch = function (this: unknown, u: URL | RequestInfo, o?: RequestInit): Promise<Response> {
+// Keep this body plain JS — no TS-only syntax (type annotations, casts). The file is
+// cat'd verbatim into a chrome-devtools --initScript, so it must eval as-is in the
+// browser; it also lives in the React tsconfig `include`, so it must still pass
+// `yarn typecheck`. The arrow form gets its param types contextually from `window.fetch`
+// (no annotations needed), and binding to `window` preserves fetch's receiver.
+const _f = window.fetch.bind(window);
+window.fetch = (u, o) => {
   if (String(u).indexOf("/state.json") >= 0) {
     return Promise.resolve(new Response(JSON.stringify(FIX), { status: 200, headers: { "Content-Type": "application/json" } }));
   }
-  return _f.apply(this, arguments as unknown as Parameters<typeof fetch>);
+  return _f(u, o);
 };
