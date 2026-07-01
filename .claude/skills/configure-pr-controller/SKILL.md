@@ -1,6 +1,6 @@
 ---
 name: configure-pr-controller
-version: 3.2.0
+version: 3.2.1
 description: >-
   Help a user configure pr-controller and get it unblocked (first run or new device). Lists
   the dependencies needed, then points Claude at config.ts / config.local.json to help the
@@ -15,9 +15,12 @@ Assumes `claude` and GitHub already work on the machine. `config.ts` auto-loads 
 `config.local.json` — Claude helps the user write or **edit** it. Auth/token setup is done by the
 user in their own terminal (never paste secrets in chat).
 
-> **It runs for real — there is no dry-run.** The first poll fires on startup and dispatches
-> headless workers that commit / push / `--force-with-lease` rebase / reply on every PR in
-> `config.onlyPRs`. Empty `onlyPRs` = ALL your open PRs. Scope it tight *before* running (see Run).
+> **Launching is safe — polling is OFF by default and never auto-starts.** Starting the
+> process only serves the dashboard and seeds idle state; nothing is scanned or dispatched
+> until you explicitly flip the polling toggle on from the dashboard. **Arming is what runs
+> for real — there is no dry-run.** Once armed, the daemon dispatches headless workers that
+> commit / push / `--force-with-lease` rebase / reply on every PR in `config.onlyPRs`. Empty
+> `onlyPRs` = ALL your open PRs. Scope it tight *before arming* (see Run).
 
 ## Dependencies
 - **Node ≥ 18 + Yarn** — build the dashboard + run the daemon.
@@ -78,14 +81,20 @@ EOF
 - **`onlyPRs` is the circuit-breaker** — empty = ALL your open PRs. Keep it tight (see Run).
 
 ## Run — start with a throwaway PR
-Validate each PR is open (`GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`), then build + run:
-```bash
-( cd pr-controller-react && yarn install && yarn build ) && node --import tsx server.ts   # http://localhost:4317
-```
-For the **very first run on a new machine**, set `onlyPRs` to a SINGLE throwaway/sandbox PR (the
-README's "hardening sandbox") and watch one full cycle succeed — the first poll acts for real
-(push / rebase / force-push / reply), and a force-push has no undo. Only widen `onlyPRs` to your real
-PRs once a sandbox cycle is clean.
+Validate each PR is open (`GH_HOST=<host> gh pr view <n> --repo <owner>/<repo>`), then:
+
+1. **Scope first.** For the **very first run on a new machine**, set `onlyPRs` to a SINGLE
+   throwaway/sandbox PR (the README's "hardening sandbox") — do this *before arming*, not before
+   launching (see step 3).
+2. **Launch** — build + start the daemon. This is inert: polling is OFF by default and never
+   auto-starts, so nothing is scanned or dispatched yet.
+   ```bash
+   ( cd pr-controller-react && yarn install && yarn build ) && node --import tsx server.ts   # http://localhost:4317
+   ```
+3. **Arm** — open http://localhost:4317 and flip the dashboard polling toggle on. This is the
+   moment it runs for real: the first poll acts (push / rebase / force-push / reply), and a
+   force-push has no undo. Watch one full armed cycle succeed on the sandbox PR before widening
+   `onlyPRs` to your real PRs.
 
 ## Confirm it worked
 After `node --import tsx server.ts`, open http://localhost:4317:
