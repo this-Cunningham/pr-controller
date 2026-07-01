@@ -20,6 +20,7 @@ import * as events from './events.ts';
 import * as dispatcher from './dispatcher.ts';
 import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.ts';
 import { buildPromptTraces } from './prompt.ts';
+import { shutdownAction } from './shutdown.ts';
 import { logger } from './log.ts';
 
 const exec = promisify(execFile);
@@ -634,12 +635,27 @@ if (account && !config.login) config.login = account;
 // for why orphans are dangerous (they keep pushing unsupervised and can collide with
 // a fresh same-PR worker after restart). On the first signal: stop polling (no new
 // scans/dispatches), stop accepting HTTP, drain in-flight workers (bounded by
-// config.shutdownGraceMs), then exit. A second signal mid-drain forces an immediate
-// exit (impatient double Ctrl-C). This makes a kill behave like the disarm toggle.
-let shuttingDown = false;
+// config.shutdownGraceMs), then exit.
+//
+// A DUPLICATE of the same signal within SHUTDOWN_DEBOUNCE_MS is coalesced into the
+// one logical stop and ignored — because when node isn't the process-group leader
+// (a wrapper shell leads the group), a stopper that signals both the group and the
+// pid delivers the same signal twice ~1ms apart, and treating that as "impatient,
+// force-exit" wrongly skips drainWorkers on EVERY stop. A genuinely-later second
+// signal (a human tired of waiting on the drain) still forces an immediate exit.
+const SHUTDOWN_DEBOUNCE_MS = 1000;
+let shutdownStarted = false;
+let firstSignalAt = 0;
 async function shutdown(signal: string) {
-  if (shuttingDown) { srvLog.warn(`${signal} again — forcing immediate exit`); process.exit(1); }
-  shuttingDown = true;
+  const nowMs = Number(process.hrtime.bigint() / 1_000_000n);
+  const action = shutdownAction(shutdownStarted, nowMs - firstSignalAt, SHUTDOWN_DEBOUNCE_MS);
+  if (action === 'ignore-duplicate') {
+    srvLog.warn(`${signal} again ${nowMs - firstSignalAt}ms after the first — coalesced into the in-progress shutdown (ignored)`);
+    return;
+  }
+  if (action === 'force-exit') { srvLog.warn(`${signal} again — forcing immediate exit`); process.exit(1); }
+  shutdownStarted = true;
+  firstSignalAt = nowMs;
   srvLog.info(`${signal} received — winding down (drain ≤${config.shutdownGraceMs}ms, then kill stragglers)`);
   try { await stopPolling(); } catch (e) { srvLog.error('stopPolling on shutdown failed', (e as ErrLike).message); }
   server.close();   // stop accepting new connections; in-flight requests/SSE close on exit
