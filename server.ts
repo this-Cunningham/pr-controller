@@ -20,6 +20,7 @@ import * as events from './events.ts';
 import * as dispatcher from './dispatcher.ts';
 import { SENSITIVITY_LEVELS, clampSensitivity } from './sensitivity.ts';
 import { buildPromptTraces } from './prompt.ts';
+import { shutdownAction } from './shutdown.ts';
 import { logger } from './log.ts';
 
 const exec = promisify(execFile);
@@ -634,12 +635,24 @@ if (account && !config.login) config.login = account;
 // for why orphans are dangerous (they keep pushing unsupervised and can collide with
 // a fresh same-PR worker after restart). On the first signal: stop polling (no new
 // scans/dispatches), stop accepting HTTP, drain in-flight workers (bounded by
-// config.shutdownGraceMs), then exit. A second signal mid-drain forces an immediate
-// exit (impatient double Ctrl-C). This makes a kill behave like the disarm toggle.
-let shuttingDown = false;
+// config.shutdownGraceMs), then exit.
+//
+// A second signal is dispatched on TYPE (see shutdownAction): a duplicate SIGTERM is
+// coalesced into the in-progress stop and ignored — machines send SIGTERM once then
+// SIGKILL, so a second SIGTERM is the launch topology delivering the same stop twice
+// (node not being the process-group leader → group+pid double-delivery ~1ms apart),
+// never impatience. Only a second SIGINT (a human's deliberate second Ctrl-C) forces
+// an immediate exit. The old handler force-exited on any second signal, skipping
+// drainWorkers on every machine stop (issue #57).
+let shutdownStarted = false;
 async function shutdown(signal: string) {
-  if (shuttingDown) { srvLog.warn(`${signal} again — forcing immediate exit`); process.exit(1); }
-  shuttingDown = true;
+  const action = shutdownAction(shutdownStarted, signal);
+  if (action === 'ignore-duplicate') {
+    srvLog.warn(`${signal} again during shutdown — coalesced into the in-progress drain (ignored)`);
+    return;
+  }
+  if (action === 'force-exit') { srvLog.warn(`${signal} again — forcing immediate exit`); process.exit(1); }
+  shutdownStarted = true;
   srvLog.info(`${signal} received — winding down (drain ≤${config.shutdownGraceMs}ms, then kill stragglers)`);
   try { await stopPolling(); } catch (e) { srvLog.error('stopPolling on shutdown failed', (e as ErrLike).message); }
   server.close();   // stop accepting new connections; in-flight requests/SSE close on exit
